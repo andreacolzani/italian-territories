@@ -659,7 +659,7 @@ Stack: Node ≥ 22 LTS, TypeScript (strict), ESM, `vitest`, runtime validation w
 - **Deliverables**: repository layout (§14), fixtures moved to the §11.1 layout with `manifest.json`, `test/helpers/fixtures.ts` (`fixturePath`, mock transport) and the manifest validation test, `package.json` scripts (`build`, `test`, `lint`, `typecheck`), `tsconfig` (strict), ESLint + Prettier, `vitest`, CLI entry (`src/cli.ts`) with the commands of §10.1 as stubs, config module (concurrency, timeouts, rate limit, paths, dates, lookback days).
 - **Acceptance**: `npm run typecheck && npm test` pass (including manifest validation); CLI prints help.
 
-### Step 2 — Calendar-date utilities and domain types
+### Step 2 — Calendar-date utilities and domain types — DONE
 
 - **Deliverables**: pure date library (parse/format ISO, add/subtract days, compare, half-open ↔ inclusive conversion, `DD/MM/YYYY` conversion); internal domain types; public zod models of §4; JSON Schema generation.
 - **Acceptance**: exhaustive unit tests including leap years, 1861-03-17 lower bound, conversion round-trips.

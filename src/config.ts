@@ -1,8 +1,7 @@
 import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
-
-/** ISO calendar date `YYYY-MM-DD` (full validation lives in the date library, §4.1). */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
+import { UNIFICATION_DATE } from './dates/index.ts';
+import { isoDateSchema as isoDate } from './model/public.ts';
 
 const MAX_CONCURRENCY = 8;
 
@@ -61,7 +60,7 @@ const sourcesSchema = z
 const datesSchema = z
   .object({
     /** Unification: lower bound of the dataset (§1.2). */
-    start: isoDate.default('1861-03-17'),
+    start: isoDate.default(UNIFICATION_DATE),
     /** First days of the 1927 and 1948 snapshot regimes (§2, §3.2). */
     regimeBoundaries: z.array(isoDate).default(['1927-01-12', '1948-01-01']),
     /** Reference "today"; `null` means the current date at run time. */

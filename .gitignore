@@ -1,0 +1,20 @@
+/tmp
+/out-tsc
+
+/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/.pnp
+.pnp.js
+
+.vscode/*
+# Build output (dist/ holds the published dataset and is committed)
+/lib
+/coverage
+
+# Local HTTP response cache and data-cache worktree
+/.cache
+
+# IDE
+/.idea

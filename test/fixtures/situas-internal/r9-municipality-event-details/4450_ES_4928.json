@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "codice Provincia/Uts": "041",
+      "codice Comune": "041060",
+      "Comune": "Sassofeltrio",
+      "tipo variazione": "ES",
+      "data evento": "14/05/1929",
+      "codice Provincia/Uts associato": "041",
+      "codice Comune associato": "041035",
+      "denominazione associata": "Monte Grimano",
+      "variazione": "ES-Estinzione"
+    },
+    {
+      "codice Provincia/Uts": "041",
+      "codice Comune": "041060",
+      "Comune": "Sassofeltrio",
+      "tipo variazione": "ES",
+      "data evento": "14/05/1929",
+      "codice Provincia/Uts associato": "041",
+      "codice Comune associato": "041026",
+      "denominazione associata": "Piandicastello",
+      "variazione": "ES-Estinzione"
+    }
+  ]
+}

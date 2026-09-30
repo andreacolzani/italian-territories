@@ -1,0 +1,7 @@
+lib/
+dist/
+coverage/
+.cache/
+test/fixtures/
+docs/
+package-lock.json

@@ -1,0 +1,56 @@
+{
+  "items": [
+    {
+      "codice comune corrente": "099031",
+      "denominazione corrente": "Sassofeltrio",
+      "tipo variazione": "PV",
+      "data evento": "17/03/1861",
+      "codice Istat": "041060",
+      "denominazione": "Sassofeltrio",
+      "descrizione evento": "DATA INIZIO SISTEMA",
+      "identificativo provvedimento": 373,
+      "variazione": "PV-Prima validità",
+      "id_comune_origine": 4450,
+      "orderr": 3
+    },
+    {
+      "codice comune corrente": "099031",
+      "denominazione corrente": "Sassofeltrio",
+      "tipo variazione": "ES",
+      "data evento": "14/05/1929",
+      "codice Istat": "041060",
+      "denominazione": "Sassofeltrio",
+      "descrizione evento": "AGGREGATO AL COMUNE DI PIAN DI CASTELLO, ORA MERCATINO CONCA, IL TERRITORIO DEL SOPPRESSO COMUNE DI SASSOFELTRIO, AD ECCEZIONE DELLA FRAZIONE VALLE SANTA ANASTASIA AGGREGATA AL COMUNE DI MONTE GRIMANO, ORA MONTE GRIMANO TERME, TUTTI IN PROVINCIA DI PESARO E URBINO",
+      "identificativo provvedimento": 4928,
+      "variazione": "ES-Estinzione",
+      "id_comune_origine": 4450,
+      "orderr": 3
+    },
+    {
+      "codice comune corrente": "099031",
+      "denominazione corrente": "Sassofeltrio",
+      "tipo variazione": "CS",
+      "data evento": "25/11/1947",
+      "codice Istat": "041060",
+      "denominazione": "Sassofeltrio",
+      "descrizione evento": "RICOSTITUITO IL COMUNE DI SASSOFELTRIO A SEGUITO DEL DISTACCO DELLE FRAZIONI FRATTE, SASSO FELTRIO E GESSO DAL COMUNE DI MERCATINO CONCA E DELLA FRAZIONE SANT'ANASTASIO DAL COMUNE DI MONTE GRIMANO, ORA MONTE GRIMANO TERME, IN PROVINCIA DI PESARO E URBINO",
+      "identificativo provvedimento": 4949,
+      "variazione": "CS-Costituzione",
+      "id_comune_origine": 4450,
+      "orderr": 2
+    },
+    {
+      "codice comune corrente": "099031",
+      "denominazione corrente": "Sassofeltrio",
+      "tipo variazione": "AP",
+      "data evento": "17/06/2021",
+      "codice Istat": "099031",
+      "denominazione": "Sassofeltrio",
+      "descrizione evento": "DISTACCO DEI COMUNI DI MONTECOPIOLO E SASSOFELTRIO DALLA PROVINCIA DI PESARO E URBINO (MARCHE) E RELATIVA AGGREGAZIONE ALLA PROVINCIA DI RIMINI (EMILIA-ROMAGNA)",
+      "identificativo provvedimento": 6128,
+      "variazione": "AP-Cambio appartenenza Provincia",
+      "id_comune_origine": 4450,
+      "orderr": 1
+    }
+  ]
+}

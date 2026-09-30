@@ -1,0 +1,4 @@
+* text=auto eol=lf
+
+# Fixtures are real API responses and must stay byte-identical (ANPR CSV uses CRLF).
+test/fixtures/** -text

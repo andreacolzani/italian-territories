@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "codice Provincia/Uts": "041",
+      "codice Comune": "041060",
+      "Comune": "Sassofeltrio",
+      "tipo variazione": "CS",
+      "data evento": "25/11/1947",
+      "codice Provincia/Uts associato": "041",
+      "codice Comune associato": "041035",
+      "denominazione associata": "Monte Grimano",
+      "variazione": "CS-Costituzione"
+    },
+    {
+      "codice Provincia/Uts": "041",
+      "codice Comune": "041060",
+      "Comune": "Sassofeltrio",
+      "tipo variazione": "CS",
+      "data evento": "25/11/1947",
+      "codice Provincia/Uts associato": "041",
+      "codice Comune associato": "041026",
+      "denominazione associata": "Mercatino Conca",
+      "variazione": "CS-Costituzione"
+    }
+  ]
+}

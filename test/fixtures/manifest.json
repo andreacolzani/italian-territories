@@ -1,0 +1,524 @@
+{
+  "$comment": "Fixture manifest. Paths are relative to test/fixtures/. Request URLs and bodies are unencoded; the HTTP client encodes parameter values. See docs/GENERATOR_IMPLEMENTATION_PLAN.md §11.1.",
+  "manifest_version": 1,
+  "fixtures": [
+    {
+      "path": "anpr/anpr-archivio-comuni_2026-09-30.csv",
+      "source": "anpr",
+      "endpoint": "anpr:archivio-comuni",
+      "request": {
+        "method": "GET",
+        "url": "https://www.anagrafenazionale.interno.it/wp-content/uploads/ANPR_archivio_comuni.csv"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": "Latest DATAULTIMOAGG in file: 2026-06-04.",
+      "used_by": [
+        "golden-3",
+        "golden-14"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-64_2025-12-31.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-64",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=64&pdata=31/12/2025"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-64_2026-01-01.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-64",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=64&pdata=01/01/2026"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-51_1921-06-01.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-51",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=51&pdata=01/06/1921"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-7",
+        "golden-13"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1942-06-01.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=01/06/1942"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-8"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2024-01-21.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=21/01/2024"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2024-01-22.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=22/01/2024"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
+    },
+    {
+      "path": "situas-public/events/provinces/pfun-112_2026-01-01_2026-09-30.json",
+      "source": "situas-public",
+      "endpoint": "events:pfun-112",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=112&pdatada=01/01/2026&pdataa=30/09/2026"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-public/events/provinces/pfun-113_2026-01-01_2026-09-30.json",
+      "source": "situas-public",
+      "endpoint": "events:pfun-113",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=113&pdatada=01/01/2026&pdataa=30/09/2026"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-public/events/municipalities/pfun-98_1861-03-17_2026-09-30.json",
+      "source": "situas-public",
+      "endpoint": "events:pfun-98",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=98&pdatada=17/03/1861&pdataa=30/09/2026"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1",
+        "golden-6",
+        "golden-9",
+        "golden-14"
+      ]
+    },
+    {
+      "path": "situas-public/events/municipalities/pfun-104_1861-03-17_2026-09-30.json",
+      "source": "situas-public",
+      "endpoint": "events:pfun-104",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=104&pdatada=17/03/1861&pdataa=30/09/2026"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-12",
+        "golden-13"
+      ]
+    },
+    {
+      "path": "situas-public/events/municipalities/pfun-105_1861-03-17_2026-09-30.json",
+      "source": "situas-public",
+      "endpoint": "events:pfun-105",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=105&pdatada=17/03/1861&pdataa=30/09/2026"
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4",
+        "golden-6"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/111_1_sud-sardegna.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Sud Sardegna&coduts=111&uts_tipo=1"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/119_1_sulcis-iglesiente.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Sulcis Iglesiente&coduts=119&uts_tipo=1"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/114_1_nuoro.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Nuoro&coduts=114&uts_tipo=1"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/116_1_ogliastra.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Ogliastra&coduts=116&uts_tipo=1"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/117_1_medio-campidano.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Medio Campidano&coduts=117&uts_tipo=1"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/312_3_sassari.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Sassari&coduts=312&uts_tipo=3"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/318_3_cagliari.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Cagliari&coduts=318&uts_tipo=3"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/215_3_milano.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Milano&coduts=215&uts_tipo=3"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-5"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/099031_sassofeltrio.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=099031&com=Sassofeltrio"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": "Same response when queried with the historical pair (041060, Sassofeltrio).",
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/115064_siamanna.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=115064&com=Siamanna"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-3",
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/021008_bolzano-bozen.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=021008&com=Bolzano/Bozen"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-11"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/032004_san-dorligo-della-valle-dolina.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=032004&com=San Dorligo della Valle-Dolina"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": "Bilingual name since 1921 (reference for §3.5 item 13).",
+      "used_by": [
+        "quirk-13"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/007022_courmayeur.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=007022&com=Courmayeur"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-10"
+      ]
+    },
+    {
+      "path": "situas-internal/r9-municipality-event-details/4450_ES_4928.json",
+      "source": "situas-internal",
+      "endpoint": "r9:municipality-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs_dett_ass?idcomuneorig=4450&mcrvar=ES&idprovv=4928"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-internal/r9-municipality-event-details/4450_CS_4949.json",
+      "source": "situas-internal",
+      "endpoint": "r9:municipality-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs_dett_ass?idcomuneorig=4450&mcrvar=CS&idprovv=4949"
+        }
+      },
+      "fetched_at": "2026-09-30",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    }
+  ]
+}

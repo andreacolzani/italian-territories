@@ -1,0 +1,43 @@
+{
+  "name": "italian-territories",
+  "version": "0.0.0",
+  "description": "Generator of a day-accurate historical dataset of Italian regions, provinces (UTS) and municipalities since 1861-03-17.",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andreacolzani/italian-territories.git"
+  },
+  "homepage": "https://github.com/andreacolzani/italian-territories#readme",
+  "bugs": {
+    "url": "https://github.com/andreacolzani/italian-territories/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "bin": {
+    "italian-territories": "lib/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "cli": "node src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.4",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}

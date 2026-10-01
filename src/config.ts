@@ -27,9 +27,18 @@ const httpSchema = z
     maxConcurrency: z.int().min(1).max(MAX_CONCURRENCY).default(MAX_CONCURRENCY),
     /** Consecutive fast successes before adding a worker. */
     aimdIncreaseAfter: z.int().min(1).default(20),
+    /** A success is fast when its latency is at most this fraction of its endpoint-class timeout. */
+    aimdFastFraction: z.number().gt(0).max(1).default(0.25),
     /** Token-bucket rate limit. */
     requestsPerSecond: z.number().positive().default(4),
     maxAttempts: z.int().min(1).default(6),
+    /** Extra attempts allowed for transient validation failures, inside `maxAttempts` (§6.1). */
+    transientValidationRetries: z.int().min(0).default(2),
+    /** Full-jitter exponential backoff: delay ∈ [0, min(backoffMaxMs, backoffBaseMs · 2^(retry−1))). */
+    backoffBaseMs: z.int().min(0).default(1000),
+    backoffMaxMs: z.int().min(0).default(60_000),
+    /** Upper bound applied to a server-provided `Retry-After`. */
+    retryAfterMaxMs: z.int().min(0).default(300_000),
     timeouts: z
       .object({
         snapshotMs: z.int().positive().default(120_000),

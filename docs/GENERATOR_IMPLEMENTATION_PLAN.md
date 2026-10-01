@@ -8,7 +8,7 @@
 
 ## 0. How to use this document
 
-- Implement the steps in **§12** in order. Each step lists deliverables and acceptance criteria. Do not start a step before the previous one passes its acceptance criteria. 
+- Implement the steps in **§12** in order. Each step lists deliverables and acceptance criteria. Do not start a step before the previous one passes its acceptance criteria.
 - Sections §1–§11 are the **specification**. When a step references a rule, the rule lives there. If implementation reveals a contradiction or a case not covered, **stop and ask** instead of improvising: the decisions in §13 were reached after analysing real SITUAS/ANPR data and must not be silently changed.
 - Every behaviour described as an *invariant* (§8) must be enforced by code, not by convention.
 - Real API responses used during design are listed in **§11 (golden cases)**. Store them as test fixtures.
@@ -113,7 +113,7 @@ Observed full-range sizes: 98 → 3,618; 100 → 4,291; 103 → 5,927; 104 → 2
 `POST https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl`
 Headers: `Content-Type: application/json`, `Accept: application/json`.
 Body: `{ "url": "<report url>" }` — the report URL must be built with properly URL-encoded parameter values (names contain accents and apostrophes, e.g. `Agliè`, `Valle d'Aosta`).
-Responses: `{ "items": [ ... ] }`. Dates as `DD/MM/YYYY`.
+Responses: `{ "items": [ ... ] }`. Dates as `DD/MM/YYYY`. Verified encoding quirk: a non-empty result is served as `application/json` whose body is a **JSON string containing the JSON document** (double-encoded); an empty result is served as `text/plain` with a plain `{"items":[]}`. The decoder parses once more when the first parse yields a string.
 
 | # | Report URL | Returns |
 |---|---|---|
@@ -330,15 +330,33 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
 ### 6.1 HTTP client (parallel, polite, resumable)
 
 - Single client used by every adapter. Worker pool with **configurable concurrency** (default 4, max 8).
-- **Adaptive concurrency (AIMD)**: +1 worker after K consecutive fast successes (up to max); halve on 429, 5xx, timeout or connection reset.
+- **Adaptive concurrency (AIMD)**: +1 worker after K consecutive fast successes (up to max); halve on 429, 5xx, timeout or connection reset. A success is *fast* when its latency is at most a configurable fraction (default 0.25) of its endpoint-class timeout; a slow success resets the counter without halving. Failures of attempts started before the last halving do not halve again (one decrease per congestion episode).
 - Token-bucket rate limit (configurable requests/second).
 - Retries: up to 6 attempts, exponential backoff with full jitter; respect `Retry-After`.
 - Timeouts: configurable per endpoint class (snapshots of municipalities are large; default 120 s; event/detail calls 30 s).
-- **Circuit breaker**: after N consecutive failures on an endpoint family, stop that family and report instead of hammering the server.
+- **Circuit breaker**: after N consecutive failures on an endpoint family, stop that family and report instead of hammering the server. A family is a source (`situas-public`, `situas-internal`, `anpr`), declared by the adapter. Every failed attempt counts (429, 5xx, timeout, connection reset, transient validation error); a success resets the count. Once open, the circuit stays open for the rest of the run and requests fail immediately.
+- **Encoding**: requests are built unencoded (§11.1); the client encodes every query parameter value strictly (RFC 3986: `encodeURIComponent` plus `!'()*`), both in public URLs and in the report URL inside the internal API body. Verified: unencoded values with spaces, `/` or apostrophes make the internal API answer `500 System Error`.
 - `User-Agent` identifying the project with a contact URL.
-- **Response cache** keyed by `sha256(method + normalised URL + body)`. Completed responses are written as soon as they arrive, so an interrupted run resumes without extra logic.
-- Every response is validated by an endpoint-specific runtime schema (e.g. zod) that checks only required fields.
-- **Degradation**: if the internal API family is unavailable, the run uses the last cached internal data and logs a `warning`. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
+- **Response cache** keyed by `sha256(method + normalised URL + body)`. Completed responses are written as soon as they arrive, so an interrupted run resumes without extra logic. Each entry stores `fetched_at` and the content hash.
+- **No global TTL.** Freshness is a **per-call policy chosen by the caller**, never decided by the client: `cache: "prefer"` (use the entry if present), `"refresh"` (always refetch), or `{ maxAgeDays: n }`. The orchestrator (§10) decides which requests must be fresh:
+  - requests parameterised with today's date (today's snapshots, event lists with `pdataa = today`) have new cache keys every day, so they are always fetched;
+  - historical snapshots use `prefer`, because their URLs never change;
+  - `audit` and `rebuild --refetch` use `refresh`;
+  - the internal UTS/region events affected by new variations use `refresh`.
+
+  A global TTL is rejected for three reasons: it makes builds non-deterministic, it triggers mass refetches when many entries expire together, and it changes data in the middle of a pipeline without anyone deciding it.
+- **Changed content on refresh**: when a refreshed response differs from the cached one, the client keeps the previous content hash in the entry and emits a `changed` notification. The orchestrator treats it as a potential retroactive change (§10.2): data is never overwritten silently.
+- **Response validation**: every response is validated by an endpoint-specific runtime schema (e.g. zod) that checks only required fields. There are two error classes, distinguished by where validation fails:
+  - **Transient** (retried with the normal backoff, at most 2 extra attempts):
+    - the body is not parseable JSON;
+    - the content type is not among those accepted by the endpoint, e.g. an HTML maintenance page (public API: `application/json`; internal API: `application/json` or `text/plain`, see §3.3; ANPR: `text/csv`);
+    - the expected envelope (`resultset` / `items`) is missing;
+    - a snapshot or a list report returns zero rows, which is impossible for those endpoints.
+
+    The 2 extra attempts are a separate budget inside the overall attempt limit. Each transient validation failure counts for the circuit breaker and halves the AIMD concurrency like a 5xx. If retries are exhausted it becomes a response error.
+  - **Permanent `ResponseValidationError`** (no retry): the envelope is valid but rows violate the schema, e.g. a missing required field or an unparseable date or code. It stops that endpoint family and produces a `blocking` anomaly with the request and offending rows.
+  - Invalid responses of either class are **never cached**.
+- **Degradation**: if the internal API family is unavailable, the run uses the last cached internal data and logs a `warning`. The client implements it as an opt-in per request (`staleFallback`): when the network fails (circuit open or retries exhausted) and a cache entry exists, whatever its age or the cache policy, the entry is returned marked as stale and a `degraded` notification is emitted; without an entry the request fails. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
 
 ### 6.2 Normalisation
 
@@ -664,7 +682,7 @@ Stack: Node ≥ 22 LTS, TypeScript (strict), ESM, `vitest`, runtime validation w
 - **Deliverables**: pure date library (parse/format ISO, add/subtract days, compare, half-open ↔ inclusive conversion, `DD/MM/YYYY` conversion); internal domain types; public zod models of §4; JSON Schema generation.
 - **Acceptance**: exhaustive unit tests including leap years, 1861-03-17 lower bound, conversion round-trips.
 
-### Step 3 — HTTP client
+### Step 3 — HTTP client — DONE
 
 - **Deliverables**: client per §6.1 (pool, AIMD, token bucket, retries, timeouts, circuit breaker, UA, response cache).
 - **Acceptance**: tests with a mocked server covering 429/5xx/timeouts, `Retry-After`, concurrency limits, cache hits, resume after interruption.

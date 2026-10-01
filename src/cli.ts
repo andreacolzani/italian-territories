@@ -3,6 +3,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsOptionsConfig } from 'node:util';
 import { resolveConfig, type Config } from './config.ts';
+import { currentDate, isAfter, isIsoDate, type IsoDate } from './dates/index.ts';
 
 export interface CliIo {
   out: (text: string) => void;
@@ -10,7 +11,10 @@ export interface CliIo {
 }
 
 interface CommandContext {
+  /** `dates.today` is always set: the flag, the configured value or the current date. */
   config: Config;
+  /** Reference date of the run (§12.0 Determinism); build code never reads the clock. */
+  today: IsoDate;
   io: CliIo;
   values: Record<string, string | boolean | undefined>;
   positionals: string[];
@@ -25,6 +29,12 @@ interface Command {
 }
 
 const PROGRAM = 'italian-territories';
+
+/** Options accepted by every command. */
+const GLOBAL_OPTIONS = {
+  help: { type: 'boolean', short: 'h' },
+  today: { type: 'string' },
+} as const satisfies ParseArgsOptionsConfig;
 
 function notImplemented(name: string) {
   return (ctx: CommandContext): Promise<number> => {
@@ -89,7 +99,8 @@ export function helpText(): string {
     ...lines,
     '',
     'Options:',
-    '  -h, --help  Show this help.',
+    '  --today YYYY-MM-DD  Reference date of the run (default: current date in Europe/Rome).',
+    '  -h, --help          Show this help.',
     '',
   ].join('\n');
 }
@@ -99,7 +110,26 @@ const defaultIo: CliIo = {
   err: (text) => process.stderr.write(text),
 };
 
-export async function main(argv: string[], io: CliIo = defaultIo, config: Config = resolveConfig()): Promise<number> {
+/**
+ * Reference date of the run: `--today`, else the configured `dates.today`, else the current date
+ * in Europe/Rome. The only place where the build reads the clock (§12.0 Determinism).
+ */
+export function resolveToday(flag: string | undefined, config: Config, clock: () => IsoDate = currentDate): IsoDate {
+  const today = flag ?? config.dates.today ?? clock();
+  const invalid = `--today must be a YYYY-MM-DD date, got '${today}'`;
+  if (!isIsoDate(today)) throw new RangeError(invalid);
+  if (isAfter(config.dates.start, today)) {
+    throw new RangeError(`--today ${today} is before the dataset start ${config.dates.start}`);
+  }
+  return today;
+}
+
+export async function main(
+  argv: string[],
+  io: CliIo = defaultIo,
+  config: Config = resolveConfig(),
+  clock: () => IsoDate = currentDate,
+): Promise<number> {
   const [name, ...rest] = argv;
   if (name === undefined || name === '-h' || name === '--help' || name === 'help') {
     io.out(helpText());
@@ -115,7 +145,7 @@ export async function main(argv: string[], io: CliIo = defaultIo, config: Config
   try {
     parsed = parseArgs({
       args: rest,
-      options: { ...command.options, help: { type: 'boolean', short: 'h' } },
+      options: { ...command.options, ...GLOBAL_OPTIONS },
       allowPositionals: true,
       strict: true,
     });
@@ -131,7 +161,22 @@ export async function main(argv: string[], io: CliIo = defaultIo, config: Config
     io.err(`${PROGRAM} ${name}: expected ${command.positionals} argument(s).\nUsage: ${PROGRAM} ${command.usage}\n`);
     return 1;
   }
-  return command.run({ config, io, values: parsed.values, positionals: parsed.positionals });
+  const flag = parsed.values.today;
+  let today: IsoDate;
+  try {
+    today = resolveToday(typeof flag === 'string' ? flag : undefined, config, clock);
+  } catch (error) {
+    io.err(`${PROGRAM} ${name}: ${(error as Error).message}
+`);
+    return 1;
+  }
+  return command.run({
+    config: { ...config, dates: { ...config.dates, today } },
+    today,
+    io,
+    values: parsed.values,
+    positionals: parsed.positionals,
+  });
 }
 
 function isEntryPoint(): boolean {

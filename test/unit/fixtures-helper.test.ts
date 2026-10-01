@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseJsonBody } from '../../src/http/decode.ts';
 import { createFixtureTransport, fixturePath, slugify, subsetBasePath } from '../helpers/fixtures.ts';
 
 const INTERNAL = 'https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl';
@@ -66,13 +67,14 @@ describe('fixture transport', () => {
     const transport = await createFixtureTransport();
     const response = await transport(internal('var_get_ua_uts_lov_rs?&uts=Sassari&coduts=312&uts_tipo=3'));
     expect(response.status).toBe(200);
-    expect(JSON.parse(response.body)).toHaveProperty('items');
+    // Raw internal bodies are double-encoded (§3.3).
+    expect(parseJsonBody(response.body)).toHaveProperty('items');
 
     const encoded = await transport({
       method: 'GET',
       url: 'https://situas-servizi.istat.it/publish/reportspooljson?pfun=64&pdata=01%2F01%2F2026',
     });
-    expect(JSON.parse(encoded.body)).toHaveProperty('resultset');
+    expect(parseJsonBody(encoded.body)).toHaveProperty('resultset');
   });
 
   it('fails loudly on unknown requests', async () => {

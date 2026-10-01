@@ -26,7 +26,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=64&pdata=31/12/2025"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -41,7 +41,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=64&pdata=01/01/2026"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -56,7 +56,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=51&pdata=01/06/1921"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -72,7 +72,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=01/06/1942"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -87,7 +87,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=21/01/2024"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -102,7 +102,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=22/01/2024"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -117,7 +117,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=112&pdatada=01/01/2026&pdataa=30/09/2026"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -132,7 +132,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=113&pdatada=01/01/2026&pdataa=30/09/2026"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -147,7 +147,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=98&pdatada=17/03/1861&pdataa=30/09/2026"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -165,7 +165,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=104&pdatada=17/03/1861&pdataa=30/09/2026"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -181,7 +181,7 @@
         "method": "GET",
         "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=105&pdatada=17/03/1861&pdataa=30/09/2026"
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -204,7 +204,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Sud Sardegna&coduts=111&uts_tipo=1"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -226,7 +226,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Sulcis Iglesiente&coduts=119&uts_tipo=1"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -248,7 +248,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Nuoro&coduts=114&uts_tipo=1"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -270,7 +270,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Ogliastra&coduts=116&uts_tipo=1"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -292,7 +292,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Medio Campidano&coduts=117&uts_tipo=1"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -314,7 +314,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Sassari&coduts=312&uts_tipo=3"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -336,7 +336,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Cagliari&coduts=318&uts_tipo=3"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -358,7 +358,7 @@
           "url": "var_get_ua_uts_lov_rs?&uts=Milano&coduts=215&uts_tipo=3"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -380,7 +380,7 @@
           "url": "var_get_ua_comuni_lov_rs?procom=099031&com=Sassofeltrio"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": "Same response when queried with the historical pair (041060, Sassofeltrio).",
       "used_by": [
@@ -402,7 +402,7 @@
           "url": "var_get_ua_comuni_lov_rs?procom=115064&com=Siamanna"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -425,7 +425,7 @@
           "url": "var_get_ua_comuni_lov_rs?procom=021008&com=Bolzano/Bozen"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -447,7 +447,7 @@
           "url": "var_get_ua_comuni_lov_rs?procom=032004&com=San Dorligo della Valle-Dolina"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": "Bilingual name since 1921 (reference for §3.5 item 13).",
       "used_by": [
@@ -469,7 +469,7 @@
           "url": "var_get_ua_comuni_lov_rs?procom=007022&com=Courmayeur"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -491,7 +491,7 @@
           "url": "var_get_ua_comuni_lov_rs_dett_ass?idcomuneorig=4450&mcrvar=ES&idprovv=4928"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [
@@ -513,7 +513,7 @@
           "url": "var_get_ua_comuni_lov_rs_dett_ass?idcomuneorig=4450&mcrvar=CS&idprovv=4949"
         }
       },
-      "fetched_at": "2026-09-30",
+      "fetched_at": "2026-10-01",
       "completeness": "full",
       "note": null,
       "used_by": [

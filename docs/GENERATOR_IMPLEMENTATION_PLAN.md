@@ -743,11 +743,15 @@ Stack: Node ≥ 22 LTS, TypeScript (strict), ESM, `vitest`, runtime validation w
 
 - **Deliverables**: workflows of §10.3, `data-cache` branch handling, PR creation for retroactive changes, release and npm publish.
 - **Acceptance**: dry-run on a fork; no publish when blocking anomalies exist.
+- **Open points** (to discuss or implement in this step):
+  - the automatic update must also update `CHANGELOG.md`. Releases created with the `GITHUB_TOKEN` do not trigger other workflows, so `update-changelog.yml` (manual releases only) is not enough: the update has to happen inside the release flow, or the release has to be created with a PAT/GitHub App;
+  - decide how the workflows that commit to `main` (changelog, data releases) behave when `main` is protected (bypass for GitHub Actions, PAT/GitHub App, or PR).
 
 ### Step 19 — Documentation
 
 - **Deliverables**: README (purpose, scope and perimeter, de iure dates, inclusive `valid_until`, file formats, id stability, consumer resolution contract of §7, update cadence, anomaly levels), CONTRIBUTING (how to add an override), CHANGELOG policy.
 - **Acceptance**: every public field documented with type and semantics.
+- **Open points**: the CHANGELOG policy must update the changelog automatically only when the public outputs actually change.
 
 ---
 

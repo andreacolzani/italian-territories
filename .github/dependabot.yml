@@ -1,0 +1,36 @@
+# Please see the documentation for all configuration options:
+# https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Rome
+    # Leave new releases a few days to be yanked before they are proposed.
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Types must follow the minimum supported Node major (engines.node).
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Rome
+    cooldown:
+      default-days: 3
+    groups:
+      github-actions:
+        patterns: ['*']

@@ -1,94 +1,94 @@
 {
-  "resultset": [
-    {
-      "ANNO": "2026",
-      "TIPO_UTS": "1",
-      "DESC_TIPO_UTS": "Provincia",
-      "COD_UTS": "113",
-      "DEN_UTS": "Gallura Nord-Est Sardegna",
-      "SIGLA_UTS": "OT",
-      "COD_VARIAZIONE": "CS",
-      "DATA_INIZIO_AMMINISTRATIVA": "2026-01-01T00:00:00Z",
-      "COD_UTS_REL": "090",
-      "DEN_UTS_REL": "Sassari",
-      "SIGLA_UTS_REL": "SS",
-      "TIPO_UTS_REL": "1",
-      "DESC_TIPO_UTS_REL": "Provincia"
-    },
-    {
-      "ANNO": "2026",
-      "TIPO_UTS": "1",
-      "DESC_TIPO_UTS": "Provincia",
-      "COD_UTS": "116",
-      "DEN_UTS": "Ogliastra",
-      "SIGLA_UTS": "OG",
-      "COD_VARIAZIONE": "CS",
-      "DATA_INIZIO_AMMINISTRATIVA": "2026-01-01T00:00:00Z",
-      "COD_UTS_REL": "091",
-      "DEN_UTS_REL": "Nuoro",
-      "SIGLA_UTS_REL": "NU",
-      "TIPO_UTS_REL": "1",
-      "DESC_TIPO_UTS_REL": "Provincia"
-    },
-    {
-      "ANNO": "2026",
-      "TIPO_UTS": "1",
-      "DESC_TIPO_UTS": "Provincia",
-      "COD_UTS": "116",
-      "DEN_UTS": "Ogliastra",
-      "SIGLA_UTS": "OG",
-      "COD_VARIAZIONE": "CS",
-      "DATA_INIZIO_AMMINISTRATIVA": "2026-01-01T00:00:00Z",
-      "COD_UTS_REL": "111",
-      "DEN_UTS_REL": "Sud Sardegna",
-      "SIGLA_UTS_REL": "SU",
-      "TIPO_UTS_REL": "1",
-      "DESC_TIPO_UTS_REL": "Provincia"
-    },
-    {
-      "ANNO": "2026",
-      "TIPO_UTS": "1",
-      "DESC_TIPO_UTS": "Provincia",
-      "COD_UTS": "117",
-      "DEN_UTS": "Medio Campidano",
-      "SIGLA_UTS": "VS",
-      "COD_VARIAZIONE": "CS",
-      "DATA_INIZIO_AMMINISTRATIVA": "2026-01-01T00:00:00Z",
-      "COD_UTS_REL": "111",
-      "DEN_UTS_REL": "Sud Sardegna",
-      "SIGLA_UTS_REL": "SU",
-      "TIPO_UTS_REL": "1",
-      "DESC_TIPO_UTS_REL": "Provincia"
-    },
-    {
-      "ANNO": "2026",
-      "TIPO_UTS": "1",
-      "DESC_TIPO_UTS": "Provincia",
-      "COD_UTS": "119",
-      "DEN_UTS": "Sulcis Iglesiente",
-      "SIGLA_UTS": "SU",
-      "COD_VARIAZIONE": "CS",
-      "DATA_INIZIO_AMMINISTRATIVA": "2026-01-01T00:00:00Z",
-      "COD_UTS_REL": "111",
-      "DEN_UTS_REL": "Sud Sardegna",
-      "SIGLA_UTS_REL": "SU",
-      "TIPO_UTS_REL": "1",
-      "DESC_TIPO_UTS_REL": "Provincia"
-    },
-    {
-      "ANNO": "2026",
-      "TIPO_UTS": "3",
-      "DESC_TIPO_UTS": "Città metropolitana",
-      "COD_UTS": "312",
-      "DEN_UTS": "Sassari",
-      "SIGLA_UTS": "SS",
-      "COD_VARIAZIONE": "CSCT",
-      "DATA_INIZIO_AMMINISTRATIVA": "2026-01-01T00:00:00Z",
-      "COD_UTS_REL": "090",
-      "DEN_UTS_REL": "Sassari",
-      "SIGLA_UTS_REL": "SS",
-      "TIPO_UTS_REL": "1",
-      "DESC_TIPO_UTS_REL": "Provincia"
-    }
-  ]
+"resultset":[
+{
+"ANNO":"2026"
+,"TIPO_UTS":"1"
+,"DESC_TIPO_UTS":"Provincia"
+,"COD_UTS":"113"
+,"DEN_UTS":"Gallura Nord-Est Sardegna"
+,"SIGLA_UTS":"OT"
+,"COD_VARIAZIONE":"CS"
+,"DATA_INIZIO_AMMINISTRATIVA":"2026-01-01T00:00:00Z"
+,"COD_UTS_REL":"090"
+,"DEN_UTS_REL":"Sassari"
+,"SIGLA_UTS_REL":"SS"
+,"TIPO_UTS_REL":"1"
+,"DESC_TIPO_UTS_REL":"Provincia"
+}
+,{
+"ANNO":"2026"
+,"TIPO_UTS":"1"
+,"DESC_TIPO_UTS":"Provincia"
+,"COD_UTS":"116"
+,"DEN_UTS":"Ogliastra"
+,"SIGLA_UTS":"OG"
+,"COD_VARIAZIONE":"CS"
+,"DATA_INIZIO_AMMINISTRATIVA":"2026-01-01T00:00:00Z"
+,"COD_UTS_REL":"091"
+,"DEN_UTS_REL":"Nuoro"
+,"SIGLA_UTS_REL":"NU"
+,"TIPO_UTS_REL":"1"
+,"DESC_TIPO_UTS_REL":"Provincia"
+}
+,{
+"ANNO":"2026"
+,"TIPO_UTS":"1"
+,"DESC_TIPO_UTS":"Provincia"
+,"COD_UTS":"116"
+,"DEN_UTS":"Ogliastra"
+,"SIGLA_UTS":"OG"
+,"COD_VARIAZIONE":"CS"
+,"DATA_INIZIO_AMMINISTRATIVA":"2026-01-01T00:00:00Z"
+,"COD_UTS_REL":"111"
+,"DEN_UTS_REL":"Sud Sardegna"
+,"SIGLA_UTS_REL":"SU"
+,"TIPO_UTS_REL":"1"
+,"DESC_TIPO_UTS_REL":"Provincia"
+}
+,{
+"ANNO":"2026"
+,"TIPO_UTS":"1"
+,"DESC_TIPO_UTS":"Provincia"
+,"COD_UTS":"117"
+,"DEN_UTS":"Medio Campidano"
+,"SIGLA_UTS":"VS"
+,"COD_VARIAZIONE":"CS"
+,"DATA_INIZIO_AMMINISTRATIVA":"2026-01-01T00:00:00Z"
+,"COD_UTS_REL":"111"
+,"DEN_UTS_REL":"Sud Sardegna"
+,"SIGLA_UTS_REL":"SU"
+,"TIPO_UTS_REL":"1"
+,"DESC_TIPO_UTS_REL":"Provincia"
+}
+,{
+"ANNO":"2026"
+,"TIPO_UTS":"1"
+,"DESC_TIPO_UTS":"Provincia"
+,"COD_UTS":"119"
+,"DEN_UTS":"Sulcis Iglesiente"
+,"SIGLA_UTS":"SU"
+,"COD_VARIAZIONE":"CS"
+,"DATA_INIZIO_AMMINISTRATIVA":"2026-01-01T00:00:00Z"
+,"COD_UTS_REL":"111"
+,"DEN_UTS_REL":"Sud Sardegna"
+,"SIGLA_UTS_REL":"SU"
+,"TIPO_UTS_REL":"1"
+,"DESC_TIPO_UTS_REL":"Provincia"
+}
+,{
+"ANNO":"2026"
+,"TIPO_UTS":"3"
+,"DESC_TIPO_UTS":"Citt\u00E0 metropolitana"
+,"COD_UTS":"312"
+,"DEN_UTS":"Sassari"
+,"SIGLA_UTS":"SS"
+,"COD_VARIAZIONE":"CSCT"
+,"DATA_INIZIO_AMMINISTRATIVA":"2026-01-01T00:00:00Z"
+,"COD_UTS_REL":"090"
+,"DEN_UTS_REL":"Sassari"
+,"SIGLA_UTS_REL":"SS"
+,"TIPO_UTS_REL":"1"
+,"DESC_TIPO_UTS_REL":"Provincia"
+}
+]
 }

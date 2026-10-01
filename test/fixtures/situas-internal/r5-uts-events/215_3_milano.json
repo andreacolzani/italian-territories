@@ -1,17 +1,1 @@
-{
-"items":[
-{
-"denominazione corrente":"Milano"
-,"tipo variazione":"CSCT"
-,"data evento":"01\/01\/2015"
-,"codice Istat":"215"
-,"denominazione":"Milano"
-,"descrizione evento":"ISTITUITE LE CITTA\u0027 METROPOLITANE DI TORINO, MILANO, GENOVA VENEZIA, BOLOGNA, FIRENZE, ROMA, NAPOLI E BARI, IN LUOGO DELLE OMONIME PROVINCE SOPPRESSE"
-,"identificativo provvedimento":6029
-,"id_uts":119
-,"tipo uts":3
-,"variazione":"CSCT-Costituzione per cambio tipologia"
-,"id_uts_origine":9
-}
-]
-}
+"{\n\"items\":[\n{\n\"denominazione corrente\":\"Milano\"\n,\"tipo variazione\":\"CSCT\"\n,\"data evento\":\"01\\/01\\/2015\"\n,\"codice Istat\":\"215\"\n,\"denominazione\":\"Milano\"\n,\"descrizione evento\":\"ISTITUITE LE CITTA\\u0027 METROPOLITANE DI TORINO, MILANO, GENOVA VENEZIA, BOLOGNA, FIRENZE, ROMA, NAPOLI E BARI, IN LUOGO DELLE OMONIME PROVINCE SOPPRESSE\"\n,\"identificativo provvedimento\":6029\n,\"id_uts\":119\n,\"tipo uts\":3\n,\"variazione\":\"CSCT-Costituzione per cambio tipologia\"\n,\"id_uts_origine\":9\n}\n]\n}\n"

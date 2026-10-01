@@ -995,7 +995,8 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Acceptance**:
   - end-to-end test on a reduced world (Veneto, Sardinia, Venezia Giulia) with the fixture transport;
   - incremental scenario adding a fusion (exit 0);
-  - retroactive scenario (exit 2).
+  - retroactive scenario (exit 2);
+  - removed inferred breakpoint: an `inferred` date already published as a version boundary is no longer confirmed (Step 6) and leaves the calendar; the two versions it separated merge into one, and the run is classified as retroactive (exit 2).
 
 ### Step 18 — GitHub Actions
 

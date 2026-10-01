@@ -105,14 +105,17 @@ describe('day numbers', () => {
     const first = toDayNumber('1600-01-01');
     const last = toDayNumber('2400-12-31');
     expect(last - first + 1).toBe(801 * 365 + 195); // 195 leap days in 1600..2400
+    // Plain comparisons in the loop: ~290k `expect` calls are too slow for CI runners.
+    const mismatches: string[] = [];
     let previous: string | null = null;
     for (let n = first; n <= last; n++) {
       const iso = fromDayNumber(n);
-      expect(iso).toBe(oracleIso(n));
-      expect(toDayNumber(iso)).toBe(n);
-      if (previous !== null) expect(compareDates(previous, iso)).toBe(-1);
+      if (iso !== oracleIso(n)) mismatches.push(`fromDayNumber(${n}) = ${iso}, oracle ${oracleIso(n)}`);
+      if (toDayNumber(iso) !== n) mismatches.push(`toDayNumber(${iso}) = ${toDayNumber(iso)}, expected ${n}`);
+      if (previous !== null && compareDates(previous, iso) !== -1) mismatches.push(`${previous} !< ${iso}`);
       previous = iso;
     }
+    expect(mismatches).toEqual([]);
   });
 
   it('covers the whole supported range', () => {

@@ -27,9 +27,12 @@ npm run cli -- <command>          # runs src/cli.ts directly with Node (no build
 
 Node ≥ 22.18 runs `.ts` files natively (type stripping), so no transpiler is used.
 
-## Commits
+## Workflow and commits
 
-Commit messages describe what was done (e.g. "Project scaffolding: …"), **never** the plan step (no "Step 1", "complete step N").
+- Every implementation happens on a **feature branch** created from `main` (never commit directly to `main`).
+- When a step is finished, **ask the user before committing**.
+- After finishing a step, remind the user to **start a new session** instead of continuing in the current one.
+- Commit messages describe what was done (e.g. "Project scaffolding: …"), **never** the plan step (no "Step 1", "complete step N").
 
 ## Conventions that are not obvious
 
@@ -45,6 +48,8 @@ Pipeline (§6): fetch → normalise → snapshot store → breakpoint calendar �
 
 - `src/cli.ts`: the §10.1 commands (`bootstrap`, `update`, `rebuild`, `audit`, `validate`, `diff`), currently stubs returning exit code 2. `main(argv, io, config)` is exported and testable; commands are declared in the `commands` table.
 - `src/http/transport.ts`: the `Transport` contract (unencoded URLs/bodies; the client encodes). The real client (step 3) and the test fixture transport both implement it.
+- `src/dates/`: all date handling goes through it. `calendar-date.ts` (ISO validation, day-number arithmetic, `DD/MM/YYYY` and `…T00:00:00Z` source formats, `currentDate()` in Europe/Rome, the only place a `Date` is read) and `interval.ts` (`HalfOpenInterval` internal ↔ `InclusiveInterval` public, membership, overlap, coverage, contiguity).
+- `src/model/`: `common.ts` holds the shared vocabulary (levels, event codes, types, roles, code patterns, `PARTICIPANT_ROLE_RULES`), with each `as const` list feeding both the TS union and the zod enum. `internal.ts` has the camelCase pipeline types (snapshot projections, entities/versions with half-open intervals, variations whose `role: null` means no-effect). `public.ts` has the strict zod models of the emitted files (snake_case, keys in published order, per-record checks only; cross-record rules belong to the invariants). `json-schema.ts` generates `dist/schema/*.schema.json` from those models.
 
 ## Test fixtures (§11.1)
 

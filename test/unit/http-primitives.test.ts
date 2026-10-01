@@ -183,13 +183,6 @@ describe('CircuitBreaker', () => {
     expect(breaker.isOpen('a')).toBe(true);
     expect(breaker.isOpen('b')).toBe(false);
   });
-
-  it('can be tripped immediately', () => {
-    const breaker = new CircuitBreaker(10);
-    expect(breaker.trip('a', 'invalid rows')).toBe(true);
-    expect(breaker.trip('a', 'again')).toBe(false);
-    expect(breaker.reason('a')).toBe('invalid rows');
-  });
 });
 
 describe('cache keys', () => {

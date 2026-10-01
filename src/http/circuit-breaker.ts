@@ -1,6 +1,7 @@
 /**
- * Circuit breaker per endpoint family (§6.1): `threshold` consecutive failed attempts open the
- * family's circuit, which then stays open for the rest of the run.
+ * Circuit breaker per request family (§6.1): `threshold` consecutive failed attempts (transport
+ * failures and transient validation errors) open the family's circuit, which then stays open
+ * for the rest of the run.
  */
 export class CircuitBreaker {
   readonly #threshold: number;
@@ -31,13 +32,6 @@ export class CircuitBreaker {
     this.#failures.set(family, failures);
     if (failures < this.#threshold) return false;
     this.#open.set(family, `${failures} consecutive failures, last: ${reason}`);
-    return true;
-  }
-
-  /** Opens the circuit immediately. Returns `true` if it was closed. */
-  trip(family: string, reason: string): boolean {
-    if (this.isOpen(family)) return false;
-    this.#open.set(family, reason);
     return true;
   }
 }

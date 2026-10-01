@@ -15,9 +15,9 @@
   "engines": {
     "node": ">=22.18"
   },
-  "bin": {
-    "italian-territories": "lib/cli.js"
-  },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "cli": "node src/cli.ts",

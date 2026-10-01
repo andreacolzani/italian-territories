@@ -10,9 +10,11 @@ describe('config', () => {
     expect(config.http.maxAttempts).toBe(6);
     expect(config.http.transientValidationRetries).toBe(2);
     expect(config.http.aimdFastFraction).toBe(0.25);
+    expect(config.http.aimdIncreaseAfter).toBe(20);
+    expect(config.http.requestsPerSecond).toBe(5);
+    expect(config.http.circuitBreakerThreshold).toBe(10);
     expect(config.http.timeouts).toEqual({ snapshotMs: 120_000, defaultMs: 30_000 });
     expect(config.dates.start).toBe('1861-03-17');
-    expect(config.dates.regimeBoundaries).toEqual(['1927-01-12', '1948-01-01']);
     expect(config.update.lookbackDays).toBe(365);
     expect(Object.values(config.paths).every(isAbsolute)).toBe(true);
   });

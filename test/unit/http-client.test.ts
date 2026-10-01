@@ -6,6 +6,7 @@ import { cacheKey, ResponseCache } from '../../src/http/cache.ts';
 import { HttpClient, type HttpClientEvent } from '../../src/http/client.ts';
 import {
   CircuitOpenError,
+  EndpointDisabledError,
   HttpStatusError,
   ResponseValidationError,
   RetriesExhaustedError,
@@ -13,11 +14,21 @@ import {
 import { NetworkError, type HttpRequest, type HttpResponse, type Transport } from '../../src/http/transport.ts';
 import { deferred, fakeClock, httpSettings, json, ok, publicEndpoint, withTempDir } from '../helpers/http.ts';
 
-const URL = 'https://situas-servizi.istat.it/publish/reportspooljson';
+const HOST = 'situas-servizi.istat.it';
+const URL = `https://${HOST}/publish/reportspooljson`;
 const get = (pdata = '01/01/2026', pfun = 64): HttpRequest => ({
   method: 'GET',
   url: `${URL}?pfun=${pfun}&pdata=${pdata}`,
 });
+const INTERNAL_HOST = 'situas.istat.it';
+const post = (report = 'var_get_ua_reg_lov_diffusione'): HttpRequest => ({
+  method: 'POST',
+  url: `https://${INTERNAL_HOST}/ShibO2Module/api/Report/ReportByUrl`,
+  body: { url: report },
+});
+/** A second endpoint of the same family as `publicEndpoint()`. */
+const otherEndpoint = () => ({ ...publicEndpoint(), id: 'snapshot:pfun-49' });
+const invalidRows = () => json({ resultset: [{ CODE: '090' }, { CODE: 'x' }] });
 
 type Reply = HttpResponse | Error | (() => Promise<HttpResponse>);
 
@@ -131,7 +142,7 @@ describe('HttpClient: retries', () => {
       expect(error).toBeInstanceOf(HttpStatusError);
       expect(error).toMatchObject({ status: 404 });
       expect(transport.calls).toHaveLength(1);
-      expect(h.client.isCircuitOpen('situas-public')).toBe(false);
+      expect(h.client.isCircuitOpen('situas-public-snapshots')).toBe(false);
     }));
 
   it('sends the configured User-Agent', () =>
@@ -220,13 +231,13 @@ describe('HttpClient: concurrency', () => {
       const transport = scripted(ok());
       const h = harness(dir, transport, { concurrency: 2, maxConcurrency: 4, aimdIncreaseAfter: 3 });
       for (let i = 1; i <= 7; i++) await h.client.request(publicEndpoint(), get(`0${i}/02/2026`));
-      expect(h.client.concurrency).toBe(4);
+      expect(h.client.concurrency(HOST)).toBe(4);
 
       const failing = scripted(json({}, 503), ok());
       const h2 = harness(join(dir, 'b'), failing, { concurrency: 4, maxConcurrency: 4 });
       await h2.client.request(publicEndpoint(), get());
-      expect(h2.client.concurrency).toBe(2);
-      expect(eventsOf(h2.events, 'concurrency').map((e) => e.limit)).toEqual([2]);
+      expect(h2.client.concurrency(HOST)).toBe(2);
+      expect(eventsOf(h2.events, 'concurrency')).toEqual([{ type: 'concurrency', host: HOST, limit: 2 }]);
     }));
 
   it('does not count slow successes towards growth', () =>
@@ -239,7 +250,7 @@ describe('HttpClient: concurrency', () => {
       });
       const h = harness(dir, transport, { concurrency: 1, aimdIncreaseAfter: 1 }, clock);
       for (let i = 1; i <= 3; i++) await h.client.request(publicEndpoint(), get(`0${i}/03/2026`));
-      expect(h.client.concurrency).toBe(1);
+      expect(h.client.concurrency(HOST)).toBe(1);
     }));
 
   it('halves only once when concurrent requests fail together', () =>
@@ -259,7 +270,7 @@ describe('HttpClient: concurrency', () => {
       await new Promise((r) => setTimeout(r, 5));
       gate.resolve(undefined);
       await all;
-      expect(h.client.concurrency).toBe(4);
+      expect(h.client.concurrency(HOST)).toBe(4);
     }));
 
   it('rate-limits through the token bucket', () =>
@@ -267,6 +278,26 @@ describe('HttpClient: concurrency', () => {
       const h = harness(dir, scripted(ok()), { requestsPerSecond: 2 });
       await Promise.all([1, 2, 3].map((d) => h.client.request(publicEndpoint(), get(`0${d}/05/2026`))));
       expect(h.sleeps).toEqual([500, 500]);
+    }));
+
+  it('keeps pool, AIMD and rate limit separate per host', () =>
+    withTempDir(async (dir) => {
+      let publicCalls = 0;
+      const transport: Transport = (request) =>
+        Promise.resolve(request.method === 'GET' && ++publicCalls === 1 ? json({}, 503) : ok());
+      const h = harness(dir, transport, { concurrency: 4, maxConcurrency: 4, requestsPerSecond: 2 });
+      await h.client.request(publicEndpoint(), get());
+      expect(h.client.concurrency(HOST)).toBe(2);
+
+      await Promise.all([
+        h.client.request(publicEndpoint({ family: 'situas-internal' }), post('a')),
+        h.client.request(publicEndpoint({ family: 'situas-internal' }), post('b')),
+      ]);
+      expect(h.client.concurrency(INTERNAL_HOST)).toBe(4);
+      expect(eventsOf(h.events, 'concurrency').map((e) => e.host)).toEqual([HOST]);
+      // Public: the retry waits for a token (500 ms) after its backoff. Internal: the first
+      // request finds a full bucket of its own, the second waits 500 ms.
+      expect(h.sleeps).toEqual([50, 450, 500]);
     }));
 });
 
@@ -277,13 +308,20 @@ describe('HttpClient: circuit breaker', () => {
       const h = harness(dir, transport, { circuitBreakerThreshold: 3, maxAttempts: 10 });
       const error = await h.client.request(publicEndpoint(), get()).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(CircuitOpenError);
-      expect(error).toMatchObject({ family: 'situas-public', reason: '3 consecutive failures, last: HTTP 503' });
+      expect(error).toMatchObject({
+        family: 'situas-public-snapshots',
+        reason: '3 consecutive failures, last: HTTP 503',
+      });
       expect(transport.calls).toHaveLength(3);
 
       await expect(h.client.request(publicEndpoint(), get('02/01/2026'))).rejects.toBeInstanceOf(CircuitOpenError);
       expect(transport.calls).toHaveLength(3);
       expect(eventsOf(h.events, 'circuit-open')).toEqual([
-        { type: 'circuit-open', family: 'situas-public', reason: '3 consecutive failures, last: HTTP 503' },
+        {
+          type: 'circuit-open',
+          family: 'situas-public-snapshots',
+          reason: '3 consecutive failures, last: HTTP 503',
+        },
       ]);
     }));
 
@@ -293,7 +331,7 @@ describe('HttpClient: circuit breaker', () => {
       const h = harness(dir, transport, { circuitBreakerThreshold: 3 });
       await h.client.request(publicEndpoint(), get());
       await h.client.request(publicEndpoint(), get('02/01/2026'));
-      expect(h.client.isCircuitOpen('situas-public')).toBe(false);
+      expect(h.client.isCircuitOpen('situas-public-snapshots')).toBe(false);
 
       const internal = scripted(json({}, 503));
       const h2 = harness(join(dir, 'b'), internal, { circuitBreakerThreshold: 2 });
@@ -301,7 +339,18 @@ describe('HttpClient: circuit breaker', () => {
         CircuitOpenError,
       );
       expect(h2.client.isCircuitOpen('situas-internal')).toBe(true);
-      expect(h2.client.isCircuitOpen('situas-public')).toBe(false);
+      expect(h2.client.isCircuitOpen('situas-public-snapshots')).toBe(false);
+    }));
+
+  it('separates heavy snapshots from light reports on the same host', () =>
+    withTempDir(async (dir) => {
+      const transport: Transport = (request) => Promise.resolve(request.url.includes('pfun=61') ? json({}, 504) : ok());
+      const h = harness(dir, transport, { circuitBreakerThreshold: 2 });
+      await expect(h.client.request(publicEndpoint(), get('01/01/2026', 61))).rejects.toBeInstanceOf(CircuitOpenError);
+      const reports = { ...publicEndpoint({ family: 'situas-public-reports' }), id: 'events:pfun-98' };
+      expect((await h.client.request(reports, get('01/01/2026', 98))).source).toBe('network');
+      expect(h.client.isCircuitOpen('situas-public-snapshots')).toBe(true);
+      expect(h.client.isCircuitOpen('situas-public-reports')).toBe(false);
     }));
 });
 
@@ -322,7 +371,7 @@ describe('HttpClient: response validation', () => {
         "invalid response (application/json): 'resultset' is empty",
       ]);
       // Transient failures halve AIMD like a 5xx (once per episode: the second starts in the new epoch).
-      expect(h.client.concurrency).toBe(1);
+      expect(h.client.concurrency(HOST)).toBe(1);
     }));
 
   it('gives up after 2 extra attempts and caches nothing', () =>
@@ -342,9 +391,9 @@ describe('HttpClient: response validation', () => {
       await expect(h.client.request(publicEndpoint(), get())).rejects.toBeInstanceOf(CircuitOpenError);
     }));
 
-  it('fails permanently on schema violations, opening the family circuit', () =>
+  it('fails permanently on schema violations, disabling only that endpoint', () =>
     withTempDir(async (dir) => {
-      const transport = scripted(json({ resultset: [{ CODE: '090' }, { CODE: 'x' }] }));
+      const transport = scripted(invalidRows(), ok());
       const h = harness(dir, transport);
       const error = await h.client.request(publicEndpoint(), get()).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(ResponseValidationError);
@@ -353,11 +402,48 @@ describe('HttpClient: response validation', () => {
       expect(rve.request).toEqual(get());
       expect(rve.issues).toMatchObject([{ index: 1, row: { CODE: 'x' } }]);
       expect(transport.calls).toHaveLength(1);
-      expect(h.client.isCircuitOpen('situas-public')).toBe(true);
       expect(eventsOf(h.events, 'validation-error')).toHaveLength(1);
-      expect(eventsOf(h.events, 'circuit-open')).toHaveLength(1);
       expect(await readdir(dir)).toEqual([]);
-      await expect(h.client.request(publicEndpoint(), get('02/01/2026'))).rejects.toBeInstanceOf(CircuitOpenError);
+
+      const again = await h.client.request(publicEndpoint(), get('02/01/2026')).catch((e: unknown) => e);
+      expect(again).toBeInstanceOf(EndpointDisabledError);
+      expect(again).toMatchObject({ endpoint: 'snapshot:pfun-64', reason: `invalid rows: ${rve.message}` });
+      expect(transport.calls).toHaveLength(1);
+      expect(h.client.isEndpointDisabled('snapshot:pfun-64')).toBe(true);
+
+      // The rest of the family keeps working, so one run collects every problem.
+      expect((await h.client.request(otherEndpoint(), get('01/01/2026', 49))).source).toBe('network');
+      expect(h.client.isEndpointDisabled('snapshot:pfun-49')).toBe(false);
+      expect(h.client.isCircuitOpen('situas-public-snapshots')).toBe(false);
+      expect(eventsOf(h.events, 'circuit-open')).toEqual([]);
+    }));
+
+  it('does not count schema violations for the circuit breaker, either way', () =>
+    withTempDir(async (dir) => {
+      const h = harness(dir, scripted(invalidRows()), { circuitBreakerThreshold: 1 });
+      await expect(h.client.request(publicEndpoint(), get())).rejects.toBeInstanceOf(ResponseValidationError);
+      expect(h.client.isCircuitOpen('situas-public-snapshots')).toBe(false);
+
+      // Nor do they reset the count: 503, invalid rows, 503 opens a threshold-2 circuit.
+      const transport = scripted(json({}, 503), invalidRows(), json({}, 503));
+      const h2 = harness(join(dir, 'b'), transport, { circuitBreakerThreshold: 2 });
+      await expect(h2.client.request(publicEndpoint(), get())).rejects.toBeInstanceOf(ResponseValidationError);
+      await expect(h2.client.request(otherEndpoint(), get('01/01/2026', 49))).rejects.toBeInstanceOf(CircuitOpenError);
+      expect(transport.calls).toHaveLength(3);
+    }));
+
+  it('leaves AIMD untouched on schema violations', () =>
+    withTempDir(async (dir) => {
+      const transport = scripted(ok(), invalidRows(), ok());
+      const h = harness(dir, transport, { concurrency: 2, maxConcurrency: 4, aimdIncreaseAfter: 2 });
+      await h.client.request(otherEndpoint(), get('01/01/2026', 49));
+      await expect(h.client.request(publicEndpoint(), get())).rejects.toBeInstanceOf(ResponseValidationError);
+      expect(h.client.concurrency(HOST)).toBe(2);
+      // Not a failure either: the streak of fast successes goes on.
+      await h.client.request(otherEndpoint(), get('02/01/2026', 49));
+      expect(h.client.concurrency(HOST)).toBe(3);
+      await expect(h.client.request(publicEndpoint(), get('02/01/2026'))).rejects.toBeInstanceOf(EndpointDisabledError);
+      expect(h.client.concurrency(HOST)).toBe(3);
     }));
 });
 
@@ -443,6 +529,8 @@ describe('HttpClient: response cache', () => {
       expect(error).toBeInstanceOf(ResponseValidationError);
       expect(error).toMatchObject({ endpoint: 'snapshot:pfun-64', request: get() });
       expect(transport.calls).toHaveLength(2);
+      expect(h.client.isEndpointDisabled('snapshot:pfun-64')).toBe(true);
+      expect(eventsOf(h.events, 'validation-error')).toHaveLength(1);
     }));
 
   it('resumes after an interruption without refetching completed responses', () =>
@@ -532,5 +620,23 @@ describe('HttpClient: degradation', () => {
           staleFallback: true,
         }),
       ).rejects.toBeInstanceOf(ResponseValidationError);
+    }));
+
+  it('does not fall back to stale data for a disabled endpoint', () =>
+    withTempDir(async (dir) => {
+      await seed(dir);
+      const transport = scripted(json({ resultset: [{ CODE: 'bad' }] }));
+      const h = harness(dir, transport);
+      const endpoint = publicEndpoint({ family: 'situas-internal' });
+      await expect(h.client.request(endpoint, get(), { cache: 'refresh' })).rejects.toBeInstanceOf(
+        ResponseValidationError,
+      );
+      for (const cache of ['prefer', 'refresh'] as const) {
+        await expect(h.client.request(endpoint, get(), { cache, staleFallback: true })).rejects.toBeInstanceOf(
+          EndpointDisabledError,
+        );
+      }
+      expect(transport.calls).toHaveLength(1);
+      expect(eventsOf(h.events, 'degraded')).toEqual([]);
     }));
 });

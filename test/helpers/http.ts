@@ -68,7 +68,7 @@ export function publicEndpoint(
 ): Endpoint<z.output<typeof rowSchema>[]> {
   return {
     id: 'snapshot:pfun-64',
-    family: options.family ?? 'situas-public',
+    family: options.family ?? 'situas-public-snapshots',
     timeoutClass: options.timeoutClass ?? 'default',
     decode: jsonRowsDecoder({
       contentTypes: CONTENT_TYPES.situasPublic,

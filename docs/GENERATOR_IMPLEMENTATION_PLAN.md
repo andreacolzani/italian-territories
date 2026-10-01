@@ -389,7 +389,9 @@ Per adapter, producing typed internal rows:
 
 - Content-addressed: each normalised projected row is stored once, keyed by its hash; a snapshot is a manifest `(level, date) → sorted list of row hashes`.
 - Layout: `rows/<level>.ndjson` (append-only) and `snapshots/<level>/<YYYY-MM-DD>.json`.
-- Persisted on an orphan branch `data-cache` (or as a compressed release asset). Also cached: normalised event lists and internal API responses.
+- Persisted on an orphan branch `data-cache` (or as a compressed release asset). Also cached, with the same approach: normalised event lists (`events/`) and internal API responses (`internal/`).
+- Every manifest carries the `projection_version` of its projection (snapshots per level, event lists per endpoint, internal reports per report). Content comparisons (`history`, change detection, completeness) only involve manifests with the current version; a manifest with another version is never used by the build. Changing a projection bumps its version and requires `rebuild --refetch`, which is never a retroactive change (D32).
+- A refresh with the same content writes nothing. Event-list change detection is **semantic**: the rows of a new list dated in `[from, to]` are compared with everything the store knows in that date range (for each date, the most recently fetched list covering it), not with a previous manifest (D32).
 - A full rebuild must be possible from the store without network access (`rebuild` without `--refetch`).
 
 ### 6.4 Breakpoint calendar
@@ -593,7 +595,7 @@ Releases:
 ### 10.2 Incremental update
 
 1. Fetch today's snapshots for the three levels and compare them with the reconstructed state for today.
-2. Fetch public event lists with `pdatada` = previous run date **minus 365 days** (ISTAT often publishes past-dated events late) and diff them against the cached lists. Refresh internal events for affected UTS/regions and for new municipalities.
+2. Fetch public event lists with `pdatada` = previous run date **minus 365 days** (ISTAT often publishes past-dated events late) and diff them semantically against the store: rows dated in `[pdatada, pdataa]` are compared with everything the store knows in that range, not with the previous run's list, whose range differs (§6.3, D32). Refresh internal events for affected UTS/regions and for new municipalities.
 3. Check the ANPR CSV hash (cross-check only).
 4. If nothing changed → exit successfully without commits.
 5. Otherwise add new breakpoints, fetch snapshots, verify completeness on new intervals, rebuild, validate.
@@ -841,15 +843,21 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - internal decoders accept both double-encoded and plain JSON bodies;
   - on every real municipality snapshot fixture, the code prefix equals the effective `historicalUtsCode` for every row except codes with suffix ≥ 800 (§3.5 item 17).
 
-### Step 5 — Snapshot store and calendar
+### Step 5 — Snapshot store and calendar — DONE
 
 - **Deliverables**:
   - **Row hashing**: a row hash is the SHA-256 (hex) of the canonical JSON of the projected row (keys sorted, no whitespace).
-  - **`rows/<level>.ndjson`**: append-only, one `{ "hash", "row" }` per line, never duplicated.
-  - **Manifest `snapshots/<level>/<date>.json`**: `{ level, date, pfun, fetched_at, content_hash, row_hashes (sorted), history: [{ fetched_at, content_hash }] }`. `history` is appended when a refresh changes the content.
-  - **Normalised event lists and internal responses**: stored under `events/` and `internal/` with the same content-hash approach.
-  - **Calendar builder** (§6.4) with provenance: `calendar.json` mapping each date to the list of sources that contributed it.
-  - **`--today YYYY-MM-DD`** CLI flag setting `dates.today` (§12.0 Determinism).
+  - **`rows/<level>.ndjson`**: append-only, one `{ "hash", "row" }` per line, never duplicated. A last line without its newline (interrupted append) is cut on load; a line that does not match its hash is a store corruption.
+  - **Manifest `snapshots/<level>/<date>.json`**: `{ level, date, pfun, projection_version, fetched_at, content_hash, adapter_stats, row_hashes (sorted, duplicates kept), history: [{ fetched_at, content_hash }] }`.
+    - `content_hash` is the SHA-256 of the canonical JSON of the sorted `row_hashes`: only the normalised projection takes part, so changes to ignored fields are not changes.
+    - `adapter_stats` is a generic object of adapter counters (e.g. `historical_code_fallbacks`, §3.5 item 16), excluded from `content_hash`.
+    - A refresh with the same content writes nothing (`fetched_at` stays the date of the first fetch of that content; only a different `adapter_stats` is updated). A different content appends the replaced `{ fetched_at, content_hash }` to `history`.
+    - `projection_version` per §6.3: a manifest with another version is replaced without `history` and is never returned to the build (D32).
+  - **Normalised event lists and internal responses**: stored with the same approach.
+    - Event lists: `events/rows/pfun-<id>.ndjson` and `events/lists/pfun-<id>/<from>_<to>.json` (`{ pfun, level, from, to, … }`). Change detection is **semantic**: the rows of a new list dated in `[from, to]` are compared with every row the store knows in the same range (for each date, the most recently fetched list covering it), not with a previous manifest, which has a different `from` because of the lookback window (§10.2). The put returns the `added` and `removed` rows.
+    - Internal reports: `internal/rows/r<n>.ndjson` and `internal/reports/r<n>/<key>.json` (`{ report, endpoint, report_url, key, … }`), where `key` is the SHA-256 of the unencoded, normalised report URL (the form stored in the fixture manifest, §11.1).
+  - **Calendar builder** (§6.4) with provenance: `calendar.json` in the store, `{ start, today, dates: { <date>: [sources] } }`. Sources are endpoint ids (`events:pfun-<id>`, `r4:region-events`, `r5:uts-events`, `r6:municipality-events`), `anpr:start`, `anpr:end` (half-open `validTo`, i.e. `DATACESSAZIONE + 1`), `regime` and `today`.
+  - **`--today YYYY-MM-DD`** CLI flag, accepted by every command, setting `dates.today` (§12.0 Determinism). The CLI resolves the run date (flag, then `dates.today`, then the current date in Europe/Rome) and passes it to the command.
 - **Acceptance**: dedup verified; store round-trip; calendar tests with fixture event lists; regime boundaries always present; `--today` reaches the calendar builder; the clock is read only at the CLI boundary (default of `dates.today`) and for `generated_at` / `fetched_at`; no other build code reads it.
 
 ### Step 6 — Snapshot orchestration and completeness
@@ -1031,6 +1039,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D29 | Field differences between endpoints or periods are handled by explicit mappings per adapter; defaults for missing fields must be verified by an invariant | No silent guessing between field names; every fallback (e.g. `COD_PROV_STORICO ?? COD_UTS`) is checked (I7) |
 | D30 | Municipality codes with suffix ≥ 800 are exempt from the strict I7 prefix rule: the prefix must be a UTS code of some time, differences are `info`; an active municipality with an 8xx current code is a `warning` | ISTAT assigns 8xx codes retroactively to suppressed municipalities with the prefix of a later or earlier province; membership comes from `COD_PROV`/`COD_UTS` only |
 | D31 | A foreign state counterpart (`Stato estero`, no code) is allowed only in `AS`, `AN`, `CE`; it is never resolved and never produces links; the participant carries the public flag `abroad` | Cessions and annexations involve territories outside the perimeter (D16), which have no entity; the flag keeps the information without inventing one |
+| D32 | Store manifests carry a `projection_version` per projection; only manifests with the current version are compared or used; a version change requires `rebuild --refetch` and is never retroactive. A refresh with the same content writes nothing; event-list change detection is semantic (rows compared by date range with everything the store knows, not with a previous manifest) | A projection change is a change of the generator, not of the data: it must neither look like an ISTAT correction nor mix rows of different shapes |
 
 ---
 

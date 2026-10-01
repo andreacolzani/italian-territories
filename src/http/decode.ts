@@ -7,14 +7,28 @@ import type { z } from 'zod';
 import { ResponseValidationError, TransientResponseError, type RowIssue } from './errors.ts';
 import type { HttpResponse } from './transport.ts';
 
-/** Endpoint class selecting the timeout (§6.1). */
+/** Endpoint class selecting the timeout (§6.1): `snapshot` is for municipality snapshots. */
 export type TimeoutClass = 'snapshot' | 'default';
 
+/**
+ * Circuit-breaker families (§6.1). Heavy snapshots and light reports share a host but not a
+ * family, so timeouts on the former do not stop the latter.
+ */
+export const FAMILIES = ['situas-public-snapshots', 'situas-public-reports', 'situas-internal', 'anpr'] as const;
+export type Family = (typeof FAMILIES)[number];
+
+/**
+ * Declared by the adapter, one per `pfun`, internal report or the ANPR CSV. The host scope
+ * (pool, AIMD, rate limit) is derived from the request URL by the client.
+ */
 export interface Endpoint<T> {
-  /** Endpoint id as in the fixture manifest, e.g. `snapshot:pfun-61`, `r5:uts-events`. */
+  /**
+   * Endpoint id as in the fixture manifest, e.g. `snapshot:pfun-61`, `r5:uts-events`. A permanent
+   * validation error disables this id for the rest of the run.
+   */
   id: string;
-  /** Circuit-breaker family: the source, e.g. `situas-public`, `situas-internal`, `anpr`. */
-  family: string;
+  /** Circuit-breaker family. */
+  family: Family;
   timeoutClass: TimeoutClass;
   /** Validates and converts a 2xx response. Throws `TransientResponseError` or `ResponseValidationError`. */
   decode: (response: HttpResponse) => T;

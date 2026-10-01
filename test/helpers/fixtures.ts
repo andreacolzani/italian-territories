@@ -12,6 +12,7 @@ export const FIXTURES_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '.
 export const MANIFEST_PATH = join(FIXTURES_ROOT, 'manifest.json');
 
 const SITUAS_PUBLIC_URL = 'https://situas-servizi.istat.it/publish/reportspooljson';
+const SITUAS_PUBLIC_COUNT_URL = 'https://situas-servizi.istat.it/publish/reportspooljsoncount';
 const SITUAS_INTERNAL_URL = 'https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl';
 const ANPR_URL = 'https://www.anagrafenazionale.interno.it/wp-content/uploads/ANPR_archivio_comuni.csv';
 
@@ -159,27 +160,27 @@ export interface FixtureDescription {
 export function describeRequest(request: HttpRequest, options: FixtureOptions = {}): FixtureDescription {
   const { base, query } = splitUrl(request.url);
 
-  if (base === SITUAS_PUBLIC_URL) {
+  if (base === SITUAS_PUBLIC_URL || base === SITUAS_PUBLIC_COUNT_URL) {
+    // A count request carries the parameters of the list it counts and mirrors its file name.
+    const count = base === SITUAS_PUBLIC_COUNT_URL;
     const ctx = `situas-public ${request.url}`;
     const p = parseQuery(query, ctx);
     const pfun = Number(p.req('pfun'));
     const snapshotLevel = SNAPSHOT_PFUN[pfun];
     if (snapshotLevel !== undefined) {
-      return {
-        path: `situas-public/snapshots/${snapshotLevel}/pfun-${pfun}_${situasDateToIso(p.req('pdata'), ctx)}.json`,
-        source: 'situas-public',
-        endpoint: `snapshot:pfun-${pfun}`,
-      };
+      const file = `${snapshotLevel}/pfun-${pfun}_${situasDateToIso(p.req('pdata'), ctx)}.json`;
+      return count
+        ? { path: `situas-public/counts/${file}`, source: 'situas-public', endpoint: `count:pfun-${pfun}` }
+        : { path: `situas-public/snapshots/${file}`, source: 'situas-public', endpoint: `snapshot:pfun-${pfun}` };
     }
     const eventsLevel = EVENTS_PFUN[pfun];
     if (eventsLevel !== undefined) {
       const from = situasDateToIso(p.req('pdatada'), ctx);
       const to = situasDateToIso(p.req('pdataa'), ctx);
-      return {
-        path: `situas-public/events/${eventsLevel}/pfun-${pfun}_${from}_${to}.json`,
-        source: 'situas-public',
-        endpoint: `events:pfun-${pfun}`,
-      };
+      const file = `${eventsLevel}/pfun-${pfun}_${from}_${to}.json`;
+      return count
+        ? { path: `situas-public/counts/${file}`, source: 'situas-public', endpoint: `count:pfun-${pfun}` }
+        : { path: `situas-public/events/${file}`, source: 'situas-public', endpoint: `events:pfun-${pfun}` };
     }
     throw new Error(`${ctx}: unknown pfun ${pfun}`);
   }

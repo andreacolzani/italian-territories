@@ -21,16 +21,16 @@ const pathsSchema = z
 
 const httpSchema = z
   .object({
-    /** Initial worker count (§6.1). */
+    /** Initial worker count, per host (§6.1). */
     concurrency: z.int().min(1).max(MAX_CONCURRENCY).default(4),
-    /** Upper bound for adaptive (AIMD) growth. */
+    /** Upper bound for adaptive (AIMD) growth, per host. */
     maxConcurrency: z.int().min(1).max(MAX_CONCURRENCY).default(MAX_CONCURRENCY),
     /** Consecutive fast successes before adding a worker. */
     aimdIncreaseAfter: z.int().min(1).default(20),
     /** A success is fast when its latency is at most this fraction of its endpoint-class timeout. */
     aimdFastFraction: z.number().gt(0).max(1).default(0.25),
-    /** Token-bucket rate limit. */
-    requestsPerSecond: z.number().positive().default(4),
+    /** Token-bucket rate limit, per host. */
+    requestsPerSecond: z.number().positive().default(5),
     maxAttempts: z.int().min(1).default(6),
     /** Extra attempts allowed for transient validation failures, inside `maxAttempts` (§6.1). */
     transientValidationRetries: z.int().min(0).default(2),
@@ -41,11 +41,12 @@ const httpSchema = z
     retryAfterMaxMs: z.int().min(0).default(300_000),
     timeouts: z
       .object({
+        /** Municipality snapshots (endpoint class `snapshot`). */
         snapshotMs: z.int().positive().default(120_000),
         defaultMs: z.int().positive().default(30_000),
       })
       .prefault({}),
-    /** Consecutive failures on an endpoint family before its circuit opens. */
+    /** Consecutive failed attempts on a family before its circuit opens (§6.1). */
     circuitBreakerThreshold: z.int().min(1).default(10),
     userAgent: z
       .string()
@@ -70,8 +71,6 @@ const datesSchema = z
   .object({
     /** Unification: lower bound of the dataset (§1.2). */
     start: isoDate.default(UNIFICATION_DATE),
-    /** First days of the 1927 and 1948 snapshot regimes (§2, §3.2). */
-    regimeBoundaries: z.array(isoDate).default(['1927-01-12', '1948-01-01']),
     /** Reference "today"; `null` means the current date at run time. */
     today: isoDate.nullable().default(null),
   })

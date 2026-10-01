@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseJsonBody } from '../../src/http/decode.ts';
-import { createFixtureTransport, fixturePath, slugify, subsetBasePath } from '../helpers/fixtures.ts';
+import { createFixtureTransport, describeRequest, fixturePath, slugify, subsetBasePath } from '../helpers/fixtures.ts';
 
 const INTERNAL = 'https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl';
 const internal = (url: string) => ({ method: 'POST' as const, url: INTERNAL, body: { url } });
@@ -19,6 +19,21 @@ describe('fixturePath', () => {
         url: 'https://situas-servizi.istat.it/publish/reportspooljson?pfun=103&pdatada=17%2F03%2F1861&pdataa=30%2F09%2F2026',
       }),
     ).toBe('situas-public/events/municipalities/pfun-103_1861-03-17_2026-09-30.json');
+  });
+
+  it('maps public counts next to the list they count', () => {
+    const count = (query: string) => ({
+      method: 'GET' as const,
+      url: `https://situas-servizi.istat.it/publish/reportspooljsoncount?${query}`,
+    });
+    expect(describeRequest(count('pfun=61&pdata=30/09/2026'))).toEqual({
+      path: 'situas-public/counts/municipalities/pfun-61_2026-09-30.json',
+      source: 'situas-public',
+      endpoint: 'count:pfun-61',
+    });
+    expect(fixturePath(count('pfun=112&pdatada=17/03/1861&pdataa=30/09/2026'))).toBe(
+      'situas-public/counts/provinces/pfun-112_1861-03-17_2026-09-30.json',
+    );
   });
 
   it('maps internal reports 1–9', () => {

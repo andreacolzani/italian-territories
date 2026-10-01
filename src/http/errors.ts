@@ -1,4 +1,5 @@
 /** Errors raised by the HTTP client (§6.1). */
+import type { Family } from './decode.ts';
 import type { HttpRequest } from './transport.ts';
 
 /**
@@ -17,8 +18,9 @@ export interface RowIssue {
 }
 
 /**
- * The envelope is valid but rows violate the endpoint schema. Never retried: it opens the
- * circuit of the endpoint family and must become a `blocking` anomaly (§6.1).
+ * The envelope is valid but rows violate the endpoint schema. Never retried: it disables the
+ * endpoint for the rest of the run and must become a `blocking` anomaly (§6.1). It is not a
+ * congestion or availability signal: it leaves AIMD and the circuit breaker untouched.
  */
 export class ResponseValidationError extends Error {
   override name = 'ResponseValidationError';
@@ -73,17 +75,31 @@ export class RetriesExhaustedError extends HttpClientError {
 /** The circuit of the endpoint family is open: the request was not sent. */
 export class CircuitOpenError extends HttpClientError {
   override name = 'CircuitOpenError';
-  readonly family: string;
+  readonly family: Family;
   readonly reason: string;
 
-  constructor(endpoint: string, request: HttpRequest, family: string, reason: string) {
+  constructor(endpoint: string, request: HttpRequest, family: Family, reason: string) {
     super(`circuit open for family '${family}' (${reason})`, endpoint, request);
     this.family = family;
     this.reason = reason;
   }
 }
 
-/** The source is unavailable: a stale cache entry may stand in for it (§6.1 degradation). */
+/** An earlier permanent validation error disabled the endpoint: the request was not sent. */
+export class EndpointDisabledError extends HttpClientError {
+  override name = 'EndpointDisabledError';
+  readonly reason: string;
+
+  constructor(endpoint: string, request: HttpRequest, reason: string) {
+    super(`endpoint disabled (${reason})`, endpoint, request);
+    this.reason = reason;
+  }
+}
+
+/**
+ * The source is unavailable: a stale cache entry may stand in for it (§6.1 degradation).
+ * Validation errors (`ResponseValidationError`, `EndpointDisabledError`) never qualify.
+ */
 export function isUnavailable(error: unknown): error is RetriesExhaustedError | CircuitOpenError {
   return error instanceof RetriesExhaustedError || error instanceof CircuitOpenError;
 }

@@ -1,7 +1,8 @@
 /**
- * HTTP client of §6.1, shared by every adapter: AIMD worker pool, token bucket, retries with
- * full-jitter backoff and `Retry-After`, per-class timeouts, circuit breaker per family,
- * `User-Agent`, response cache with per-call freshness, response validation and degradation.
+ * HTTP client of §6.1, shared by every adapter: AIMD worker pool and token bucket per host,
+ * retries with full-jitter backoff and `Retry-After`, per-class timeouts, circuit breaker per
+ * family, endpoints disabled by permanent validation errors, `User-Agent`, response cache with
+ * per-call freshness, response validation and degradation.
  */
 import type { Config } from '../config.ts';
 import { currentDate, type IsoDate } from '../dates/index.ts';
@@ -10,9 +11,10 @@ import { fullJitterDelay, parseRetryAfter } from './backoff.ts';
 import { cacheKey, isFresh, ResponseCache, sha256, type CacheEntry, type CachePolicy } from './cache.ts';
 import { CircuitBreaker } from './circuit-breaker.ts';
 import { systemClock, type Clock } from './clock.ts';
-import { mediaType, type Endpoint } from './decode.ts';
+import { mediaType, type Endpoint, type Family } from './decode.ts';
 import {
   CircuitOpenError,
+  EndpointDisabledError,
   HttpStatusError,
   isUnavailable,
   ResponseValidationError,
@@ -28,8 +30,9 @@ export type HttpSettings = Config['http'];
 /** Notifications for logging and anomaly reporting (§8.2); the client never decides severity. */
 export type HttpClientEvent =
   | { type: 'retry'; endpoint: string; request: HttpRequest; attempt: number; reason: string; delayMs: number }
-  | { type: 'concurrency'; limit: number }
-  | { type: 'circuit-open'; family: string; reason: string }
+  | { type: 'concurrency'; host: string; limit: number }
+  | { type: 'circuit-open'; family: Family; reason: string }
+  /** Also disables the endpoint for the rest of the run. */
   | { type: 'validation-error'; endpoint: string; request: HttpRequest; error: ResponseValidationError }
   | {
       type: 'changed';
@@ -75,6 +78,12 @@ type AttemptOutcome<T> =
 
 const TIMEOUT = Symbol('timeout');
 
+/** Congestion state of one host (§6.1 host scope). */
+interface HostScope {
+  limiter: AdaptiveLimiter;
+  bucket: TokenBucket;
+}
+
 export class HttpClient {
   readonly #http: HttpSettings;
   readonly #cache: ResponseCache;
@@ -82,9 +91,10 @@ export class HttpClient {
   readonly #clock: Clock;
   readonly #random: () => number;
   readonly #onEvent: (event: HttpClientEvent) => void;
-  readonly #limiter: AdaptiveLimiter;
-  readonly #bucket: TokenBucket;
+  readonly #hosts = new Map<string, HostScope>();
   readonly #breaker: CircuitBreaker;
+  /** Endpoint id → reason, for endpoints disabled by a permanent validation error. */
+  readonly #disabled = new Map<string, string>();
 
   constructor(options: HttpClientOptions) {
     this.#http = options.http;
@@ -93,25 +103,20 @@ export class HttpClient {
     this.#clock = options.clock ?? systemClock;
     this.#random = options.random ?? Math.random;
     this.#onEvent = options.onEvent ?? (() => undefined);
-    this.#limiter = new AdaptiveLimiter({
-      initial: options.http.concurrency,
-      max: options.http.maxConcurrency,
-      increaseAfter: options.http.aimdIncreaseAfter,
-      onChange: (limit) => {
-        this.#onEvent({ type: 'concurrency', limit });
-      },
-    });
-    this.#bucket = new TokenBucket(options.http.requestsPerSecond, this.#clock);
     this.#breaker = new CircuitBreaker(options.http.circuitBreakerThreshold);
   }
 
-  /** Current AIMD concurrency limit. */
-  get concurrency(): number {
-    return this.#limiter.limit;
+  /** Current AIMD concurrency limit of a host (e.g. `situas.istat.it`). */
+  concurrency(host: string): number {
+    return this.#hosts.get(host)?.limiter.limit ?? this.#http.concurrency;
   }
 
-  isCircuitOpen(family: string): boolean {
+  isCircuitOpen(family: Family): boolean {
     return this.#breaker.isOpen(family);
+  }
+
+  isEndpointDisabled(endpoint: string): boolean {
+    return this.#disabled.has(endpoint);
   }
 
   async request<T>(
@@ -119,6 +124,9 @@ export class HttpClient {
     request: HttpRequest,
     options: RequestOptions = {},
   ): Promise<ClientResult<T>> {
+    const disabled = this.#disabled.get(endpoint.id);
+    if (disabled !== undefined) throw new EndpointDisabledError(endpoint.id, request, disabled);
+
     const key = cacheKey(request);
     const cached = await this.#cache.get(key);
     const today = currentDate(new Date(this.#clock.now()));
@@ -128,7 +136,8 @@ export class HttpClient {
         return this.#fromCache(endpoint, cached, 'cache');
       } catch (error) {
         // A cached body that is unusable as a whole is a miss; schema violations surface.
-        if (!(error instanceof TransientResponseError)) throw this.#withContext(error, endpoint, request);
+        if (error instanceof ResponseValidationError) this.#disable(error, endpoint, request);
+        if (!(error instanceof TransientResponseError)) throw error;
       }
     }
 
@@ -192,16 +201,37 @@ export class HttpClient {
     };
   }
 
-  #withContext(error: unknown, endpoint: Endpoint<unknown>, request: HttpRequest): unknown {
-    if (error instanceof ResponseValidationError) {
-      error.endpoint = endpoint.id;
-      error.request = request;
+  /** Permanent validation error: disables the endpoint only, never the family or the host. */
+  #disable(error: ResponseValidationError, endpoint: Endpoint<unknown>, request: HttpRequest): void {
+    error.endpoint = endpoint.id;
+    error.request = request;
+    if (!this.#disabled.has(endpoint.id)) this.#disabled.set(endpoint.id, `invalid rows: ${error.message}`);
+    this.#onEvent({ type: 'validation-error', endpoint: endpoint.id, request, error });
+  }
+
+  #hostScope(request: HttpRequest): HostScope {
+    const host = new URL(request.url).host;
+    let scope = this.#hosts.get(host);
+    if (scope === undefined) {
+      scope = {
+        limiter: new AdaptiveLimiter({
+          initial: this.#http.concurrency,
+          max: this.#http.maxConcurrency,
+          increaseAfter: this.#http.aimdIncreaseAfter,
+          onChange: (limit) => {
+            this.#onEvent({ type: 'concurrency', host, limit });
+          },
+        }),
+        bucket: new TokenBucket(this.#http.requestsPerSecond, this.#clock),
+      };
+      this.#hosts.set(host, scope);
     }
-    return error;
+    return scope;
   }
 
   async #fetch<T>(endpoint: Endpoint<T>, request: HttpRequest): Promise<{ response: HttpResponse; data: T }> {
     const { family } = endpoint;
+    const { limiter, bucket } = this.#hostScope(request);
     const timeoutMs =
       endpoint.timeoutClass === 'snapshot' ? this.#http.timeouts.snapshotMs : this.#http.timeouts.defaultMs;
     let transientFailures = 0;
@@ -210,30 +240,28 @@ export class HttpClient {
       const reason = this.#breaker.reason(family);
       if (reason !== undefined) throw new CircuitOpenError(endpoint.id, request, family, reason);
 
-      const epoch = await this.#limiter.acquire();
+      const epoch = await limiter.acquire();
       let outcome: AttemptOutcome<T>;
       try {
-        await this.#bucket.take();
+        await bucket.take();
         outcome = await this.#attempt(endpoint, request, timeoutMs);
       } catch (error) {
-        if (error instanceof ResponseValidationError) {
-          this.#withContext(error, endpoint, request);
-          this.#onEvent({ type: 'validation-error', endpoint: endpoint.id, request, error });
-          this.#openCircuit(family, `invalid rows from ${endpoint.id}: ${error.message}`, true);
-        }
+        // Neither AIMD nor the circuit breaker hear about it: only transport failures and
+        // transient validation errors are congestion or availability signals.
+        if (error instanceof ResponseValidationError) this.#disable(error, endpoint, request);
         throw error;
       } finally {
-        this.#limiter.release();
+        limiter.release();
       }
 
       if (outcome.ok) {
         this.#breaker.recordSuccess(family);
-        this.#limiter.recordSuccess(outcome.latencyMs <= this.#http.aimdFastFraction * timeoutMs);
+        limiter.recordSuccess(outcome.latencyMs <= this.#http.aimdFastFraction * timeoutMs);
         return outcome;
       }
 
-      this.#limiter.recordFailure(epoch);
-      this.#openCircuit(family, outcome.reason, false);
+      limiter.recordFailure(epoch);
+      this.#recordFailure(family, outcome.reason);
       if (outcome.transient) transientFailures++;
       if (attempt >= this.#http.maxAttempts || transientFailures > this.#http.transientValidationRetries) {
         throw new RetriesExhaustedError(endpoint.id, request, attempt, outcome.reason);
@@ -248,10 +276,10 @@ export class HttpClient {
     }
   }
 
-  #openCircuit(family: string, reason: string, immediately: boolean): void {
-    const opened = immediately ? this.#breaker.trip(family, reason) : this.#breaker.recordFailure(family, reason);
+  #recordFailure(family: Family, reason: string): void {
+    if (!this.#breaker.recordFailure(family, reason)) return;
     const openReason = this.#breaker.reason(family);
-    if (opened && openReason !== undefined) this.#onEvent({ type: 'circuit-open', family, reason: openReason });
+    if (openReason !== undefined) this.#onEvent({ type: 'circuit-open', family, reason: openReason });
   }
 
   /** One attempt. Returns retryable failures; throws non-retryable ones. */

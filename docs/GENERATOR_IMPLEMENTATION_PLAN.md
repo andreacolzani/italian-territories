@@ -323,18 +323,27 @@ All public ids are positive integers, unique per level (entities, versions) and 
 
 ```
 fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + completeness (bisection)
-      ─► identity resolution ─► versions ─► variations & links ─► internal enrichment
+      ─► internal crawl + identity graph ─► identity resolution ─► versions ─► variations & links
       ─► overrides ─► derived fields ─► ANPR cross-check ─► invariants ─► emit ─► changes
 ```
 
 ### 6.1 HTTP client (parallel, polite, resumable)
 
-- Single client used by every adapter. Worker pool with **configurable concurrency** (default 4, max 8).
-- **Adaptive concurrency (AIMD)**: +1 worker after K consecutive fast successes (up to max); halve on 429, 5xx, timeout or connection reset. A success is *fast* when its latency is at most a configurable fraction (default 0.25) of its endpoint-class timeout; a slow success resets the counter without halving. Failures of attempts started before the last halving do not halve again (one decrease per congestion episode).
-- Token-bucket rate limit (configurable requests/second).
+- Single client used by every adapter. Requests are grouped at **three scopes**, each with its own purpose:
+
+  | Scope | Values | Used for |
+  |---|---|---|
+  | **Host** | `situas-servizi.istat.it` (public), `situas.istat.it` (internal), `www.anagrafenazionale.interno.it` (ANPR) | Worker pool, AIMD and rate limit: congestion is a property of the server, so each host has its own pool and token bucket. |
+  | **Family** | `situas-public-snapshots` (pfun 44/46/68, 48/49/64, 51/50/61), `situas-public-reports` (event lists and counts), `situas-internal` (reports r1–r9), `anpr` | Circuit breaker. Heavy municipality snapshots can time out while light reports on the same host stay healthy, so they are separate families. |
+  | **Endpoint** | one `pfun` id, one internal report number, the ANPR CSV | Permanent validation errors: a schema change concerns a single report. |
+
+  The adapter declares the family and the endpoint of every request (one endpoint descriptor per `pfun`, internal report or the ANPR CSV); only the host is derived from the request URL.
+- Worker pool per host with **configurable concurrency** (default 4, max 8).
+- **Adaptive concurrency (AIMD)**: +1 worker after K consecutive fast successes (up to max); halve on 429, 5xx, timeout, connection reset or transient validation error. Nothing else changes the concurrency: permanent validation errors and requests refused because their endpoint is disabled neither halve it nor interrupt the streak of fast successes. A success is *fast* when its latency is at most a configurable fraction (default 0.25) of its endpoint-class timeout; a slow success resets the counter without halving. Failures of attempts started before the last halving do not halve again (one decrease per congestion episode).
+- Token-bucket rate limit per host (configurable requests/second).
 - Retries: up to 6 attempts, exponential backoff with full jitter; respect `Retry-After`.
 - Timeouts: configurable per endpoint class (snapshots of municipalities are large; default 120 s; event/detail calls 30 s).
-- **Circuit breaker**: after N consecutive failures on an endpoint family, stop that family and report instead of hammering the server. A family is a source (`situas-public`, `situas-internal`, `anpr`), declared by the adapter. Every failed attempt counts (429, 5xx, timeout, connection reset, transient validation error); a success resets the count. Once open, the circuit stays open for the rest of the run and requests fail immediately.
+- **Circuit breaker**: after N consecutive failures on a family (see the scope table above), stop that family and report instead of hammering the server. Every failed attempt counts (429, 5xx, timeout, connection reset, transient validation error); a success resets the count. Permanent validation errors and requests refused because their endpoint is disabled neither count nor reset it. Once open, the circuit stays open for the rest of the run and requests fail immediately.
 - **Encoding**: requests are built unencoded (§11.1); the client encodes every query parameter value strictly (RFC 3986: `encodeURIComponent` plus `!'()*`), both in public URLs and in the report URL inside the internal API body. Verified: unencoded values with spaces, `/` or apostrophes make the internal API answer `500 System Error`.
 - `User-Agent` identifying the project with a contact URL.
 - **Response cache** keyed by `sha256(method + normalised URL + body)`. Completed responses are written as soon as they arrive, so an interrupted run resumes without extra logic. Each entry stores `fetched_at` and the content hash.
@@ -354,9 +363,9 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
     - a snapshot or a list report returns zero rows, which is impossible for those endpoints.
 
     The 2 extra attempts are a separate budget inside the overall attempt limit. Each transient validation failure counts for the circuit breaker and halves the AIMD concurrency like a 5xx. If retries are exhausted it becomes a response error.
-  - **Permanent `ResponseValidationError`** (no retry): the envelope is valid but rows violate the schema, e.g. a missing required field or an unparseable date or code. It stops that endpoint family and produces a `blocking` anomaly with the request and offending rows.
+  - **Permanent `ResponseValidationError`** (no retry): the envelope is valid but rows violate the schema, e.g. a missing required field or an unparseable date or code. It disables **that endpoint** for the rest of the run (further requests to it fail immediately with `EndpointDisabledError`, without being sent) and produces a `blocking` anomaly with the request and offending rows. Neither error affects AIMD or the circuit breaker, and neither triggers `staleFallback` (D26). Other endpoints keep working, so a single run collects every problem; the run still ends with blocking anomalies (exit code 1).
   - Invalid responses of either class are **never cached**.
-- **Degradation**: if the internal API family is unavailable, the run uses the last cached internal data and logs a `warning`. The client implements it as an opt-in per request (`staleFallback`): when the network fails (circuit open or retries exhausted) and a cache entry exists, whatever its age or the cache policy, the entry is returned marked as stale and a `degraded` notification is emitted; without an entry the request fails. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
+- **Degradation**: if the internal API family is unavailable, the run uses the last cached internal data and logs a `warning`. The client implements it as an opt-in per request (`staleFallback`): when the network fails (circuit open or retries exhausted, never a validation error or a disabled endpoint) and a cache entry exists, whatever its age or the cache policy, the entry is returned marked as stale and a `degraded` notification is emitted; without an entry the request fails. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
 
 ### 6.2 Normalisation
 
@@ -365,6 +374,7 @@ Per adapter, producing typed internal rows:
 - Numeric enums coerced from number-or-string.
 - Dates from `DD/MM/YYYY` or `YYYY-MM-DDT00:00:00Z` → `YYYY-MM-DD`.
 - `""`, `" "`, `"ND"` → `null`; strings trimmed and NFC-normalised.
+- **Event code vocabulary**: every event row must carry a code from §2, and the code must belong to the set allowed for its endpoint (§3.2 table; internal reports accept the full vocabulary of their level). An unknown or unexpected code is a permanent `ResponseValidationError` (blocking): the vocabulary and the mapping to roles/links must be updated on purpose.
 - Snapshot rows are reduced to a **projection** containing only the fields relevant to the model (§3.2). Volatile or unused fields (NUTS, circondari, capital flags, fiscal codes) never take part in equality checks.
 
 ### 6.3 Snapshot store
@@ -423,7 +433,9 @@ For each level and each transition `S(d−1) → S(d)`:
 
 **Name changes** between snapshots must correspond to a `CD`/`CDAP` event (pfun 104/105 for municipalities, 114/108 or internal for UTS/regions) or to a new entity; otherwise `warning` (known ISTAT inconsistencies exist, e.g. *Pettoranello del Molise* vs *di Molise*).
 
-### 6.8 Internal enrichment
+### 6.8 Internal data (crawl and identity graph)
+
+Internal data is **acquired before identity resolution** (UTS and region identity depend on it, §6.7) and **attached** during identity resolution and variation building.
 
 - **Regions and UTS** (hundreds of calls, required): lists 1–2, events 4–5 for **every** listed `(code, name, type)` record (each typed record returns only its own events; the entity history is the union over all records of the same union-find component), details 7–8 for every event that can carry associated territories. Gives origin ids, `RN`/`AP`/territorial events, act ids and links.
 - **Municipalities** (one-time crawl of ~10k light calls, then only new entities): list 3, then report 6 for each `(pro_com_t, comune)`; deduplicate by `id_comune_origine` (any historical pair returns the same history). Gives origin ids and act ids. Match internal events to public rows by `(date, code at that date, event code)`.
@@ -459,7 +471,14 @@ Directory `overrides/`, one JSON file per topic. Entry:
 
 ### 6.11 ANPR cross-check
 
-Join ANPR rows to municipality versions by cadastral code plus date overlap (ANPR end dates converted from inclusive). Classify discrepancies (never blocking):
+The ANPR adapter already converts dates to the internal half-open convention: `validFrom = DATAISTITUZIONE`, `validTo = DATACESSAZIONE + 1 day`, or `null` when `DATACESSAZIONE = 9999-12-31`.
+
+ANPR is a **non-blocking source**:
+- **Row-level problems** (unparseable dates, cessation before institution, malformed codes): the adapter drops the row and returns an issue, which becomes an `info` anomaly.
+- **Structural problems** (download failure, missing columns): the cross-check is skipped for the run with a `warning`.
+- ANPR problems never raise a blocking `ResponseValidationError`.
+
+Join ANPR rows to municipality versions by cadastral code plus date overlap. Classify discrepancies (never blocking):
 
 | Level | Cases |
 |---|---|
@@ -597,6 +616,7 @@ Store the listed real responses under `test/fixtures/` following §11.1 and writ
 |---|---|
 | Public snapshot | `situas-public/snapshots/<level>/pfun-<id>_<pdata>.json` |
 | Public event list | `situas-public/events/<level>/pfun-<id>_<pdatada>_<pdataa>.json` |
+| Public count (`reportspooljsoncount`) | `situas-public/counts/<level>/pfun-<id>_<same params as the list request>.json` |
 | Internal report 1–3 (lists) | `situas-internal/r1-region-list/all.json`, `situas-internal/r2-uts-list/all.json`, `situas-internal/r3-municipality-list/all.json` |
 | Internal report 4 | `situas-internal/r4-region-events/<codreg>_<reg_tipo>_<slug>.json` |
 | Internal report 5 | `situas-internal/r5-uts-events/<coduts>_<uts_tipo>_<slug>.json` |
@@ -616,7 +636,7 @@ Store the listed real responses under `test/fixtures/` following §11.1 and writ
 {
   "path": "situas-internal/r5-uts-events/312_3_sassari.json",
   "source": "situas-internal",                 // situas-public | situas-internal | anpr
-  "endpoint": "r5:uts-events",                 // or "snapshot:pfun-64", "events:pfun-98", "anpr:archivio-comuni"
+  "endpoint": "r5:uts-events",                 // or "snapshot:pfun-64", "events:pfun-98", "count:pfun-61", "anpr:archivio-comuni"
   "request": { "method": "POST", "url": "…", "headers": { … }, "body": { "url": "var_get_ua_uts_lov_rs?&uts=Sassari&coduts=312&uts_tipo=3" } },
   "fetched_at": "2026-09-30",
   "completeness": "full",                      // full | subset
@@ -635,6 +655,32 @@ Request URLs and bodies are stored unencoded; the HTTP client encodes parameter 
 Fixtures fetched later (by tests or by a `fixtures:fetch` script) must follow the same conventions and add their manifest entry.
 
 API documentation notes written during design live in `docs/sources/` and are not fixtures.
+
+### 11.2 Fixtures to download (Step 4)
+
+The design-time fixtures do not cover every adapter. Download the following **once**, through the Step 3 client (encoded, rate-limited). Store them byte-identical under the §11.1 paths, with `fetched_at` = actual download date and the listed `used_by`. Show the final list to the maintainer before committing.
+
+| Request | `used_by` |
+|---|---|
+| pfun 44 and 48 on 1921-06-01 | golden-7 |
+| pfun 46 and 49 on 1942-06-01 | golden-8 |
+| pfun 48 and 51 on 1927-01-11; pfun 46, 49 and 50 on 1927-01-12 | golden-6, golden-16 |
+| pfun 46 and 49 on 1947-12-31; pfun 68 and 64 on 1948-01-01 | golden-15 |
+| pfun 68 on 2025-12-31 and 2026-01-01 | golden-4 |
+| Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
+| Counts for pfun 61, 64, 68 on the download date | golden-17 |
+| r1, r2, r3 (full lists) | golden-4, golden-15 |
+| r4 for Piemonte: every record listed by r1 with that name (compartment and region) | golden-15 |
+| r5 for the province records of Sassari (090, type 1), Cagliari (092, type 1), Milano (015, type 1) | golden-4, golden-5 |
+| r7 `reg_tipo=1&idprovv=6109&mcrvar=CS&id_regione_origine=14` | golden-15 |
+| r8 `id_uts_origine=126&idprovv=6151&uts_tipo=1&mcrvar=ES` (Sud Sardegna 2026) | golden-4 |
+| r8 `id_uts_origine=9&idprovv=6029&uts_tipo=1&mcrvar=ESCT` (Milano 2015) | golden-5 |
+
+Type-quirk tests (§3.5 items 1–3) reuse these fixtures with `used_by` `quirk-1`/`quirk-2`/`quirk-3` added where relevant.
+
+If a request in this table returns something that contradicts the expectations of §11.3, **stop and report**: do not adapt the expectations.
+
+### 11.3 Golden cases
 
 1. **Snapshot inclusivity**: pfun 61 on 2024-01-21 contains Quero Vas (025070, M332) and Alano di Piave (025002, A121) and not Setteville; on 2024-01-22 it contains Setteville (025075, M437) and not the other two. On the same day the new Sovizzo (024128, M436) replaces old Sovizzo (024103, I879) + Gambugliano, and Santa Caterina d'Este (028108, M438) replaces Carceri + Vighizzolo d'Este.
    - Expect: Quero Vas last `valid_until = 2024-01-21`; one variation dated `2024-01-22` with `merged_into` links to Setteville; new Sovizzo is a **different entity** from old Sovizzo.
@@ -665,12 +711,87 @@ API documentation notes written during design live in `docs/sources/` and are no
 12. **Bilingual chronology**: rename rows from 2009-01-29 (e.g. Duino Aurisina → Duino Aurisina-Devin Nabrežina, `COMUNE_A_REL` Devin Nabrežina) produce new versions with `foreign_name` set from that date.
 13. **Name/snapshot consistency**: the 1921 snapshot agrees with the last preceding pfun 104 rename for all 1,725 matched municipalities.
 14. **ANPR classification**: of 3,309 distinct suppressions, ~489 are absent from ANPR → `info`, never blocking.
+15. **1948 regime boundary**: compartments on 1947-12-31 and regions on 1948-01-01 with the same origin are the same entities with a new version (`type` compartment → region). The regions of 1871 (e.g. Piemonte, origin 14, `CS` act 6109) are linked to their predecessor compartment through r7 details.
+16. **1927 regime boundary**: crossing from pfun 51/48/44 to pfun 50/49/46 does not create spurious versions. Only real changes of 1927-01-12 (new provinces, same-day suppressions of golden-6) produce versions.
+17. **Counts (I13)**: reconstructed counts for the download date equal the three count fixtures.
 
 ---
 
 ## 12. Implementation steps
 
-Stack: Node ≥ 22 LTS, TypeScript (strict), ESM, `vitest`, runtime validation with `zod`, JSON Schemas generated from the zod models, no framework. Keep dependencies minimal. Rename the package placeholder `italian-territories` as needed.
+### 12.0 Global implementation decisions
+
+Steps 1–3 are already implemented. Where the existing code differs from a **naming or structural detail** of this section (config keys, script names, error class names, module paths), the existing code wins: update this section to match it. Raise only **behavioural** conflicts.
+
+These apply to every step. Anything not decided here or in §1–§11 that is **purely an implementation detail** (internal function names, file splitting inside a module) is left to the implementer. Anything that changes behaviour, outputs, dependencies or conventions must be asked.
+
+**Stack and dependencies**
+
+- Node ≥ 22.18, TypeScript strict, ESM.
+- Runtime dependencies: only `zod` (v4, using its built-in JSON Schema export) and `csv-parse` (ANPR).
+- Dev dependencies: `typescript`, `vitest`, `eslint` with `typescript-eslint`, `@eslint/js` and `eslint-config-prettier`, `prettier`, `@types/node`. No transpiler or TS runner (`tsx`, `ts-node`): Node runs the `.ts` sources directly.
+- Adding any other dependency requires approval.
+- Platform APIs to use: global `fetch`, `node:crypto` (SHA-256), `node:util` `parseArgs` (CLI), `node:fs/promises`.
+
+**Running `.ts` directly** (Node type stripping):
+
+- `engines.node` is `>=22.18`: 22.18.0 is the first Node 22 release with type stripping enabled by default. Older releases need `--experimental-strip-types`, which the scripts do not pass (`npm run cli` is `node src/cli.ts`).
+- `erasableSyntaxOnly` is on in `tsconfig.json`: only syntax that can be erased is allowed (no `enum`, `namespace`, parameter properties or `import =`).
+- Relative imports use the `.ts` extension (`./config.ts`, `allowImportingTsExtensions`); `tsc` rewrites them to `.js` in `lib/` (`rewriteRelativeImportExtensions`).
+
+**Paths**
+
+| Path | Content | Git |
+|---|---|---|
+| `src/` | Generator sources | committed |
+| `lib/` | Compiled generator code | ignored |
+| `dist/` | Published data and schemas | committed |
+| `registry/` | Id registry | committed |
+| `overrides/` | Curated corrections | committed |
+| `.cache/http/` | Response cache | ignored |
+| `.cache/store/` | Snapshot store; in CI it is the checkout of the `data-cache` branch | ignored |
+
+**npm package**: publishes only `dist/` (data and JSON Schemas), `README.md` and `LICENSE`. The generator code is not published.
+
+**Determinism**: build logic never reads the clock. "Today" comes from config (`dates.today`, set by `--today YYYY-MM-DD`, default the current date in `Europe/Rome`) and is passed explicitly. Only `generated_at` and `fetched_at` hold real timestamps. The `--today` flag is a Step 5 deliverable.
+
+**Logging**: a minimal internal logger writing NDJSON to stderr, with levels `debug|info|warn|error` and `--verbose` to enable `debug`. No logging dependency. Logger and `--verbose` are Step 6 deliverables.
+
+**Errors**: typed classes:
+- HTTP (`src/http/`, Step 3):
+  - `NetworkError`: connection-level failure reported by the transport (retried);
+  - `TransientResponseError`: 2xx response unusable as a whole (retried within `transientValidationRetries`);
+  - `HttpStatusError`: non-retryable status (4xx other than 429);
+  - `RetriesExhaustedError`: every allowed attempt failed;
+  - `CircuitOpenError`: the family circuit is open;
+  - `ResponseValidationError`: permanent, rows violate the schema;
+  - `EndpointDisabledError`: the endpoint was disabled by an earlier `ResponseValidationError`.
+- `ResolutionError` (Step 8)
+- `InvariantViolation` (Step 15)
+
+Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` passed through the pipeline.
+
+**Request scopes** (§6.1): **host** for worker pool, AIMD and rate limit; **family** (`situas-public-snapshots`, `situas-public-reports`, `situas-internal`, `anpr`, declared by the adapter) for the circuit breaker; **endpoint** (declared by the adapter) for permanent validation errors. Timeouts are per endpoint class: municipality snapshots (`snapshot`) vs everything else (`default`).
+
+**Config defaults** (`src/config.ts`; all overridable by config file and CLI flags):
+
+| Key | Default |
+|---|---|
+| `http.concurrency` / `http.maxConcurrency` | 4 / 8 per host (hard maximum 8) |
+| `http.aimdIncreaseAfter` | 20 consecutive fast successes |
+| `http.aimdFastFraction` | 0.25 (of the endpoint-class timeout, §6.1) |
+| `http.requestsPerSecond` | 5 per host |
+| `http.maxAttempts` | 6 (full jitter, honour `Retry-After`) |
+| `http.backoffBaseMs` / `http.backoffMaxMs` | 1 000 / 60 000 |
+| `http.retryAfterMaxMs` | 300 000 (cap on a server-provided `Retry-After`) |
+| `http.transientValidationRetries` | 2 |
+| `http.timeouts.snapshotMs` / `http.timeouts.defaultMs` | 120 000 (municipality snapshots) / 30 000 |
+| `http.circuitBreakerThreshold` | 10 consecutive failed attempts per family |
+| `http.userAgent` | `italian-territories-generator (+https://github.com/andreacolzani/italian-territories)` |
+| `update.lookbackDays` | 365 |
+| `update.auditSamples` | 50 |
+| `dates.start` | `1861-03-17` |
+| `dates.today` | `null` (current date in `Europe/Rome`) |
 
 ### Step 1 — Scaffolding — DONE
 
@@ -684,90 +805,166 @@ Stack: Node ≥ 22 LTS, TypeScript (strict), ESM, `vitest`, runtime validation w
 
 ### Step 3 — HTTP client — DONE
 
-- **Deliverables**: client per §6.1 (pool, AIMD, token bucket, retries, timeouts, circuit breaker, UA, response cache).
+- **Deliverables**: client per §6.1 (pool, AIMD and token bucket per host, retries, timeouts, circuit breaker per family, endpoints disabled by permanent validation errors, UA, response cache).
 - **Acceptance**: tests with a mocked server covering 429/5xx/timeouts, `Retry-After`, concurrency limits, cache hits, resume after interruption.
 
 ### Step 4 — Source adapters and normalisation
 
-- **Deliverables**: adapters for public snapshots (by level and regime), public event lists, internal reports 1–9, ANPR CSV; normalisation per §6.2; endpoint schemas.
-- **Acceptance**: fixture-based tests for every adapter using the real responses of §11; type-quirk tests (§3.5 items 1–3).
+- **Deliverables**: one adapter per call type, each returning normalised internal rows (§6.2).
+  - `fetchSnapshot(level, date)` chooses the `pfun` from the regime of `date`. The regime boundaries (`1927-01-12`, `1948-01-01`) are SITUAS constants defined next to the regime → `pfun` table in the public adapters; they are not configurable.
+  - `fetchEventList(level, pfun, from, to)`.
+  - `fetchCount(pfun, params)`, with endpoint id `count:pfun-<id>`. The response is `{ "resultset": [ { "NUM_ROWS": n } ] }`; zero is a valid count.
+  - Internal `r1`…`r9`.
+  - `fetchAnpr()`, returning `{ rows, issues }` with half-open dates (§6.11).
+  - Endpoint schemas, including the per-endpoint event code vocabulary (§6.2).
+  - Download of the §11.2 fixtures via `fixtures:fetch`, with manifest entries.
+- **Acceptance**:
+  - fixture-based tests for every adapter (§11.1 and §11.2 fixtures);
+  - type-quirk tests (§3.5 items 1–3);
+  - an unknown event code yields `ResponseValidationError`;
+  - ANPR malformed rows become issues, not errors;
+  - for every fixture request, the endpoint id declared by the adapter equals `describeRequest(request).endpoint` (§11.1), and its family is the one of the §6.1 scope table.
 
 ### Step 5 — Snapshot store and calendar
 
-- **Deliverables**: content-addressed store (§6.3) with read/write and manifest listing; calendar builder (§6.4).
-- **Acceptance**: dedup verified; store round-trip; calendar tests with fixture event lists.
+- **Deliverables**:
+  - **Row hashing**: a row hash is the SHA-256 (hex) of the canonical JSON of the projected row (keys sorted, no whitespace).
+  - **`rows/<level>.ndjson`**: append-only, one `{ "hash", "row" }` per line, never duplicated.
+  - **Manifest `snapshots/<level>/<date>.json`**: `{ level, date, pfun, fetched_at, content_hash, row_hashes (sorted), history: [{ fetched_at, content_hash }] }`. `history` is appended when a refresh changes the content.
+  - **Normalised event lists and internal responses**: stored under `events/` and `internal/` with the same content-hash approach.
+  - **Calendar builder** (§6.4) with provenance: `calendar.json` mapping each date to the list of sources that contributed it.
+  - **`--today YYYY-MM-DD`** CLI flag setting `dates.today` (§12.0 Determinism).
+- **Acceptance**: dedup verified; store round-trip; calendar tests with fixture event lists; regime boundaries always present; `--today` reaches the calendar builder; the clock is read only at the CLI boundary (default of `dates.today`) and for `generated_at` / `fetched_at`; no other build code reads it.
 
 ### Step 6 — Snapshot orchestration and completeness
 
-- **Deliverables**: fetch all snapshots for a calendar (parallel via the client), completeness verification and bisection (§6.5), inferred breakpoints.
-- **Acceptance**: simulated snapshot provider test where a hidden change between breakpoints is found by bisection in `O(log n)` calls.
+- **Deliverables**:
+  - parallel fetch of every `(level, date)` in the calendar;
+  - completeness verification per level (§6.5);
+  - NDJSON logger and the `--verbose` flag (§12.0 Logging), with the HTTP client notifications (`retry`, `concurrency`, `circuit-open`, `validation-error`, `changed`, `degraded`) logged.
+- **Bisection rules**:
+  - Search `[d_i + 1, d_{i+1} − 1]` for the first date whose snapshot differs from `S(d_i)`. After finding it, continue on the remaining sub-interval, which may hide further changes.
+  - An inferred date is added to the **global** calendar, so all levels get snapshots on it.
+  - Intervals never cross regimes, because boundaries are in the calendar.
+- **Acceptance**: a simulated provider where hidden changes between breakpoints, including two in the same interval, are found in `O(log n)` calls each.
 
-### Step 7 — Code resolver
+### Step 7 — Internal crawl and identity graph
 
-- **Deliverables**: resolver per §6.6 (side rule, same-day alias chains, cadastral fallback).
-- **Acceptance**: golden case 6 (all 20 same-day suppressions from the real pfun 98/105 fixtures) and the Sud Sardegna/Ogliastra side-rule example.
+- **Deliverables**: crawl per §6.8, using the cache and an incremental mode.
+- **Regions and UTS**:
+  - r1/r2 → r4/r5 for every listed record;
+  - r7/r8 for every event except `PV`, `CD` and `RN`, which have no associated territories.
+- **Municipalities**:
+  - r3, then r6 per `(pro_com_t, comune)` pair;
+  - each r6 response lists the codes and names the entity had over time; mark those pairs as covered and skip them;
+  - deduplicate by `id_comune_origine`.
+- **Identity graph** per level: union-find over `id ↔ id_origine` (§5.1) producing components with:
+  - root id (the oldest record);
+  - member typed records `(id, code, name, type)`;
+  - merged event history.
+- **Degradation**: missing internal data follows §6.1.
+- **Acceptance**:
+  - Milano, Cagliari and Sassari components (roots 9, 59, 58);
+  - Sassofeltrio single component;
+  - Ogliastra and Medio Campidano 2026 as separate components;
+  - incremental crawl touches only new pairs;
+  - degradation test with the internal family unavailable.
 
-### Step 8 — Identity resolution and registry
+### Step 8 — Code resolver
 
-- **Deliverables**: transition matcher per §6.7 for the three levels; registry (§5.3) with assignment, persistence and remap proposals.
-- **Acceptance**: golden cases 1, 2, 3, 4 (identity parts), 5; registry stability test (two builds produce identical ids).
+- **Deliverables**:
+  - Per-level interval index: code → list of `(validFrom, validTo, row)`, built from the snapshot store.
+  - `resolve(level, code, date, side)` per §6.6, returning `{ entityKey, version, path: "direct" | "alias" | "cadastral" }`.
+  - Unresolved codes raise `ResolutionError`, converted to a `blocking` anomaly.
+- **Acceptance**: golden-6 (all 20 same-day suppressions from the real pfun 98/105 fixtures; exactly one via `cadastral`) and the Sud Sardegna/Ogliastra side-rule example.
 
-### Step 9 — Versions
+### Step 9 — Identity resolution and registry
 
-- **Deliverables**: version builder (§6.9) including parent resolution and abbreviation derivation.
-- **Acceptance**: golden cases 2, 3, 5, 10, 11, 12; I1–I3 unit tests.
+- **Deliverables**:
+  - transition matcher per §6.7, using the identity graph from Step 7;
+  - registry (§5.3).
+- **Registry file format**: `{ "kind", "next_id", "entries": { "<natural key>": <id> } }`, keys sorted.
+- **Moved-key rule**: when an existing version key disappears and the same entity gets a new key whose interval overlaps it, **reuse the old id**. Record the remap in `registry/remaps.json` (`{ from_key, to_key, id, reason }`), log a `warning` and mark the run as retroactive (§10.2).
+- **Acceptance**:
+  - golden 1–5 (identity parts);
+  - two builds on the same store produce identical ids;
+  - moved-key scenario reuses the id and is classified retroactive.
 
-### Step 10 — Variations and links
+### Step 10 — Versions
 
-- **Deliverables**: grouping, participants with roles, links with kinds, dedup, dropping no-effect participations (§4.3).
-- **Acceptance**: golden cases 1, 2, 4, 6, 9; I9, I10, I14.
+- **Deliverables**: version builder (§6.9), internally half-open:
+  - parent resolution;
+  - abbreviation derivation. Non-conforming abbreviations are allowed here and checked by I8 after overrides.
+- **Acceptance**: golden 2, 3, 5, 10, 11, 12, 15, 16; I1–I3 unit tests.
 
-### Step 11 — Internal enrichment
+### Step 11 — Variations and links
 
-- **Deliverables**: crawls per §6.8 with caching and incremental mode; origin ids and act ids attached; public/internal disagreement detection.
-- **Acceptance**: golden case 4 fully; Sassofeltrio same-origin reconstitution; Ogliastra/Medio Campidano new entities; degradation test with the internal API unavailable.
+- **Deliverables**: grouping by act id, participants with roles, links with kinds, dedup, and dropping no-effect participations (§4.3).
+  - Public rows are matched to internal events by `(date, entity resolved from the code at that date, event code)`, which provides `istat_act_id` and `description`.
+  - Unmatched public rows keep `istat_act_id = null` and `description = null`.
+- **Acceptance**: golden 1, 2, 4, 6, 9; I9, I10, I14.
 
 ### Step 12 — Overrides
 
-- **Deliverables**: loader, applier, obsolescence check (§6.10); `overrides/abbreviations.json` with the VG entry.
-- **Acceptance**: golden case 7; obsolete-override test.
+- **Deliverables**: loader with zod schema, applier, obsolescence check (§6.10); `overrides/abbreviations.json` with the VG entry.
+- **Acceptance**: golden-7; obsolete-override test; I8 passes on the real 1921 fixture only after the override.
 
 ### Step 13 — Derived fields
 
-- **Deliverables**: §7 computations.
-- **Acceptance**: Quero → Quero Vas → Setteville chain; Sud Sardegna multiple successors; Fiume former Italian; Sassofeltrio active with no successors.
+- **Deliverables**: the computations of §7.
+- **Acceptance**:
+  - Quero → Quero Vas → Setteville chain;
+  - Sud Sardegna with multiple successors;
+  - Fiume former Italian;
+  - Sassofeltrio active with no successors.
 
 ### Step 14 — ANPR cross-check
 
 - **Deliverables**: join and classification (§6.11).
-- **Acceptance**: golden cases 3 (warning) and 14 (info counts).
+- **Acceptance**: golden 3 (`warning`) and 14 (`info` counts); a structurally broken CSV yields one `warning` and a successful run.
 
 ### Step 15 — Invariants
 
 - **Deliverables**: I1–I14 as independent, individually testable checks; anomaly reporting (§8.2).
-- **Acceptance**: a negative test for each invariant (a crafted dataset violating it is rejected).
+- **Acceptance**: a negative test for each invariant (a crafted dataset violating it is rejected); golden-17 for I13.
 
 ### Step 16 — Emitters, meta and changes
 
-- **Deliverables**: public emitters (§6.12, §9), inclusive dates, deterministic formatting, `meta.json`, `changes.json` with retroactive flagging, JSON Schemas in `dist/schema/`.
+- **Deliverables**:
+  - public emitters (§6.12, §9) with inclusive dates and deterministic formatting;
+  - `meta.json`;
+  - JSON Schemas in `dist/schema/`;
+  - `changes.json`: diff against the `dist/` of the previous commit. An item is `retroactive` if it touches any date before the previous `meta.generated_at` date, other than closing a version that was open.
 - **Acceptance**: byte-identical output across two runs on the same store; schema validation of all outputs; §4.4 example reproduced.
 
-### Step 17 — Commands: bootstrap, update, rebuild, audit
+### Step 17 — Commands: bootstrap, update, rebuild, audit, validate, diff
 
-- **Deliverables**: full orchestration per §10.1–§10.2 including additive vs retroactive classification.
-- **Acceptance**: end-to-end test on a reduced world (e.g. Veneto + Sardinia + Venezia Giulia) with mocked SITUAS; incremental scenario adding a fusion; retroactive scenario producing a PR-classified result.
+- **Deliverables**:
+  - Full orchestration per §10.1–§10.2.
+  - Exit codes: `0` success; `1` blocking anomalies; `2` retroactive changes (PR required); `3` source unavailable.
+  - Run summary written to `.cache/last-run.json`, for the workflows.
+- **Acceptance**:
+  - end-to-end test on a reduced world (Veneto, Sardinia, Venezia Giulia) with the fixture transport;
+  - incremental scenario adding a fusion (exit 0);
+  - retroactive scenario (exit 2).
 
 ### Step 18 — GitHub Actions
 
-- **Deliverables**: workflows of §10.3, `data-cache` branch handling, PR creation for retroactive changes, release and npm publish.
-- **Acceptance**: dry-run on a fork; no publish when blocking anomalies exist.
+- **Deliverables**: the workflows of §10.3:
+  - `data-cache` branch checkout and push;
+  - PR creation on exit code 2 (a pinned PR-creation action is allowed in workflows);
+  - release and npm publish.
+- **Acceptance**: dry-run on a fork; no publish on exit codes 1, 2 or 3.
 - **Open points** (to discuss or implement in this step):
   - the automatic update must also update `CHANGELOG.md`. Releases created with the `GITHUB_TOKEN` do not trigger other workflows, so `update-changelog.yml` (manual releases only) is not enough: the update has to happen inside the release flow, or the release has to be created with a PAT/GitHub App;
   - decide how the workflows that commit to `main` (changelog, data releases) behave when `main` is protected (bypass for GitHub Actions, PAT/GitHub App, or PR).
 
 ### Step 19 — Documentation
 
-- **Deliverables**: README (purpose, scope and perimeter, de iure dates, inclusive `valid_until`, file formats, id stability, consumer resolution contract of §7, update cadence, anomaly levels), CONTRIBUTING (how to add an override), CHANGELOG policy.
+- **Deliverables**:
+  - README covering: purpose; scope and perimeter; de iure dates; inclusive `valid_until`; file formats; id stability; consumer resolution contract (§7); update cadence; anomaly levels.
+  - CONTRIBUTING: how to add an override and a fixture.
+  - CHANGELOG policy.
 - **Acceptance**: every public field documented with type and semantics.
 - **Open points**: the CHANGELOG policy must update the changelog automatically only when the public outputs actually change.
 
@@ -795,6 +992,14 @@ Stack: Node ≥ 22 LTS, TypeScript (strict), ESM, `vitest`, runtime validation w
 | D16 | Perimeter = SITUAS; nothing outside it is mentioned | Undocumented territories are out of scope |
 | D17 | Parallel, adaptive, resumable HTTP client | Thousands of calls; unknown server limits |
 | D18 | Weekly incremental updates; retroactive changes only via PR | Consumers rely on non-destructive, reviewed history changes |
+| D19 | No global cache TTL; freshness is a per-call policy chosen by the orchestrator | Deterministic builds; retroactive changes detected by audit/rebuild and surfaced, never silently applied |
+| D20 | 2xx responses failing validation: transient (limited retry) for broken envelopes, permanent blocking for schema violations; never cached | Gateway/maintenance glitches vs real source changes |
+| D21 | Unknown or unexpected ISTAT event codes are blocking schema violations | The vocabulary drives roles and links; it must be extended deliberately |
+| D22 | ANPR is a non-blocking source; its dates are converted to half-open in the adapter | Cross-check only; one internal date convention everywhere |
+| D23 | Internal data is crawled before identity resolution | UTS/region identity depends on it (union-find over `id ↔ id_origine`) |
+| D24 | Minimal dependencies (`zod`, `csv-parse`); generator code not published to npm | Small attack surface; the npm package is a data package |
+| D25 | Three request scopes: host (pool, AIMD, rate limit), family (circuit breaker), endpoint (permanent validation errors) | Congestion is per server; heavy snapshots must not trip light reports; a schema change concerns one report and the run should collect all problems |
+| D26 | `ResponseValidationError` and `EndpointDisabledError` do not count for the circuit breaker (neither failure nor reset), do not reduce AIMD concurrency and never trigger `staleFallback`; AIMD and the circuit breaker react only to transport failures (429, 5xx, timeout, connection reset) and transient validation errors | A schema violation is neither congestion nor unavailability; stale data must not hide a blocking problem |
 
 ---
 
@@ -828,6 +1033,8 @@ Stack: Node ≥ 22 LTS, TypeScript (strict), ESM, `vitest`, runtime validation w
 │   └── abbreviations.json
 ├── registry/
 ├── dist/                      # published outputs (committed)
+├── lib/                       # compiled generator code (gitignored)
+├── .cache/                    # http/ and store/ local caches (gitignored)
 ├── test/
 │   ├── fixtures/              # real SITUAS/ANPR responses (§11.1)
 │   │   ├── manifest.json

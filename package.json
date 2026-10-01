@@ -25,9 +25,11 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "fixtures:fetch": "node scripts/fixtures-fetch.ts"
   },
   "dependencies": {
+    "csv-parse": "^6.2.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {

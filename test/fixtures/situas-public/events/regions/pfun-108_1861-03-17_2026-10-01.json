@@ -1,0 +1,22 @@
+{
+"resultset":[
+{
+"ANNO":"2003"
+,"TIPO_COMP_REG":"2"
+,"COD_COMP_REG":"02"
+,"DEN_COMP_REG":"Valle d\u0027Aosta"
+,"DATA_INIZIO_AMMINISTRATIVA":"2003-07-06T00:00:00Z"
+,"DEN_COMP_REG_REL":"Valle d\u0027Aosta\/Vall\u00E9e d\u0027Aoste"
+,"COD_COMP_REG_REL":"02"
+}
+,{
+"ANNO":"1964"
+,"TIPO_COMP_REG":"2"
+,"COD_COMP_REG":"13"
+,"DEN_COMP_REG":"Abruzzi e Molise"
+,"DATA_INIZIO_AMMINISTRATIVA":"1964-01-19T00:00:00Z"
+,"DEN_COMP_REG_REL":"Abruzzo"
+,"COD_COMP_REG_REL":"13"
+}
+]
+}

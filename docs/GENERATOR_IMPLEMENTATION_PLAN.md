@@ -154,6 +154,12 @@ Known ANPR problems (all verified): rows split by territorial events with identi
 12. **Venezia Giulia (UTS 801, 1920–1923)**: ISTAT abbreviation is the full name `Venezia Giulia`; the published abbreviation is `VG` (override, §6.10).
 13. **Bilingual names**: ISTAT names are chronological and consistent across snapshots, internal API and pfun 104 (checked: 1,725/1,725 municipalities in the 1921 snapshot match the last preceding rename). South Tyrol municipalities are bilingual since annexation (Italian part changes, e.g. 1923 Italianisation); Slovene bilingual names were mostly introduced by renames on 2009-01-29. Follow ISTAT as-is.
 14. **`id_uts` vs `id_uts_origine`**: `id_uts` identifies a *typed* UTS record and changes on every type change (`ESCT`/`CSCT`); `RN` keeps it. `id_uts_origine` on the new record points to the record it continues. Verified: Milano CM `id_uts` 119 → origin 9 (the province); Cagliari CM `id_uts` 127 → origin 59 (2016), renumbered 292 → 318 in 2026 with the same `id_uts` 127; Sassari CM `id_uts` 143 → origin 58 (2026). Entity identity is therefore the **transitive closure** of `id_uts ↔ id_uts_origine` links (§5.1), never `id_uts` alone.
+15. **Field names differ between endpoints**: pfun 100 carries the event code in `COD_VARIAZIONE_M` instead of `COD_VARIAZIONE`; pfun 104, 108 and 114 have no event code column (renames by definition, `CD`); internal r4 names the current region code `codice uts corrente`; r7/r8 give the event only as `<code>-<label>` (`ES-Estinzione`) and r8 the UTS type only as a label (`Città metropolitana`). Each adapter maps its own fields explicitly; there is no generic fallback between field names (D29). In particular:
+    - the r8 UTS type label is converted with a closed table (the labels listed by r2); an unknown label is a schema violation;
+    - for `<code>-<label>` values (r7/r8) the code is the text before the first `-`, validated against the vocabulary (§6.2);
+    - a related territory named `Stato estero` with no code is a foreign state. It is allowed only in `AS`, `AN` and `CE` events (verified: `AS` in 98 and 112; `AN` in 100, 113 and 107; `CE` in 17 rows of 103, all on 1947-09-16, partial cessions abroad of surviving municipalities such as Bardonecchia, Gorizia and Trieste). It is never resolved by the code resolver (§6.6), never produces links and never appears as a related territory in the model: the row is flagged `abroad` and the participant gets `abroad: true` (§4.3, D31). In any other event (`AQ` included), or with a code, it is a schema violation.
+16. **`COD_PROV_STORICO` absent in some periods**: pfun 64 on 1948-01-01 has no `COD_PROV_STORICO`; it is present in the 2024–2026 snapshots. Normalisation: `historicalCode = COD_PROV_STORICO ?? COD_UTS` for UTS rows and `historicalUtsCode = COD_PROV_STORICO ?? COD_UTS` (the row's own parent code) for municipality rows; before 1948 the historical code is the UTS code. The projection holds the **effective** value, so the field appearing or disappearing over time does not create false changes in equality and completeness checks (§6.5). The adapter reports the number of fallback rows (`info`), outside the projection. The fallback is checked by I7 (D29).
+17. **Codes with suffix ≥ 800**: codes assigned retroactively to suppressed municipalities. They appear in every snapshot in which the municipality exists, and their prefix does **not** indicate membership: it may be a later province (`005801` Bagnasco d'Asti in Alessandria 006 before Asti existed; `095809` Siamanna in Cagliari 092 before Oristano; `093801` Vallenoncello in Udine 030 before Pordenone) or an earlier one (`001xxx` municipalities in the province of Aosta 007). Membership comes only from `COD_PROV`/`COD_UTS`. Verified: in the 1921, 1927-01-11 and 1927-01-12 snapshots, 36, 41 and 63 rows have a prefix different from their historical UTS code, all with suffix ≥ 800; in 1942 and 2024 none (D30).
 
 ---
 
@@ -212,11 +218,11 @@ Names:
   "origin": "istat",                // "istat" | "inferred" | "override"
   "description": "ISTITUITE LA CITTA' METROPOLITANA DI SASSARI ...",  // ISTAT text, nullable
   "participants": [
-    { "level": "province", "territory_id": 95, "istat_events": ["RN", "AQES", "CECS"],
+    { "level": "province", "territory_id": 95, "istat_events": ["RN", "AQES", "CECS"], "abroad": false,
       "role": "changed", "version_before_id": 812, "version_after_id": 813 },
-    { "level": "province", "territory_id": 146, "istat_events": ["CS"],
+    { "level": "province", "territory_id": 146, "istat_events": ["CS"], "abroad": false,
       "role": "established", "version_before_id": null, "version_after_id": 901 },
-    { "level": "municipality", "territory_id": 10704, "istat_events": ["RN"],
+    { "level": "municipality", "territory_id": 10704, "istat_events": ["RN"], "abroad": false,
       "role": "changed", "version_before_id": 3, "version_after_id": 4 }
   ],
   "links": [
@@ -236,6 +242,8 @@ Participant `role` is derived from the participant's **effect**, not from event 
 | `changed` | both non-null, entity has own events |
 | `territory_changed` | both null; only territorial events (`AQ`, `CE`, `AQES`, `CECS`) and no attribute change |
 | `indirect` | both non-null, **no own event**: the version changed because of another participant (e.g. municipalities whose province changed region) |
+
+Participant `abroad` (boolean): `true` when the counterpart of one of its events is a foreign state (`AS`, `AN` or `CE` with `Stato estero`, §3.5 item 15), otherwise `false`. It requires one of those events. A foreign counterpart never produces a link (D31).
 
 Participations with **no effect** (no version change, no link, not territorial) are dropped from public output and logged at `info` level (e.g. the same-day `AP` of a municipality suppressed on that day).
 
@@ -315,7 +323,7 @@ All public ids are positive integers, unique per level (entities, versions) and 
 
 ### 5.5 Internal-only fields
 
-`COD_PROV_STORICO` (UTS "historical code", i.e. the municipality code prefix) is kept in the internal model only and used by invariant I7. It is **not** published.
+`COD_PROV_STORICO` (UTS "historical code", i.e. the municipality code prefix) is kept in the internal model only and used by invariant I7. It is **not** published. Where SITUAS omits it (§3.5 item 16) the historical code falls back to the UTS code (`COD_UTS` of the row); before 1948 it is the UTS code. The fallback is not assumed correct: I7 verifies it.
 
 ---
 
@@ -360,7 +368,7 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
     - the body is not parseable JSON;
     - the content type is not among those accepted by the endpoint, e.g. an HTML maintenance page (public API: `application/json`; internal API: `application/json` or `text/plain`, see §3.3; ANPR: `text/csv`);
     - the expected envelope (`resultset` / `items`) is missing;
-    - a snapshot or a list report returns zero rows, which is impossible for those endpoints.
+    - a snapshot or an internal list report (r1–r3) returns zero rows, which is impossible for those endpoints; a count response must have exactly one row (zero is a valid count). Public event lists and internal reports r4–r9 may be empty (an empty r4–r6 for a listed record is accepted by the client and becomes a blocking anomaly on that record, Step 7; D28).
 
     The 2 extra attempts are a separate budget inside the overall attempt limit. Each transient validation failure counts for the circuit breaker and halves the AIMD concurrency like a 5xx. If retries are exhausted it becomes a response error.
   - **Permanent `ResponseValidationError`** (no retry): the envelope is valid but rows violate the schema, e.g. a missing required field or an unparseable date or code. It disables **that endpoint** for the rest of the run (further requests to it fail immediately with `EndpointDisabledError`, without being sent) and produces a `blocking` anomaly with the request and offending rows. Neither error affects AIMD or the circuit breaker, and neither triggers `staleFallback` (D26). Other endpoints keep working, so a single run collects every problem; the run still ends with blocking anomalies (exit code 1).
@@ -374,7 +382,7 @@ Per adapter, producing typed internal rows:
 - Numeric enums coerced from number-or-string.
 - Dates from `DD/MM/YYYY` or `YYYY-MM-DDT00:00:00Z` → `YYYY-MM-DD`.
 - `""`, `" "`, `"ND"` → `null`; strings trimmed and NFC-normalised.
-- **Event code vocabulary**: every event row must carry a code from §2, and the code must belong to the set allowed for its endpoint (§3.2 table; internal reports accept the full vocabulary of their level). An unknown or unexpected code is a permanent `ResponseValidationError` (blocking): the vocabulary and the mapping to roles/links must be updated on purpose.
+- **Event code vocabulary**: every event row must carry a code from §2, and the code must belong to the set allowed for its endpoint (§3.2 table; internal reports accept every code of §2, and whether a `(level, code)` pair is meaningful is decided by the explicit rules of Step 11, D27). An unknown or unexpected code is a permanent `ResponseValidationError` (blocking): the vocabulary and the mapping to roles/links must be updated on purpose.
 - Snapshot rows are reduced to a **projection** containing only the fields relevant to the model (§3.2). Volatile or unused fields (NUTS, circondari, capital flags, fiscal codes) never take part in equality checks.
 
 ### 6.3 Snapshot store
@@ -413,6 +421,8 @@ Estimated bootstrap cost: ~2,500 breakpoints × 3 levels × 2 (verification) ≈
 2. If not found, apply **same-day aliases**: code-change events on `date` (pfun 105 for municipalities; internal `RN`/type changes for UTS) mapping old code ↔ new code; follow the chain.
 3. For municipalities, fall back to the **cadastral code** (when present on both sides).
 4. If still unresolved → `blocking` anomaly with full context.
+
+A foreign state counterpart (`Stato estero`, no code; allowed only in `AS`, `AN`, `CE`, §3.5 item 15) is never passed to the resolver: the adapters already turn it into the `abroad` flag.
 
 Verified on real data: all 20 same-day suppressions and 15 same-day absorbing codes resolve; one case needs the cadastral fallback.
 
@@ -523,7 +533,7 @@ For provinces, consumers should prefer resolving through the municipality, whose
 - **I4** Every `province_id`/`region_id` references an entity that has versions covering the **entire** interval of the referencing version.
 - **I5** For every municipality version, `region_id` equals the `region_id` of its province over the whole interval.
 - **I6** Per-date uniqueness within a level: `istat_code`; non-null `cadastral_code` among municipalities; `abbreviation` among UTS.
-- **I7** The municipality `istat_code` prefix equals the internal historical code of its UTS on the same dates (pre-1948: the UTS code).
+- **I7** The municipality `istat_code` prefix equals the internal historical code of its UTS on the same dates (pre-1948: the UTS code), for codes with suffix < 800, at any date. Codes with suffix ≥ 800 (§3.5 item 17, D30): the prefix must be the code of a UTS that existed at some time in the dataset, otherwise blocking; a prefix different from the historical code of the UTS of membership is an `info` anomaly, one per version.
 - **I8** `abbreviation` matches `^[A-Z]{2}$`.
 - **I9** Every version boundary is referenced by at least one participant of a variation with the matching date: `version_after_id` for opened versions, `version_before_id` for closed ones. The only exception is versions starting on `1861-03-17` via `PV`. Every referenced version and entity exists and dates are coherent.
 - **I10** No zero-length versions; no published participation without effect.
@@ -531,6 +541,7 @@ For provinces, consumers should prefer resolving through the municipality, whose
 - **I12** Reconstruction equals SITUAS: for every snapshot in the store (and every audit sample), the set of versions valid on that date, projected, equals the snapshot projection (after applying overrides).
 - **I13** Today's reconstructed counts equal the SITUAS count endpoints for the three levels.
 - **I14** Every event row from public lists and internal events is either represented in a variation or explicitly classified as dropped (no-effect), with a reason.
+- **I15** A participant with role `ceded` or `annexed` always has `abroad: true`, and `abroad: true` appears only on participants with at least one `AS`, `AN` or `CE` event (§4.3, D31).
 
 ### 8.2 Anomaly levels
 
@@ -539,8 +550,8 @@ Anomalies go to `anomalies.json` with `level`, `code` (stable machine identifier
 | Level | Examples |
 |---|---|
 | `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision |
-| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences |
-| `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; use of cached internal data |
+| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences; current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30) |
+| `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; use of cached internal data; historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
 A run with any `blocking` anomaly never publishes and never commits data to `main`.
 
@@ -714,6 +725,7 @@ If a request in this table returns something that contradicts the expectations o
 15. **1948 regime boundary**: compartments on 1947-12-31 and regions on 1948-01-01 with the same origin are the same entities with a new version (`type` compartment → region). The regions of 1871 (e.g. Piemonte, origin 14, `CS` act 6109) are linked to their predecessor compartment through r7 details.
 16. **1927 regime boundary**: crossing from pfun 51/48/44 to pfun 50/49/46 does not create spurious versions. Only real changes of 1927-01-12 (new provinces, same-day suppressions of golden-6) produce versions.
 17. **Counts (I13)**: reconstructed counts for the download date equal the three count fixtures.
+18. **Partial cessions abroad (1947-09-16)**: the 17 `CE` rows of pfun 103 whose counterpart is `Stato estero` (e.g. Gorizia 031007, Trieste 032006, Bardonecchia 001022) produce participations with role `territory_changed`, `abroad: true` and no link; the municipalities stay `is_former_italian: false`.
 
 ---
 
@@ -808,7 +820,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Deliverables**: client per §6.1 (pool, AIMD and token bucket per host, retries, timeouts, circuit breaker per family, endpoints disabled by permanent validation errors, UA, response cache).
 - **Acceptance**: tests with a mocked server covering 429/5xx/timeouts, `Retry-After`, concurrency limits, cache hits, resume after interruption.
 
-### Step 4 — Source adapters and normalisation
+### Step 4 — Source adapters and normalisation — DONE
 
 - **Deliverables**: one adapter per call type, each returning normalised internal rows (§6.2).
   - `fetchSnapshot(level, date)` chooses the `pfun` from the regime of `date`. The regime boundaries (`1927-01-12`, `1948-01-01`) are SITUAS constants defined next to the regime → `pfun` table in the public adapters; they are not configurable.
@@ -817,13 +829,17 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - Internal `r1`…`r9`.
   - `fetchAnpr()`, returning `{ rows, issues }` with half-open dates (§6.11).
   - Endpoint schemas, including the per-endpoint event code vocabulary (§6.2).
-  - Download of the §11.2 fixtures via `fixtures:fetch`, with manifest entries.
+  - Download of the §11.2 fixtures via `fixtures:fetch` (`scripts/fixtures-fetch.ts`, through the HTTP client; bodies stored as served, internal ones double-encoded), with manifest entries.
+  - Explicit field mapping per endpoint (§3.5 items 15–16, D29); `fetchSnapshot` reports the historical code fallbacks as `info`.
+  - `fetchAnpr` raises `AnprFormatError` for structural problems (unparseable CSV, missing columns): not retried, not cached, never a `ResponseValidationError`.
 - **Acceptance**:
   - fixture-based tests for every adapter (§11.1 and §11.2 fixtures);
   - type-quirk tests (§3.5 items 1–3);
   - an unknown event code yields `ResponseValidationError`;
   - ANPR malformed rows become issues, not errors;
-  - for every fixture request, the endpoint id declared by the adapter equals `describeRequest(request).endpoint` (§11.1), and its family is the one of the §6.1 scope table.
+  - for every fixture request, the endpoint id declared by the adapter equals `describeRequest(request).endpoint` (§11.1), and its family is the one of the §6.1 scope table;
+  - internal decoders accept both double-encoded and plain JSON bodies;
+  - on every real municipality snapshot fixture, the code prefix equals the effective `historicalUtsCode` for every row except codes with suffix ≥ 800 (§3.5 item 17).
 
 ### Step 5 — Snapshot store and calendar
 
@@ -863,6 +879,8 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - member typed records `(id, code, name, type)`;
   - merged event history.
 - **Degradation**: missing internal data follows §6.1.
+- **Empty event reports**: an empty r4/r5/r6 response for a listed record is a `blocking` anomaly `listed record without events` for that record; the client accepts the response and the endpoint stays enabled.
+- **Event code summary**: the crawl saves the summary of the observed `(level, event code)` pairs, input to the Step 11 rules (D27).
 - **Acceptance**:
   - Milano, Cagliari and Sassari components (roots 9, 59, 58);
   - Sassofeltrio single component;
@@ -902,7 +920,8 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Deliverables**: grouping by act id, participants with roles, links with kinds, dedup, and dropping no-effect participations (§4.3).
   - Public rows are matched to internal events by `(date, entity resolved from the code at that date, event code)`, which provides `istat_act_id` and `description`.
   - Unmatched public rows keep `istat_act_id = null` and `description = null`.
-- **Acceptance**: golden 1, 2, 4, 6, 9; I9, I10, I14.
+  - Every `(level, event code)` pair has an explicit rule (role and links); a pair without a rule is a `blocking` anomaly (D27).
+- **Acceptance**: golden 1, 2, 4, 6, 9, 18; I9, I10, I14; a pair without a rule is blocking.
 
 ### Step 12 — Overrides
 
@@ -916,17 +935,23 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - Quero → Quero Vas → Setteville chain;
   - Sud Sardegna with multiple successors;
   - Fiume former Italian;
+  - golden-18: municipalities with a partial cession abroad are not former Italian;
   - Sassofeltrio active with no successors.
 
 ### Step 14 — ANPR cross-check
 
-- **Deliverables**: join and classification (§6.11).
+- **Deliverables**: join and classification (§6.11). Any ANPR failure (`AnprFormatError`, download failure, exhausted retries, open circuit, HTTP errors) skips the cross-check with a single `warning` and never blocks (D22).
 - **Acceptance**: golden 3 (`warning`) and 14 (`info` counts); a structurally broken CSV yields one `warning` and a successful run.
 
 ### Step 15 — Invariants
 
-- **Deliverables**: I1–I14 as independent, individually testable checks; anomaly reporting (§8.2).
-- **Acceptance**: a negative test for each invariant (a crafted dataset violating it is rejected); golden-17 for I13.
+- **Deliverables**: I1–I15 as independent, individually testable checks; anomaly reporting (§8.2); the `warning` check for active municipalities whose current version has an 8xx code (D30).
+- **Acceptance**:
+  - a negative test for each invariant (a crafted dataset violating it is rejected); golden-17 for I13;
+  - I15: a `ceded` or `annexed` participant with `abroad: false`, and an `abroad: true` participant without `AS`, `AN` or `CE`, are both rejected;
+  - I7: a wrong `COD_PROV_STORICO` fallback (§3.5 item 16) makes I7 fail;
+  - I7: an 8xx code whose prefix is the code of a UTS of another time is `info`; one whose prefix never was a UTS code is blocking; a mismatch with suffix < 800 is blocking at any date;
+  - the 8xx `warning` fires for an active municipality whose current code has suffix ≥ 800.
 
 ### Step 16 — Emitters, meta and changes
 
@@ -963,6 +988,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 
 - **Deliverables**:
   - README covering: purpose; scope and perimeter; de iure dates; inclusive `valid_until`; file formats; id stability; consumer resolution contract (§7); update cadence; anomaly levels.
+  - README: for versions with an 8xx `istat_code` (§3.5 item 17), the code must not be used to derive the province; use `province_id`.
   - CONTRIBUTING: how to add an override and a fixture.
   - CHANGELOG policy.
 - **Acceptance**: every public field documented with type and semantics.
@@ -995,11 +1021,16 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D19 | No global cache TTL; freshness is a per-call policy chosen by the orchestrator | Deterministic builds; retroactive changes detected by audit/rebuild and surfaced, never silently applied |
 | D20 | 2xx responses failing validation: transient (limited retry) for broken envelopes, permanent blocking for schema violations; never cached | Gateway/maintenance glitches vs real source changes |
 | D21 | Unknown or unexpected ISTAT event codes are blocking schema violations | The vocabulary drives roles and links; it must be extended deliberately |
-| D22 | ANPR is a non-blocking source; its dates are converted to half-open in the adapter | Cross-check only; one internal date convention everywhere |
+| D22 | ANPR is a non-blocking source; its dates are converted to half-open in the adapter; any ANPR failure (format, download, exhausted retries, HTTP) skips the cross-check with a single `warning` (§6.11) | Cross-check only; one internal date convention everywhere |
 | D23 | Internal data is crawled before identity resolution | UTS/region identity depends on it (union-find over `id ↔ id_origine`) |
 | D24 | Minimal dependencies (`zod`, `csv-parse`); generator code not published to npm | Small attack surface; the npm package is a data package |
 | D25 | Three request scopes: host (pool, AIMD, rate limit), family (circuit breaker), endpoint (permanent validation errors) | Congestion is per server; heavy snapshots must not trip light reports; a schema change concerns one report and the run should collect all problems |
 | D26 | `ResponseValidationError` and `EndpointDisabledError` do not count for the circuit breaker (neither failure nor reset), do not reduce AIMD concurrency and never trigger `staleFallback`; AIMD and the circuit breaker react only to transport failures (429, 5xx, timeout, connection reset) and transient validation errors | A schema violation is neither congestion nor unavailability; stale data must not hide a blocking problem |
+| D27 | Internal adapters accept every event code of §2; each `(level, event code)` pair needs an explicit role/link rule when building variations, and a pair without a rule is blocking | Per-level code sets are not documented by ISTAT; the vocabulary is closed by explicit rules, not by guessed sets |
+| D28 | Empty responses are transient only for snapshots and internal lists r1–r3; counts have exactly one row and zero is valid; empty r4–r6 are accepted by the client and produce a blocking anomaly on the single record (Step 7) | Short event ranges and event/detail reports are legitimately empty; a listed record without events is a data problem of that record, not of the transport |
+| D29 | Field differences between endpoints or periods are handled by explicit mappings per adapter; defaults for missing fields must be verified by an invariant | No silent guessing between field names; every fallback (e.g. `COD_PROV_STORICO ?? COD_UTS`) is checked (I7) |
+| D30 | Municipality codes with suffix ≥ 800 are exempt from the strict I7 prefix rule: the prefix must be a UTS code of some time, differences are `info`; an active municipality with an 8xx current code is a `warning` | ISTAT assigns 8xx codes retroactively to suppressed municipalities with the prefix of a later or earlier province; membership comes from `COD_PROV`/`COD_UTS` only |
+| D31 | A foreign state counterpart (`Stato estero`, no code) is allowed only in `AS`, `AN`, `CE`; it is never resolved and never produces links; the participant carries the public flag `abroad` | Cessions and annexations involve territories outside the perimeter (D16), which have no entity; the flag keeps the information without inventing one |
 
 ---
 
@@ -1026,7 +1057,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 │   ├── overrides/
 │   ├── derive/                # derived fields
 │   ├── crosscheck/            # ANPR
-│   ├── invariants/            # I1–I14
+│   ├── invariants/            # I1–I15
 │   ├── emit/                  # public JSON, meta, changes, schemas
 │   └── model/                 # internal + public types, zod schemas
 ├── overrides/

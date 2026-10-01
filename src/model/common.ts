@@ -32,6 +32,13 @@ export type IstatEventCode = (typeof ISTAT_EVENT_CODES)[number];
 /** Events that move territory without changing the published attributes of the subject (§4.3). */
 export const TERRITORIAL_EVENT_CODES = ['AQ', 'CE', 'AQES', 'CECS'] as const satisfies readonly IstatEventCode[];
 
+/**
+ * Events whose counterpart may be a foreign state (`Stato estero`, no code): cession abroad,
+ * annexation, partial cession of territory abroad (§3.5 item 15). Such a counterpart is never
+ * resolved and never produces links; the participant is flagged `abroad` (§4.3).
+ */
+export const ABROAD_EVENT_CODES = ['AS', 'AN', 'CE'] as const satisfies readonly IstatEventCode[];
+
 /** Region types, indexed by the ISTAT `tipo regione` value minus one (1 compartment, 2 region). */
 export const REGION_TYPES = ['compartment', 'region'] as const;
 export type RegionType = (typeof REGION_TYPES)[number];
@@ -89,6 +96,16 @@ export function utsTypeFromIstat(value: number): UtsType {
   const type = UTS_TYPES[value - 1];
   if (!Number.isInteger(value) || type === undefined) throw new RangeError(`unknown ISTAT UTS type ${value}`);
   return type;
+}
+
+/** Inverse of {@link regionTypeFromIstat}. */
+export function regionTypeToIstat(type: RegionType): number {
+  return REGION_TYPES.indexOf(type) + 1;
+}
+
+/** Inverse of {@link utsTypeFromIstat}. */
+export function utsTypeToIstat(type: UtsType): number {
+  return UTS_TYPES.indexOf(type) + 1;
 }
 
 /**

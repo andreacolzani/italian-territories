@@ -67,8 +67,8 @@ export function normaliseUrl(url: string): string {
   return q < 0 ? base : `${base}?${sortQuery(trimmed.slice(q + 1))}`;
 }
 
-/** JSON with object keys sorted recursively. */
-function canonicalJson(value: unknown): string {
+/** JSON with object keys sorted recursively, no whitespace; `undefined` properties are omitted. */
+export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value !== null && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)

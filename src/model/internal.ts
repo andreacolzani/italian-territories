@@ -46,7 +46,10 @@ export interface UtsSnapshotRow {
   type: UtsType;
   /** `SIGLA_AUTOMOBILISTICA`; null before 1948 (derived from municipalities, §6.9). */
   abbreviation: string | null;
-  /** `COD_PROV_STORICO` (internal only, §5.5); equals `code` before 1948. */
+  /**
+   * `COD_PROV_STORICO` (internal only, §5.5): the municipality code prefix. Equals `code` before
+   * 1948 and wherever SITUAS omits the field (§3.5); the fallback is checked by invariant I7.
+   */
   historicalCode: string;
 }
 
@@ -67,8 +70,11 @@ export interface MunicipalitySnapshotRow {
   regionCode: string;
   /** `SIGLA_UTS` / `SIGLA_AUTOMOBILISTICA` as reported (may be a full name, §3.5 item 12). */
   utsAbbreviation: string | null;
-  /** `COD_PROV_STORICO` (≥1948 only), else null. */
-  historicalUtsCode: string | null;
+  /**
+   * Historical code of the parent UTS (§5.5): `COD_PROV_STORICO`, falling back to `utsCode`
+   * before 1948 and wherever SITUAS omits the field (§3.5).
+   */
+  historicalUtsCode: string;
 }
 
 export interface SnapshotRowByLevel {
@@ -163,6 +169,8 @@ export interface Participant {
   level: Level;
   entityId: number;
   istatEvents: IstatEventCode[];
+  /** The counterpart of one of its events (`AS`, `AN`, `CE`) is a foreign state (§4.3). */
+  abroad: boolean;
   /** `null` = participation without effect: kept internally, logged and dropped on emit (§4.3). */
   role: ParticipantRole | null;
   versionBeforeId: number | null;

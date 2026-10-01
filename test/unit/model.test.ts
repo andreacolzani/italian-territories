@@ -91,6 +91,7 @@ const sassari2026 = {
       level: 'province',
       territory_id: 95,
       istat_events: ['RN', 'AQES', 'CECS'],
+      abroad: false,
       role: 'changed',
       version_before_id: 812,
       version_after_id: 813,
@@ -99,6 +100,7 @@ const sassari2026 = {
       level: 'province',
       territory_id: 146,
       istat_events: ['CS'],
+      abroad: false,
       role: 'established',
       version_before_id: null,
       version_after_id: 901,
@@ -107,6 +109,7 @@ const sassari2026 = {
       level: 'municipality',
       territory_id: 10704,
       istat_events: ['RN'],
+      abroad: false,
       role: 'changed',
       version_before_id: 3,
       version_after_id: 4,
@@ -237,6 +240,21 @@ describe('public variation model (§4.3)', () => {
     expect(variationSchema.safeParse({ ...sassari2026, participants: [] }).success).toBe(false);
   });
 
+  it('allows abroad only with an AS, AN or CE event (golden-18)', () => {
+    const gorizia = {
+      level: 'municipality',
+      territory_id: 7,
+      istat_events: ['CE'],
+      abroad: true,
+      role: 'territory_changed',
+      version_before_id: null,
+      version_after_id: null,
+    };
+    expect(participantSchema.safeParse(gorizia).success).toBe(true);
+    expect(participantSchema.safeParse({ ...gorizia, istat_events: ['AQ'] }).success).toBe(false);
+    expect(participantSchema.safeParse({ ...gorizia, abroad: undefined }).success).toBe(false);
+  });
+
   it('rejects self links', () => {
     expect(variationLinkSchema.safeParse({ level: 'region', from: 3, to: 3, kind: 'merged_into' }).success).toBe(false);
   });
@@ -245,6 +263,7 @@ describe('public variation model (§4.3)', () => {
     level: 'municipality',
     territory_id: 1,
     istat_events: events,
+    abroad: false,
     role,
     version_before_id: before,
     version_after_id: after,

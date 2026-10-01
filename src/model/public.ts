@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { compareDates, isIsoDate } from '../dates/index.ts';
 import {
   ABBREVIATION_PATTERN,
+  ABROAD_EVENT_CODES,
   ANOMALY_LEVELS,
   CADASTRAL_CODE_PATTERN,
   ENTITY_STATUSES,
@@ -160,6 +161,9 @@ export const participantSchema = z
       .array(istatEventCodeSchema.exclude(['PV']))
       .refine(isUnique, 'events must not repeat')
       .meta({ description: 'ISTAT events of this entity in the variation; empty for indirect participants.' }),
+    abroad: z.boolean().meta({
+      description: 'True when the counterpart of one of its events (AS, AN, CE) is a foreign state.',
+    }),
     role: z.enum(PARTICIPANT_ROLES),
     version_before_id: idSchema.nullable(),
     version_after_id: idSchema.nullable(),
@@ -172,6 +176,13 @@ export const participantSchema = z
       versionAfterId: p.version_after_id,
     });
     for (const message of violations) ctx.addIssue({ code: 'custom', message, path: ['role'] });
+    if (p.abroad && !p.istat_events.some((e) => (ABROAD_EVENT_CODES as readonly string[]).includes(e))) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `abroad requires one of the events ${ABROAD_EVENT_CODES.join(', ')}`,
+        path: ['abroad'],
+      });
+    }
   })
   .meta({ id: 'Participant' });
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateJsonSchema, generateJsonSchemas, PUBLIC_FILE_MODELS } from '../../src/model/json-schema.ts';
 
 interface ObjectSchema {
-  properties: Record<string, { pattern?: string; enum?: string[] }>;
+  properties: Record<string, { pattern?: string; enum?: string[]; type?: string }>;
   required: string[];
   additionalProperties: boolean;
 }
@@ -61,6 +61,8 @@ describe('JSON Schema generation', () => {
 
     const participant = def(generateJsonSchema('variations'), 'Participant');
     expect(participant.properties.role?.enum).toContain('territory_changed');
+    expect(participant.properties.abroad?.type).toBe('boolean');
+    expect(participant.required).toContain('abroad');
   });
 
   it('covers every public file model', () => {

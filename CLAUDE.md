@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A generator that builds a day-accurate historical dataset of Italian regions, UTS/provinces and municipalities from 1861-03-17 to today, from ISTAT SITUAS (source of truth) and ANPR (cross-check only), and keeps it updated via GitHub Actions. A Laravel consumer package is a separate project.
 
 **`docs/GENERATOR_IMPLEMENTATION_PLAN.md` is the specification and the roadmap.** Read the relevant sections before any change:
+
 - Implement the steps of §12 **in order**; a step starts only when the previous one meets its acceptance criteria. When a step meets its acceptance criteria, mark its heading in §12 with `— DONE` (e.g. `### Step 1 — Scaffolding — DONE`).
 - §1–§11 are the spec. If the implementation reveals a contradiction or an uncovered case, **stop and ask** instead of improvising. The decisions in §13 must not be changed without discussion.
 - Invariants (§8) must be enforced by code, not by convention.

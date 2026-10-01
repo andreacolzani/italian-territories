@@ -40,7 +40,8 @@ const INTERNAL_EVENT_SOURCES = [
 
 /**
  * Provenance of a calendar date: an event list or internal event report (by endpoint id), an
- * ANPR boundary, a regime boundary or today.
+ * ANPR boundary, a regime boundary, today, or a breakpoint found by completeness bisection
+ * (`inferred`, §6.5).
  */
 export const CALENDAR_SOURCES = [
   ...EVENT_LIST_SOURCES,
@@ -49,6 +50,7 @@ export const CALENDAR_SOURCES = [
   'anpr:end',
   'regime',
   'today',
+  'inferred',
 ] as const;
 export type CalendarSource = (typeof CALENDAR_SOURCES)[number];
 
@@ -88,14 +90,46 @@ export function buildCalendar(options: CalendarOptions): Calendar {
 
   const dates = new Map<IsoDate, CalendarSource[]>();
   for (const date of [...bySource.keys()].sort(compareDates)) {
-    dates.set(date, [...(bySource.get(date) ?? [])].sort());
+    const sources = [...(bySource.get(date) ?? [])].sort();
+    // A published event explains the change: the date is no longer inferred.
+    const explained = sources.some((s) => EVENT_SOURCES.has(s));
+    dates.set(date, explained ? sources.filter((s) => s !== 'inferred') : sources);
   }
   return { start, today, dates };
 }
 
+/** Sources that are published events (public lists and internal event reports). */
+const EVENT_SOURCES: ReadonlySet<CalendarSource> = new Set([...EVENT_LIST_SOURCES, ...INTERNAL_EVENT_SOURCES]);
+
 /** Ascending calendar dates. */
 export function calendarDates(calendar: Calendar): IsoDate[] {
   return [...calendar.dates.keys()];
+}
+
+/** A copy of `calendar` with `contributions` added (same bounds). */
+export function extendCalendar(calendar: Calendar, contributions: Iterable<CalendarContribution>): Calendar {
+  const existing = [...calendar.dates].flatMap(([date, sources]) =>
+    sources.map((source) => ({ source, dates: [date] })),
+  );
+  return buildCalendar({
+    start: calendar.start,
+    today: calendar.today,
+    contributions: [...existing, ...contributions],
+  });
+}
+
+/**
+ * A copy of `calendar` without `source` on `dates`; a date left without sources leaves the
+ * calendar (e.g. an inferred breakpoint a refetch no longer confirms).
+ */
+export function removeCalendarSource(calendar: Calendar, source: CalendarSource, dates: Iterable<IsoDate>): Calendar {
+  const targets = new Set(dates);
+  const kept = new Map<IsoDate, CalendarSource[]>();
+  for (const [date, sources] of calendar.dates) {
+    const rest = targets.has(date) ? sources.filter((s) => s !== source) : sources;
+    if (rest.length > 0) kept.set(date, rest);
+  }
+  return { start: calendar.start, today: calendar.today, dates: kept };
 }
 
 export function eventListContribution(pfun: EventListPfun, rows: readonly { date: IsoDate }[]): CalendarContribution {

@@ -14,8 +14,11 @@ import { EVENT_LISTS } from '../sources/situas-public/index.ts';
 
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
 
-/** Counters reported by an adapter about one response; not part of the content. */
-export const adapterStatsSchema = z.record(z.string(), z.number());
+/**
+ * Counters and code lists (sorted, unique) reported by an adapter about one response; not part
+ * of the content.
+ */
+export const adapterStatsSchema = z.record(z.string(), z.union([z.number(), z.array(z.string())]));
 export type AdapterStats = z.output<typeof adapterStatsSchema>;
 
 const historyEntry = z.strictObject({ fetched_at: isoDateSchema, content_hash: hash });

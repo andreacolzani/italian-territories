@@ -28,6 +28,8 @@ export interface SnapshotResult<L extends Level = Level> {
   pfun: SnapshotPfun;
   /** Rows whose historical UTS code is the `COD_PROV_STORICO` fallback (§3.5); `info`. */
   historicalCodeFallbacks: number;
+  /** Distinct UTS codes of the fallback rows, sorted. */
+  historicalCodeFallbackUtsCodes: string[];
 }
 
 export class SituasPublicSource {
@@ -51,13 +53,14 @@ export class SituasPublicSource {
       snapshotRequest(this.#baseUrl, pfun, date),
       options,
     );
-    const { rows, historicalCodeFallbacks } = result.data;
+    const { rows, historicalCodeFallbacks, historicalCodeFallbackUtsCodes } = result.data;
     return {
       ...result,
       data: {
         snapshot: { level, date, rows: rows as Snapshot<L>['rows'] },
         pfun,
         historicalCodeFallbacks,
+        historicalCodeFallbackUtsCodes,
       },
     };
   }

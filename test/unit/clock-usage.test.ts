@@ -6,9 +6,10 @@ const SRC = join(import.meta.dirname, '..', '..', 'src');
 
 /**
  * Files allowed to read the clock (§12.0 Determinism): the date library that wraps it, the CLI
- * boundary (default of `dates.today`) and the HTTP client (`fetched_at`, cache freshness).
+ * boundary (default of `dates.today`), the HTTP client (`fetched_at`, cache freshness) and the
+ * logger (`time` of log lines, which describe the run, never the data).
  */
-const ALLOWED = new Set(['dates/calendar-date.ts', 'cli.ts', 'http/clock.ts', 'http/client.ts']);
+const ALLOWED = new Set(['dates/calendar-date.ts', 'cli.ts', 'http/clock.ts', 'http/client.ts', 'logger.ts']);
 
 const CLOCK_READS = /\bnew Date\(|\bDate\.now\(|\bcurrentDate\(|\bperformance\.now\(/;
 
@@ -20,7 +21,7 @@ async function sourceFiles(dir: string): Promise<string[]> {
 }
 
 describe('clock usage', () => {
-  it('is confined to the CLI boundary, the date library and the HTTP client', async () => {
+  it('is confined to the CLI boundary, the date library, the HTTP client and the logger', async () => {
     const offenders: string[] = [];
     for (const file of await sourceFiles(SRC)) {
       if (ALLOWED.has(file)) continue;

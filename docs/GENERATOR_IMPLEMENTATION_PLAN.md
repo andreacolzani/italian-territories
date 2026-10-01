@@ -158,7 +158,7 @@ Known ANPR problems (all verified): rows split by territorial events with identi
     - the r8 UTS type label is converted with a closed table (the labels listed by r2); an unknown label is a schema violation;
     - for `<code>-<label>` values (r7/r8) the code is the text before the first `-`, validated against the vocabulary (§6.2);
     - a related territory named `Stato estero` with no code is a foreign state. It is allowed only in `AS`, `AN` and `CE` events (verified: `AS` in 98 and 112; `AN` in 100, 113 and 107; `CE` in 17 rows of 103, all on 1947-09-16, partial cessions abroad of surviving municipalities such as Bardonecchia, Gorizia and Trieste). It is never resolved by the code resolver (§6.6), never produces links and never appears as a related territory in the model: the row is flagged `abroad` and the participant gets `abroad: true` (§4.3, D31). In any other event (`AQ` included), or with a code, it is a schema violation.
-16. **`COD_PROV_STORICO` absent in some periods**: pfun 64 on 1948-01-01 has no `COD_PROV_STORICO`; it is present in the 2024–2026 snapshots. Normalisation: `historicalCode = COD_PROV_STORICO ?? COD_UTS` for UTS rows and `historicalUtsCode = COD_PROV_STORICO ?? COD_UTS` (the row's own parent code) for municipality rows; before 1948 the historical code is the UTS code. The projection holds the **effective** value, so the field appearing or disappearing over time does not create false changes in equality and completeness checks (§6.5). The adapter reports the number of fallback rows (`info`), outside the projection. The fallback is checked by I7 (D29).
+16. **`COD_PROV_STORICO` absent in some periods**: pfun 64 on 1948-01-01 has no `COD_PROV_STORICO`; it is present in the 2024–2026 snapshots. Normalisation: `historicalCode = COD_PROV_STORICO ?? COD_UTS` for UTS rows and `historicalUtsCode = COD_PROV_STORICO ?? COD_UTS` (the row's own parent code) for municipality rows; before 1948 the historical code is the UTS code. The projection holds the **effective** value, so the field appearing or disappearing over time does not create false changes in equality and completeness checks (§6.5). The adapter reports the number of fallback rows and their distinct UTS codes, outside the projection; they become one `info` anomaly per level (Step 6). The fallback is checked by I7 (D29).
 17. **Codes with suffix ≥ 800**: codes assigned retroactively to suppressed municipalities. They appear in every snapshot in which the municipality exists, and their prefix does **not** indicate membership: it may be a later province (`005801` Bagnasco d'Asti in Alessandria 006 before Asti existed; `095809` Siamanna in Cagliari 092 before Oristano; `093801` Vallenoncello in Udine 030 before Pordenone) or an earlier one (`001xxx` municipalities in the province of Aosta 007). Membership comes only from `COD_PROV`/`COD_UTS`. Verified: in the 1921, 1927-01-11 and 1927-01-12 snapshots, 36, 41 and 63 rows have a prefix different from their historical UTS code, all with suffix ≥ 800; in 1942 and 2024 none (D30).
 
 ---
@@ -769,7 +769,7 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
 
 **Determinism**: build logic never reads the clock. "Today" comes from config (`dates.today`, set by `--today YYYY-MM-DD`, default the current date in `Europe/Rome`) and is passed explicitly. Only `generated_at` and `fetched_at` hold real timestamps. The `--today` flag is a Step 5 deliverable.
 
-**Logging**: a minimal internal logger writing NDJSON to stderr, with levels `debug|info|warn|error` and `--verbose` to enable `debug`. No logging dependency. Logger and `--verbose` are Step 6 deliverables.
+**Logging**: a minimal internal logger writing NDJSON to stderr, with levels `debug|info|warn|error` and `--verbose` to enable `debug`. No logging dependency. Logger and `--verbose` are Step 6 deliverables. Each line carries a wall-clock `time`: logs describe the run, never the data, so the logger is allowed to read the clock.
 
 **Errors**: typed classes:
 - HTTP (`src/http/`, Step 3):
@@ -850,17 +850,17 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - **`rows/<level>.ndjson`**: append-only, one `{ "hash", "row" }` per line, never duplicated. A last line without its newline (interrupted append) is cut on load; a line that does not match its hash is a store corruption.
   - **Manifest `snapshots/<level>/<date>.json`**: `{ level, date, pfun, projection_version, fetched_at, content_hash, adapter_stats, row_hashes (sorted, duplicates kept), history: [{ fetched_at, content_hash }] }`.
     - `content_hash` is the SHA-256 of the canonical JSON of the sorted `row_hashes`: only the normalised projection takes part, so changes to ignored fields are not changes.
-    - `adapter_stats` is a generic object of adapter counters (e.g. `historical_code_fallbacks`, §3.5 item 16), excluded from `content_hash`.
+    - `adapter_stats` is a generic object of adapter counters and sorted code lists (e.g. `historical_code_fallbacks` and `historical_code_fallback_uts_codes`, §3.5 item 16), excluded from `content_hash`.
     - A refresh with the same content writes nothing (`fetched_at` stays the date of the first fetch of that content; only a different `adapter_stats` is updated). A different content appends the replaced `{ fetched_at, content_hash }` to `history`.
     - `projection_version` per §6.3: a manifest with another version is replaced without `history` and is never returned to the build (D32).
   - **Normalised event lists and internal responses**: stored with the same approach.
     - Event lists: `events/rows/pfun-<id>.ndjson` and `events/lists/pfun-<id>/<from>_<to>.json` (`{ pfun, level, from, to, … }`). Change detection is **semantic**: the rows of a new list dated in `[from, to]` are compared with every row the store knows in the same range (for each date, the most recently fetched list covering it), not with a previous manifest, which has a different `from` because of the lookback window (§10.2). The put returns the `added` and `removed` rows.
     - Internal reports: `internal/rows/r<n>.ndjson` and `internal/reports/r<n>/<key>.json` (`{ report, endpoint, report_url, key, … }`), where `key` is the SHA-256 of the unencoded, normalised report URL (the form stored in the fixture manifest, §11.1).
-  - **Calendar builder** (§6.4) with provenance: `calendar.json` in the store, `{ start, today, dates: { <date>: [sources] } }`. Sources are endpoint ids (`events:pfun-<id>`, `r4:region-events`, `r5:uts-events`, `r6:municipality-events`), `anpr:start`, `anpr:end` (half-open `validTo`, i.e. `DATACESSAZIONE + 1`), `regime` and `today`.
+  - **Calendar builder** (§6.4) with provenance: `calendar.json` in the store, `{ start, today, dates: { <date>: [sources] } }`. Sources are endpoint ids (`events:pfun-<id>`, `r4:region-events`, `r5:uts-events`, `r6:municipality-events`), `anpr:start`, `anpr:end` (half-open `validTo`, i.e. `DATACESSAZIONE + 1`), `regime`, `today` and `inferred` (bisection, Step 6; dropped when a published event covers the same date).
   - **`--today YYYY-MM-DD`** CLI flag, accepted by every command, setting `dates.today` (§12.0 Determinism). The CLI resolves the run date (flag, then `dates.today`, then the current date in Europe/Rome) and passes it to the command.
 - **Acceptance**: dedup verified; store round-trip; calendar tests with fixture event lists; regime boundaries always present; `--today` reaches the calendar builder; the clock is read only at the CLI boundary (default of `dates.today`) and for `generated_at` / `fetched_at`; no other build code reads it.
 
-### Step 6 — Snapshot orchestration and completeness
+### Step 6 — Snapshot orchestration and completeness — DONE
 
 - **Deliverables**:
   - parallel fetch of every `(level, date)` in the calendar;
@@ -868,8 +868,22 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - NDJSON logger and the `--verbose` flag (§12.0 Logging), with the HTTP client notifications (`retry`, `concurrency`, `circuit-open`, `validation-error`, `changed`, `degraded`) logged.
 - **Bisection rules**:
   - Search `[d_i + 1, d_{i+1} − 1]` for the first date whose snapshot differs from `S(d_i)`. After finding it, continue on the remaining sub-interval, which may hide further changes.
-  - An inferred date is added to the **global** calendar, so all levels get snapshots on it.
-  - Intervals never cross regimes, because boundaries are in the calendar.
+  - An inferred date is added to the **global** calendar (source `inferred` in `calendar.json`), so all levels get snapshots on it.
+  - Intervals never cross regimes, because boundaries are in the calendar (asserted).
+  - Every snapshot obtained, bisection probes included, is stored (§6.3), so I12 and an offline rebuild see it.
+- **Snapshot source**: the store first. A stored manifest of the current `projection_version` is used without network, unless the request must be refreshed (today, `audit` samples, `rebuild --refetch`), which bypasses the store and the HTTP cache. Otherwise the snapshot is fetched (`cache: prefer`) and stored.
+- **Failures**: a snapshot that cannot be obtained does not stop the stage, so one run collects every problem. Failures only concern dates never stored or requests whose refresh is mandatory:
+  - `snapshot-unavailable` (`blocking`, exit code 3): the source is unavailable, i.e. open circuit or retries exhausted on timeouts, connection errors, 5xx or 429;
+  - `snapshot-request-rejected` (`blocking`, exit code 1): non-retryable HTTP status (4xx other than 429: 400, 401, 403, 404…), which is not unavailability;
+  - `snapshot-schema-violation` (`blocking`, exit code 1): `ResponseValidationError` or `EndpointDisabledError`;
+  - `completeness-unverified` (`blocking`): an interval whose check needs a missing snapshot;
+  - any other error is a bug and propagates.
+
+  The causes have distinct codes so that Step 17 maps them to exit codes without reading messages. With at least one failure the stage result is `blocked`: the pipeline stops before identity resolution, to avoid cascading anomalies.
+- **Inferred breakpoints across runs**:
+  - An inferred date whose snapshots (as currently stored or refetched) equal, at every level, those of the previous calendar date is no longer confirmed: its `inferred` source is removed (the date leaves the calendar unless another source keeps it), with an `inferred-breakpoint-removed` `info` anomaly, and no `inferred-breakpoint` warning is emitted for it. A date with a missing snapshot is kept.
+  - When a published event (public list or internal event report) covers an inferred date, the source becomes that event's endpoint: `inferred` is dropped.
+- **Anomalies**: `inferred-breakpoint` (`warning`), emitted by every run for each date still `inferred` in the final calendar and each level whose snapshot changes on it; `inferred-breakpoint-removed` (`info`); `historical-code-fallback` (`info`, §3.5 item 16), **one per level** with number of snapshots, total fallback rows, date range and the distinct UTS codes involved, computed from the manifests' `adapter_stats` so an offline rebuild reports the same.
 - **Acceptance**: a simulated provider where hidden changes between breakpoints, including two in the same interval, are found in `O(log n)` calls each.
 
 ### Step 7 — Internal crawl and identity graph
@@ -974,12 +988,15 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 
 - **Deliverables**:
   - Full orchestration per §10.1–§10.2.
-  - Exit codes: `0` success; `1` blocking anomalies; `2` retroactive changes (PR required); `3` source unavailable.
+  - Exit codes: `0` success; `1` blocking anomalies; `2` retroactive changes (PR required); `3` source unavailable. Mapped from anomaly codes, never from messages: `snapshot-unavailable` → 3 (timeouts, connection errors, 5xx or 429 after exhausted retries, open circuit); `snapshot-request-rejected` (non-retryable 4xx) and `snapshot-schema-violation` → 1.
+  - A `blocked` snapshot stage (Step 6) stops the pipeline before identity resolution.
+  - Inferred breakpoints are kept in `calendar.json` across runs (source `inferred`): a calendar rebuilt from the sources must not lose them. Step 6 removes those no longer confirmed, and a published event on the same date replaces the `inferred` source.
   - Run summary written to `.cache/last-run.json`, for the workflows.
 - **Acceptance**:
   - end-to-end test on a reduced world (Veneto, Sardinia, Venezia Giulia) with the fixture transport;
   - incremental scenario adding a fusion (exit 0);
-  - retroactive scenario (exit 2).
+  - retroactive scenario (exit 2);
+  - removed inferred breakpoint: an `inferred` date already published as a version boundary is no longer confirmed (Step 6) and leaves the calendar; the two versions it separated merge into one, and the run is classified as retroactive (exit 2).
 
 ### Step 18 — GitHub Actions
 

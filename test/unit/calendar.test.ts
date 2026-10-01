@@ -6,10 +6,12 @@ import {
   calendarDates,
   calendarPath,
   eventListContribution,
+  extendCalendar,
   internalEventsContribution,
   loadCalendar,
   parseCalendar,
   REGIME_BOUNDARIES,
+  removeCalendarSource,
   saveCalendar,
   serializeCalendar,
   type CalendarContribution,
@@ -93,6 +95,62 @@ describe('buildCalendar', () => {
     });
     expect(calendarDates(calendar)).toEqual(['1861-03-17', '1927-01-12', '1929-12-31', '1930-01-01']);
     expect(() => buildCalendar({ start: START, today: '1861-03-16', contributions: [] })).toThrow(RangeError);
+  });
+
+  it('extends a calendar with inferred dates', () => {
+    const calendar = buildCalendar({
+      start: START,
+      today: TODAY,
+      contributions: [{ source: 'events:pfun-98', dates: ['1950-05-05'] }],
+    });
+    const extended = extendCalendar(calendar, [{ source: 'inferred', dates: ['1960-05-17', '1950-05-05'] }]);
+    expect(calendarDates(extended)).toEqual([
+      '1861-03-17',
+      '1927-01-12',
+      '1948-01-01',
+      '1950-05-05',
+      '1960-05-17',
+      TODAY,
+    ]);
+    // A published event on the same date explains it: no inferred source.
+    expect(extended.dates.get('1950-05-05')).toEqual(['events:pfun-98']);
+    expect(extended.dates.get('1960-05-17')).toEqual(['inferred']);
+    expect(parseCalendar(serializeCalendar(extended))).toEqual(extended);
+    expect(calendarDates(calendar)).not.toContain('1960-05-17');
+  });
+
+  it('replaces the inferred source with a published event on the same date', () => {
+    const inferred = buildCalendar({
+      start: START,
+      today: TODAY,
+      contributions: [
+        { source: 'inferred', dates: ['1960-05-17', '1970-01-01', '1980-01-01'] },
+        { source: 'anpr:start', dates: ['1980-01-01'] },
+      ],
+    });
+    const explained = extendCalendar(inferred, [
+      { source: 'events:pfun-100', dates: ['1960-05-17'] },
+      { source: 'r5:uts-events', dates: ['1970-01-01'] },
+    ]);
+    expect(explained.dates.get('1960-05-17')).toEqual(['events:pfun-100']);
+    expect(explained.dates.get('1970-01-01')).toEqual(['r5:uts-events']);
+    // An ANPR hint is not a published event.
+    expect(explained.dates.get('1980-01-01')).toEqual(['anpr:start', 'inferred']);
+  });
+
+  it('removes a source from some dates, dropping dates left without sources', () => {
+    const calendar = buildCalendar({
+      start: START,
+      today: TODAY,
+      contributions: [
+        { source: 'inferred', dates: ['1960-05-17', '1980-01-01'] },
+        { source: 'anpr:start', dates: ['1980-01-01'] },
+      ],
+    });
+    const pruned = removeCalendarSource(calendar, 'inferred', ['1960-05-17', '1980-01-01', TODAY]);
+    expect(pruned.dates.has('1960-05-17')).toBe(false);
+    expect(pruned.dates.get('1980-01-01')).toEqual(['anpr:start']);
+    expect(pruned.dates.get(TODAY)).toEqual(['today']);
   });
 
   it('collects the dates of the real event lists, internal events and ANPR', async () => {

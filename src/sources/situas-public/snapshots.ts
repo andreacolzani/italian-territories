@@ -18,25 +18,28 @@ export interface SnapshotRows<L extends Level = Level> {
    * `COD_PROV_STORICO` (§3.5). Reported as `info`; not part of the projection.
    */
   historicalCodeFallbacks: number;
+  /** Distinct UTS codes (the row's own `COD_UTS`) of the fallback rows, sorted. */
+  historicalCodeFallbackUtsCodes: string[];
 }
 
 interface Projected<L extends Level> {
   row: SnapshotRowByLevel[L];
-  fallback: boolean;
+  /** `COD_UTS` when it stands in for a missing `COD_PROV_STORICO` (§3.5 item 16), else null. */
+  fallback: string | null;
 }
 
 const regionBefore1948 = z
   .object({ COD_COMP: requiredCode(2), DEN_COMP: requiredText })
   .transform((r): Projected<'region'> => ({
     row: { code: r.COD_COMP, name: r.DEN_COMP, type: 'compartment' },
-    fallback: false,
+    fallback: null,
   }));
 
 const regionFrom1948 = z
   .object({ COD_REG: requiredCode(2), DEN_REG: requiredText })
   .transform((r): Projected<'region'> => ({
     row: { code: r.COD_REG, name: r.DEN_REG, type: 'region' },
-    fallback: false,
+    fallback: null,
   }));
 
 const utsBefore1948 = z
@@ -50,7 +53,7 @@ const utsBefore1948 = z
       abbreviation: null,
       historicalCode: r.COD_PROV,
     },
-    fallback: false,
+    fallback: null,
   }));
 
 const utsFrom1948 = z
@@ -71,7 +74,7 @@ const utsFrom1948 = z
       abbreviation: r.SIGLA_AUTOMOBILISTICA,
       historicalCode: r.COD_PROV_STORICO ?? r.COD_UTS,
     },
-    fallback: r.COD_PROV_STORICO === null,
+    fallback: r.COD_PROV_STORICO === null ? r.COD_UTS : null,
   }));
 
 const municipalityNames = {
@@ -96,7 +99,7 @@ const municipalityBefore1948 = z
       utsAbbreviation: r.SIGLA_UTS,
       historicalUtsCode: r.COD_PROV,
     },
-    fallback: false,
+    fallback: null,
   }));
 
 const municipalityFrom1948 = z
@@ -119,7 +122,7 @@ const municipalityFrom1948 = z
       utsAbbreviation: r.SIGLA_AUTOMOBILISTICA,
       historicalUtsCode: r.COD_PROV_STORICO ?? r.COD_UTS,
     },
-    fallback: r.COD_PROV_STORICO === null,
+    fallback: r.COD_PROV_STORICO === null ? r.COD_UTS : null,
   }));
 
 /** Row schema per snapshot `pfun`, indexed like {@link SNAPSHOT_PFUNS} (by regime). */
@@ -158,9 +161,11 @@ export function snapshotEndpoint(pfun: SnapshotPfun): Endpoint<SnapshotRows> {
       timeoutClass: level === 'municipality' ? 'snapshot' : 'default',
       decode: (response) => {
         const projected = decodeRows(response);
+        const fallbacks = projected.flatMap((p) => (p.fallback === null ? [] : [p.fallback]));
         return {
           rows: projected.map((p) => p.row),
-          historicalCodeFallbacks: projected.filter((p) => p.fallback).length,
+          historicalCodeFallbacks: fallbacks.length,
+          historicalCodeFallbackUtsCodes: [...new Set(fallbacks)].sort(),
         };
       },
     };

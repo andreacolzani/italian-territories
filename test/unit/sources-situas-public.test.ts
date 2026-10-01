@@ -97,6 +97,7 @@ describe('fetchSnapshot', () => {
       const { data } = await situasPublic.fetchSnapshot('province', '1948-01-01');
       expect(data.snapshot.rows).toHaveLength(92);
       expect(data.historicalCodeFallbacks).toBe(92);
+      expect(data.historicalCodeFallbackUtsCodes).toEqual(data.snapshot.rows.map((r) => r.code).sort());
       for (const row of data.snapshot.rows) expect(row.historicalCode).toBe(row.code);
     });
   });
@@ -115,6 +116,7 @@ describe('fetchSnapshot', () => {
       async ({ situasPublic }) => {
         const { data } = await situasPublic.fetchSnapshot('municipality', '2024-01-22');
         expect(data.historicalCodeFallbacks).toBe(1);
+        expect(data.historicalCodeFallbackUtsCodes).toEqual(['215']);
         const milano = data.snapshot.rows.find((r) => r.code === '015146');
         expect(milano).toMatchObject({ utsCode: '215', historicalUtsCode: '215' });
         expect(Object.keys(milano ?? {})).not.toContain('fallback');

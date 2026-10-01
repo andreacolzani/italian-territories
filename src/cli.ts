@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsOptionsConfig } from 'node:util';
 import { resolveConfig, type Config } from './config.ts';
 import { currentDate, isAfter, isIsoDate, type IsoDate } from './dates/index.ts';
+import { createLogger, type Logger } from './logger.ts';
 
 export interface CliIo {
   out: (text: string) => void;
@@ -16,6 +17,8 @@ interface CommandContext {
   /** Reference date of the run (§12.0 Determinism); build code never reads the clock. */
   today: IsoDate;
   io: CliIo;
+  /** NDJSON logger on stderr; `debug` only with `--verbose` (§12.0 Logging). */
+  logger: Logger;
   values: Record<string, string | boolean | undefined>;
   positionals: string[];
 }
@@ -34,6 +37,7 @@ const PROGRAM = 'italian-territories';
 const GLOBAL_OPTIONS = {
   help: { type: 'boolean', short: 'h' },
   today: { type: 'string' },
+  verbose: { type: 'boolean' },
 } as const satisfies ParseArgsOptionsConfig;
 
 function notImplemented(name: string) {
@@ -100,6 +104,7 @@ export function helpText(): string {
     '',
     'Options:',
     '  --today YYYY-MM-DD  Reference date of the run (default: current date in Europe/Rome).',
+    '  --verbose           Also log debug lines (NDJSON on stderr).',
     '  -h, --help          Show this help.',
     '',
   ].join('\n');
@@ -174,6 +179,7 @@ export async function main(
     config: { ...config, dates: { ...config.dates, today } },
     today,
     io,
+    logger: createLogger({ write: io.err, verbose: parsed.values.verbose === true }),
     values: parsed.values,
     positionals: parsed.positionals,
   });

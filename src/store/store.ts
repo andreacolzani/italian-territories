@@ -159,10 +159,15 @@ export class Store {
     level: L,
     date: IsoDate,
   ): Promise<Stored<SnapshotManifest, SnapshotRowByLevel[L]> | undefined> {
-    const path = this.#snapshotPath(level, date);
-    const manifest = await this.#readManifest(path, snapshotManifestSchema);
-    if (manifest?.projection_version !== this.#versions.snapshot[level]) return undefined;
+    const manifest = await this.getSnapshotManifest(level, date);
+    if (manifest === undefined) return undefined;
     return { manifest, rows: await this.#snapshotLog(level).rows(manifest.row_hashes) };
+  }
+
+  /** The snapshot manifest of the current projection version, without reading its rows. */
+  async getSnapshotManifest(level: Level, date: IsoDate): Promise<SnapshotManifest | undefined> {
+    const manifest = await this.#readManifest(this.#snapshotPath(level, date), snapshotManifestSchema);
+    return manifest?.projection_version === this.#versions.snapshot[level] ? manifest : undefined;
   }
 
   /** Dates with a stored snapshot manifest, ascending (`getSnapshot` still checks the version). */

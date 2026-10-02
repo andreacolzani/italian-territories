@@ -359,7 +359,7 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
   - requests parameterised with today's date (today's snapshots, event lists with `pdataa = today`) have new cache keys every day, so they are always fetched;
   - historical snapshots use `prefer`, because their URLs never change;
   - `audit` and `rebuild --refetch` use `refresh`;
-  - the internal UTS/region events affected by new variations use `refresh`.
+  - internal reports (Step 7): lists r1–r3 on every `update`, r4/r5 of the records touched by new variations or newly listed, r6 of new pairs use `refresh`; `audit` and `rebuild --refetch` refresh all of them. Every other internal report is read from the store without network.
 
   A global TTL is rejected for three reasons: it makes builds non-deterministic, it triggers mass refetches when many entries expire together, and it changes data in the middle of a pipeline without anyone deciding it.
 - **Changed content on refresh**: when a refreshed response differs from the cached one, the client keeps the previous content hash in the entry and emits a `changed` notification. The orchestrator treats it as a potential retroactive change (§10.2): data is never overwritten silently.
@@ -373,7 +373,7 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
     The 2 extra attempts are a separate budget inside the overall attempt limit. Each transient validation failure counts for the circuit breaker and halves the AIMD concurrency like a 5xx. If retries are exhausted it becomes a response error.
   - **Permanent `ResponseValidationError`** (no retry): the envelope is valid but rows violate the schema, e.g. a missing required field or an unparseable date or code. It disables **that endpoint** for the rest of the run (further requests to it fail immediately with `EndpointDisabledError`, without being sent) and produces a `blocking` anomaly with the request and offending rows. Neither error affects AIMD or the circuit breaker, and neither triggers `staleFallback` (D26). Other endpoints keep working, so a single run collects every problem; the run still ends with blocking anomalies (exit code 1).
   - Invalid responses of either class are **never cached**.
-- **Degradation**: if the internal API family is unavailable, the run uses the last cached internal data and logs a `warning`. The client implements it as an opt-in per request (`staleFallback`): when the network fails (circuit open or retries exhausted, never a validation error or a disabled endpoint) and a cache entry exists, whatever its age or the cache policy, the entry is returned marked as stale and a `degraded` notification is emitted; without an entry the request fails. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
+- **Degradation**: if the internal API family is unavailable, the run uses the last stored internal data (the store copy, or the HTTP cache entry when the store has none) and reports a `warning` (Step 7). The client implements it as an opt-in per request (`staleFallback`): when the network fails (circuit open or retries exhausted, never a validation error or a disabled endpoint) and a cache entry exists, whatever its age or the cache policy, the entry is returned marked as stale and a `degraded` notification is emitted; without an entry the request fails. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
 
 ### 6.2 Normalisation
 
@@ -449,8 +449,10 @@ For each level and each transition `S(d−1) → S(d)`:
 
 Internal data is **acquired before identity resolution** (UTS and region identity depend on it, §6.7) and **attached** during identity resolution and variation building.
 
+- **Source**: internal reports are read from the store first (§6.3) and fetched only when missing or when their refresh is mandatory (§6.1, Step 7); a history fetched in the run replaces the stored ones of the same ids.
 - **Regions and UTS** (hundreds of calls, required): lists 1–2, events 4–5 for **every** listed `(code, name, type)` record (each typed record returns only its own events; the entity history is the union over all records of the same union-find component), details 7–8 for every event that can carry associated territories. Gives origin ids, `RN`/`AP`/territorial events, act ids and links.
-- **Municipalities** (one-time crawl of ~10k light calls, then only new entities): list 3, then report 6 for each `(pro_com_t, comune)`; deduplicate by `id_comune_origine` (any historical pair returns the same history). Gives origin ids and act ids. Match internal events to public rows by `(date, code at that date, event code)`.
+- **Municipalities** (one-time crawl of ~10k light calls, then only new pairs): list 3, then report 6 for each `(pro_com_t, comune)` not covered by a known history; deduplicate by `id_comune_origine` (any historical pair returns the same history). Gives origin ids and act ids. Match internal events to public rows by `(date, code at that date, event code)`.
+- **Event code summary**: the observed `(level, event code)` pairs (D27) are computed by every build and written as a build report (`.cache/reports/event-codes.json`), never stored as source data.
 - Report 9 (municipality details) is optional in v1 and used only to verify public REL links when enabled by a flag.
 
 ### 6.9 Version and attribute building
@@ -552,8 +554,8 @@ Anomalies go to `anomalies.json` with `level`, `code` (stable machine identifier
 | Level | Examples |
 |---|---|
 | `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision |
-| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences; current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30) |
-| `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; use of cached internal data; historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
+| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences; current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
+| `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
 A run with any `blocking` anomaly never publishes and never commits data to `main`.
 
@@ -595,7 +597,7 @@ Releases:
 ### 10.2 Incremental update
 
 1. Fetch today's snapshots for the three levels and compare them with the reconstructed state for today.
-2. Fetch public event lists with `pdatada` = previous run date **minus 365 days** (ISTAT often publishes past-dated events late) and diff them semantically against the store: rows dated in `[pdatada, pdataa]` are compared with everything the store knows in that range, not with the previous run's list, whose range differs (§6.3, D32). Refresh internal events for affected UTS/regions and for new municipalities.
+2. Fetch public event lists with `pdatada` = previous run date **minus 365 days** (ISTAT often publishes past-dated events late) and diff them semantically against the store: rows dated in `[pdatada, pdataa]` are compared with everything the store knows in that range, not with the previous run's list, whose range differs (§6.3, D32). Refresh the internal lists r1–r3, the internal events of UTS/regions touched by new variations or newly listed, and r6 for new pairs (Step 7).
 3. Check the ANPR CSV hash (cross-check only).
 4. If nothing changed → exit successfully without commits.
 5. Otherwise add new breakpoints, fetch snapshots, verify completeness on new intervals, rebuild, validate.
@@ -764,6 +766,7 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
 | `overrides/` | Curated corrections | committed |
 | `.cache/http/` | Response cache | ignored |
 | `.cache/store/` | Snapshot store; in CI it is the checkout of the `data-cache` branch | ignored |
+| `.cache/reports/` | Build reports that are neither data nor sources (e.g. `event-codes.json`, Step 7) | ignored |
 
 **npm package**: publishes only `dist/` (data and JSON Schemas), `README.md` and `LICENSE`. The generator code is not published.
 
@@ -886,23 +889,35 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Anomalies**: `inferred-breakpoint` (`warning`), emitted by every run for each date still `inferred` in the final calendar and each level whose snapshot changes on it; `inferred-breakpoint-removed` (`info`); `historical-code-fallback` (`info`, §3.5 item 16), **one per level** with number of snapshots, total fallback rows, date range and the distinct UTS codes involved, computed from the manifests' `adapter_stats` so an offline rebuild reports the same.
 - **Acceptance**: a simulated provider where hidden changes between breakpoints, including two in the same interval, are found in `O(log n)` calls each.
 
-### Step 7 — Internal crawl and identity graph
+### Step 7 — Internal crawl and identity graph — DONE
 
 - **Deliverables**: crawl per §6.8, using the cache and an incremental mode.
+- **Source of internal reports**: the store first, as for snapshots (Step 6). A stored report of the current `projection_version` is used without network unless its refresh is mandatory; otherwise it is fetched (`cache: prefer`) and stored. The orchestrator (Step 17) decides which refreshes are mandatory (`mustRefresh`):
+  - r1–r3 on every `update`;
+  - r4/r5 for the records touched by new variations or newly listed;
+  - r6 for new pairs;
+  - everything for `audit` and `rebuild --refetch`, as for snapshots.
 - **Regions and UTS**:
-  - r1/r2 → r4/r5 for every listed record;
-  - r7/r8 for every event except `PV`, `CD` and `RN`, which have no associated territories.
+  - r1/r2 → r4/r5 for every listed record; r5 under an older code of the same `id_uts` (e.g. Cagliari 292 and 318, Nuoro 091 and 114) returns the same rows, merged without duplicates;
+  - r7/r8 for every distinct event except `PV`, `CD` and `RN`, which have no associated territories, queried with the **event row's own** origin id and type (verified: r8 answers the Milano metropolitan city `CSCT` for `id_uts_origine=9`, not for its `id_uts` 119).
 - **Municipalities**:
-  - r3, then r6 per `(pro_com_t, comune)` pair;
-  - each r6 response lists the codes and names the entity had over time; mark those pairs as covered and skip them;
+  - r3, then r6 per `(pro_com_t, comune)` pair, in code and name order (independent of whether the list came from the network or the store);
+  - each r6 response lists the codes and names the entity had over time; mark those pairs as covered and skip them. Stored responses are read first, so an incremental crawl only sends requests for pairs no stored history covers;
   - deduplicate by `id_comune_origine`.
+- **Fresh replaces stored**: a history fetched in the run replaces, for the same ids, the stored histories read for other records or pairs of the entity; it is never merged with them, so a row ISTAT corrected does not survive next to its correction.
 - **Identity graph** per level: union-find over `id ↔ id_origine` (§5.1) producing components with:
   - root id (the oldest record);
   - member typed records `(id, code, name, type)`;
   - merged event history.
-- **Degradation**: missing internal data follows §6.1.
-- **Empty event reports**: an empty r4/r5/r6 response for a listed record is a `blocking` anomaly `listed record without events` for that record; the client accepts the response and the endpoint stays enabled.
-- **Event code summary**: the crawl saves the summary of the observed `(level, event code)` pairs, input to the Step 11 rules (D27).
+
+  Only the `id → id_origine` pointers of the internal reports are used, never inferences from public data. The root is the only end of the pointer chain and must be the oldest record (earliest first event); otherwise `identity-root-ambiguous` (`blocking`, falling back to the oldest record). A listed record whose origin id is not in the component of its events is `identity-record-inconsistent` (`blocking`).
+- **Degradation** (§6.1):
+  - using the store without a mandatory refresh produces no anomaly;
+  - a mandatory refresh that fails because the source is unavailable falls back to the stored copy (or the HTTP cache entry when the store has none): `internal-data-stale` (`warning`), one per report with the list of requests;
+  - data missing with no copy: `internal-data-unavailable` (`warning`), one per report; it becomes `blocking` only in Step 9, when a decision needs it;
+  - rejected requests (4xx) and schema violations never fall back (D26): `internal-request-rejected` and `internal-schema-violation` (`blocking`), one per report.
+- **Empty event reports**: an empty r4/r5/r6 response for a listed record is a `blocking` anomaly `listed-record-without-events` for that record; the client accepts the response and the endpoint stays enabled.
+- **Event code summary**: the crawl computes the summary of the observed `(level, event code)` pairs (distinct events per code), input to the Step 11 rules (D27). It is computed by every build and written to `.cache/reports/event-codes.json` (`paths.reports`), never to the store, which holds source data only.
 - **Acceptance**:
   - Milano, Cagliari and Sassari components (roots 9, 59, 58);
   - Sassofeltrio single component;
@@ -925,6 +940,8 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - registry (§5.3).
 - **Registry file format**: `{ "kind", "next_id", "entries": { "<natural key>": <id> } }`, keys sorted.
 - **Moved-key rule**: when an existing version key disappears and the same entity gets a new key whose interval overlaps it, **reuse the old id**. Record the remap in `registry/remaps.json` (`{ from_key, to_key, id, reason }`), log a `warning` and mark the run as retroactive (§10.2).
+- **Changed root**: when an identity component (Step 7) changes root between two runs but shares members with a component already registered, **reuse its id**, record the remap in `registry/remaps.json` and mark the run as retroactive.
+- **Missing internal data**: an `internal-data-unavailable` gap (Step 7) becomes `blocking` here only when a decision needs it (§6.1).
 - **Acceptance**:
   - golden 1–5 (identity parts);
   - two builds on the same store produce identical ids;
@@ -942,7 +959,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Deliverables**: grouping by act id, participants with roles, links with kinds, dedup, and dropping no-effect participations (§4.3).
   - Public rows are matched to internal events by `(date, entity resolved from the code at that date, event code)`, which provides `istat_act_id` and `description`.
   - Unmatched public rows keep `istat_act_id = null` and `description = null`.
-  - Every `(level, event code)` pair has an explicit rule (role and links); a pair without a rule is a `blocking` anomaly (D27).
+  - Every `(level, event code)` pair has an explicit rule (role and links); a pair without a rule is a `blocking` anomaly (D27). Coverage is checked against the event code summary computed by the build (Step 7).
 - **Acceptance**: golden 1, 2, 4, 6, 9, 18; I9, I10, I14; a pair without a rule is blocking.
 
 ### Step 12 — Overrides
@@ -1051,7 +1068,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D24 | Minimal dependencies (`zod`, `csv-parse`); generator code not published to npm | Small attack surface; the npm package is a data package |
 | D25 | Three request scopes: host (pool, AIMD, rate limit), family (circuit breaker), endpoint (permanent validation errors) | Congestion is per server; heavy snapshots must not trip light reports; a schema change concerns one report and the run should collect all problems |
 | D26 | `ResponseValidationError` and `EndpointDisabledError` do not count for the circuit breaker (neither failure nor reset), do not reduce AIMD concurrency and never trigger `staleFallback`; AIMD and the circuit breaker react only to transport failures (429, 5xx, timeout, connection reset) and transient validation errors | A schema violation is neither congestion nor unavailability; stale data must not hide a blocking problem |
-| D27 | Internal adapters accept every event code of §2; each `(level, event code)` pair needs an explicit role/link rule when building variations, and a pair without a rule is blocking | Per-level code sets are not documented by ISTAT; the vocabulary is closed by explicit rules, not by guessed sets |
+| D27 | Internal adapters accept every event code of §2; each `(level, event code)` pair needs an explicit role/link rule when building variations, and a pair without a rule is blocking; coverage is checked against the pairs observed by the build (a build report, not stored data) | Per-level code sets are not documented by ISTAT; the vocabulary is closed by explicit rules, not by guessed sets |
 | D28 | Empty responses are transient only for snapshots and internal lists r1–r3; counts have exactly one row and zero is valid; empty r4–r6 are accepted by the client and produce a blocking anomaly on the single record (Step 7) | Short event ranges and event/detail reports are legitimately empty; a listed record without events is a data problem of that record, not of the transport |
 | D29 | Field differences between endpoints or periods are handled by explicit mappings per adapter; defaults for missing fields must be verified by an invariant | No silent guessing between field names; every fallback (e.g. `COD_PROV_STORICO ?? COD_UTS`) is checked (I7) |
 | D30 | Municipality codes with suffix ≥ 800 are exempt from the strict I7 prefix rule: the prefix must be a UTS code of some time, differences are `info`; an active municipality with an 8xx current code is a `warning` | ISTAT assigns 8xx codes retroactively to suppressed municipalities with the prefix of a later or earlier province; membership comes from `COD_PROV`/`COD_UTS` only |
@@ -1077,9 +1094,9 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 │   ├── calendar/
 │   ├── completeness/          # verification + bisection
 │   ├── resolve/               # code resolver, aliases
-│   ├── identity/              # transition matching, registry
+│   ├── identity/              # identity graph, transition matching, registry
 │   ├── build/                 # versions, variations, links
-│   ├── enrich/                # internal enrichment
+│   ├── enrich/                # internal crawl and enrichment
 │   ├── overrides/
 │   ├── derive/                # derived fields
 │   ├── crosscheck/            # ANPR

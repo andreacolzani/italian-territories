@@ -13,6 +13,8 @@ const pathsSchema = z
     httpCache: z.string().default('.cache/http'),
     /** Content-addressed snapshot store and event caches (§6.3). */
     store: z.string().default('.cache/store'),
+    /** Build reports that are neither data nor sources (e.g. the event code summary, Step 7). */
+    reports: z.string().default('.cache/reports'),
     registry: z.string().default('registry'),
     overrides: z.string().default('overrides'),
     dist: z.string().default('dist'),
@@ -110,6 +112,7 @@ export function resolveConfig(input: ConfigInput = {}): Config {
       root,
       httpCache: abs(config.paths.httpCache),
       store: abs(config.paths.store),
+      reports: abs(config.paths.reports),
       registry: abs(config.paths.registry),
       overrides: abs(config.paths.overrides),
       dist: abs(config.paths.dist),

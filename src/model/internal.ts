@@ -106,16 +106,25 @@ export interface RegionVersion extends VersionBase {
   type: RegionType;
 }
 
+/*
+ * A `null` abbreviation, `regionId` or `provinceId` means the version builder could not determine
+ * it (a parent code resolving to no entity, a pre-1948 abbreviation not unanimous): the builder
+ * reports a `blocking` anomaly and keeps the version. Invariants I4 and I8 report the null field;
+ * the checks that depend on it (I5, I7) skip the version instead of adding derived anomalies. The
+ * public model never admits these nulls: the emitter refuses them (Step 16).
+ */
+
 export interface ProvinceVersion extends VersionBase {
   type: UtsType;
-  abbreviation: string;
-  regionId: number;
+  /** Not validated against `^[A-Z]{2}$` here: overrides come later, I8 checks it. */
+  abbreviation: string | null;
+  regionId: number | null;
 }
 
 export interface MunicipalityVersion extends VersionBase {
   cadastralCode: string | null;
-  provinceId: number;
-  regionId: number;
+  provinceId: number | null;
+  regionId: number | null;
 }
 
 export interface VersionByLevel {
@@ -142,6 +151,12 @@ export type MunicipalityEntity = Entity<'municipality'>;
  */
 export interface ProvinceEntity extends Entity<'province'> {
   historicalCodes: Dated<string>[];
+}
+
+export interface EntityByLevel {
+  region: RegionEntity;
+  province: ProvinceEntity;
+  municipality: MunicipalityEntity;
 }
 
 export interface EntityLink {

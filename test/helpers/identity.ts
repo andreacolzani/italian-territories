@@ -13,6 +13,7 @@ import type { Level } from '../../src/model/common.ts';
 import { buildIntervalIndex, type IntervalIndex } from '../../src/resolve/index.ts';
 import type {
   InternalMunicipalityEvent,
+  InternalRegionEvent,
   InternalUtsEvent,
   UtsListRecord,
 } from '../../src/sources/situas-internal/index.ts';
@@ -93,4 +94,28 @@ export async function municipalityIdentity(files: readonly string[]): Promise<In
     anomalies: new AnomalyCollector(),
   });
   return internalIdentity(graph, false, (e) => ({ ...e, recordId: e.originId }), 'r6:municipality-events');
+}
+
+/** Internal identity of Piemonte (r4 for its compartment and region records); never complete. */
+export async function piemonteIdentity(): Promise<InternalIdentity> {
+  const regionList = await decodedRows('regionList', 'r1-region-list/all.json');
+  const files = { compartment: '01_1_piemonte.json', region: '01_2_piemonte.json' } as const;
+  const sources: IdentitySource<InternalRegionEvent>[] = await Promise.all(
+    regionList
+      .filter((r) => r.name === 'Piemonte')
+      .map(async (listed) => ({
+        listed,
+        events: await decodedRows('regionEvents', `r4-region-events/${files[listed.type]}`),
+      })),
+  );
+  const graph = buildIdentityGraph<InternalRegionEvent>({
+    level: 'region',
+    sources,
+    pointer: (e) => ({ id: e.originId, originId: e.originId }),
+    record: (e) => ({ id: e.originId, code: e.code, name: e.name, type: e.type }),
+    date: (e) => e.date,
+    eventKey: canonicalJson,
+    anomalies: new AnomalyCollector(),
+  });
+  return internalIdentity(graph, false, (e) => ({ ...e, recordId: e.originId }), 'r4:region-events');
 }

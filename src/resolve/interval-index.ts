@@ -55,6 +55,13 @@ export class IntervalIndex<L extends Level = Level> {
     return this.#byCode.get(code) ?? [];
   }
 
+  /** Every interval of every code, sorted by `validFrom`, then by code. */
+  all(): SnapshotInterval<L>[] {
+    return [...this.#byCode.values()]
+      .flat()
+      .sort((a, b) => compareDates(a.validFrom, b.validFrom) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+  }
+
   /** The intervals containing `date` whose row satisfies `match`. */
   findAt(date: IsoDate, match: (row: SnapshotRowByLevel[L]) => boolean): SnapshotInterval<L>[] {
     const found: SnapshotInterval<L>[] = [];

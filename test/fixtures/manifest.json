@@ -1230,6 +1230,260 @@
       "used_by": [
         "golden-6"
       ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1928-05-03.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=03/05/1928"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-3"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1928-05-04.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=04/05/1928"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-3"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1929-05-13.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=13/05/1929"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1929-05-14.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=14/05/1929"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1947-11-24.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=24/11/1947"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1947-11-25.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=25/11/1947"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1947-11-27.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=27/11/1947"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-3"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1947-11-28.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=28/11/1947"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-3"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2021-06-16.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=16/06/2021"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2021-06-17.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=17/06/2021"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-2"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2025-12-31.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=31/12/2025"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2026-01-01.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=01/01/2026"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-64_2014-12-31.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-64",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=64&pdata=31/12/2014"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-5"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-64_2015-01-01.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-64",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=64&pdata=01/01/2015"
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-5"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/113_1_gallura-nord-est-sardegna.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Gallura Nord-Est Sardegna&coduts=113&uts_tipo=1"
+        }
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
+    },
+    {
+      "path": "situas-internal/r5-uts-events/115_1_oristano.json",
+      "source": "situas-internal",
+      "endpoint": "r5:uts-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_uts_lov_rs?&uts=Oristano&coduts=115&uts_tipo=1"
+        }
+      },
+      "fetched_at": "2026-10-04",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-4"
+      ]
     }
   ]
 }

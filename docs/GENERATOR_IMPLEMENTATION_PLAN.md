@@ -304,7 +304,7 @@ Municipality structure (versions, links) is buildable from public data alone (§
 
 ### 5.3 Registry
 
-Files committed in `registry/`: `regions.json`, `provinces.json`, `municipalities.json`, `variations.json`. Each maps a **natural key** to a stable integer id, plus a `next_id` counter per kind.
+Files committed in `registry/`, one per kind: entities (`regions.json`, `provinces.json`, `municipalities.json`), versions (`region-versions.json`, `province-versions.json`, `municipality-versions.json`) and `variations.json`. Each maps a **natural key** to a stable integer id, plus a `next_id` counter per kind; `remaps.json` records the keys that changed (Step 9).
 
 | Object | Natural key |
 |---|---|
@@ -314,7 +314,8 @@ Files committed in `registry/`: `regions.json`, `provinces.json`, `municipalitie
 
 Rules:
 - Ids are assigned on first appearance and **never reused or renumbered**.
-- If a retroactive correction changes a natural key (e.g. a `validFrom` moves), the build does not silently create a new id: it produces a **remap proposal** (old key → new key) that goes into a PR for human approval (§10).
+- If a retroactive correction changes a natural key (e.g. a `validFrom` moves), the build does not silently create a new id: the remap is applied and recorded in `remaps.json`; a retroactive run reaches `main` only through a PR (§10.2).
+- An `nk:` entity that gains its ISTAT origin id is re-keyed to `istat:<root>` with the same id; the correspondence goes into `remaps.json`, but it is **not** retroactive (only `istat_origin_id` changes, which is not a dated field).
 - Registry changes are part of the data commit and are reviewed like data.
 
 ### 5.4 Ids and database friendliness
@@ -685,6 +686,10 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 46 and 49 on 1947-12-31; pfun 68 and 64 on 1948-01-01 | golden-15 |
 | pfun 68 on 2025-12-31 and 2026-01-01 | golden-4 |
 | pfun 51 on 1923-02-07 and 1923-02-08; pfun 50 on 1936-06-03 and 1936-06-04 (Step 8) | golden-6 |
+| pfun 50 on 1929-05-13, 1929-05-14, 1947-11-24 and 1947-11-25; pfun 61 on 2021-06-16 and 2021-06-17 (Step 9) | golden-2 |
+| pfun 50 on 1928-05-03, 1928-05-04, 1947-11-27 and 1947-11-28 (Step 9) | golden-3 |
+| pfun 61 on 2025-12-31 and 2026-01-01; r5 for Gallura Nord-Est Sardegna (113, type 1) and Oristano (115, type 1) (Step 9) | golden-4 |
+| pfun 64 on 2014-12-31 and 2015-01-01 (Step 9) | golden-5 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
 | r1, r2, r3 (full lists) | golden-4, golden-15 |
@@ -937,15 +942,29 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - Unresolved or ambiguous codes raise `ResolutionError`, converted to a `blocking` anomaly `code-unresolved`.
 - **Acceptance**: golden-6 (all 20 same-day suppressions resolve through aliases on the real snapshots of `D − 1` and `D` and the real pfun 98/105 fixtures; none via `cadastral`); the cadastral fallback covered by a synthetic test; the Sud Sardegna/Ogliastra side-rule example.
 
-### Step 9 — Identity resolution and registry
+### Step 9 — Identity resolution and registry — DONE
 
 - **Deliverables**:
   - transition matcher per §6.7, using the identity graph from Step 7;
   - registry (§5.3).
-- **Registry file format**: `{ "kind", "next_id", "entries": { "<natural key>": <id> } }`, keys sorted.
-- **Moved-key rule**: when an existing version key disappears and the same entity gets a new key whose interval overlaps it, **reuse the old id**. Record the remap in `registry/remaps.json` (`{ from_key, to_key, id, reason }`), log a `warning` and mark the run as retroactive (§10.2).
-- **Changed root**: when an identity component (Step 7) changes root between two runs but shares members with a component already registered, **reuse its id**, record the remap in `registry/remaps.json` and mark the run as retroactive.
-- **Missing internal data**: an `internal-data-unavailable` gap (Step 7) becomes `blocking` here only when a decision needs it (§6.1).
+- **Transition matcher** (per level, over the interval index of Step 8; every interval that closes or opens on a calendar date must be explained):
+  - code changes (municipalities: pfun 105; UTS and regions: the internal `RN` and `ESCT`/`CSCT` aliases of §6.6) link the interval of the old code on `d − 1` to that of the new code on `d`;
+  - the same code closed and reopened on `d` is the same territory, unless `ES` + `CS` on `d` reuse it, or a code change already links one of the two intervals (explicit evidence beats code equality, e.g. codes swapped on the same day);
+  - otherwise a closed interval needs `ES`/`ESCT`/`AS` on `d` and an opened one `CS`/`CSCT`/`AN` on `d` (municipalities: pfun 98/100; UTS and regions: internal events; public 112/113 and 106/107 are cross-checks, `identity-public-event-unmatched` `warning`); events only count on dates where intervals open or close;
+  - municipalities only: one closed and one opened interval with the same non-null cadastral code and no events are linked (`identity-cadastral-continuity`, `warning`; Step 11 creates the `inferred` variation); anything else is `transition-unexplained` (`blocking`);
+  - an interval with several successors or predecessors keeps none of those links (`identity-transition-conflict`, `blocking`);
+  - a name change along a link needs a `CD`/`CDAP` event on `d` (pfun 104/105, 114/108 or internal), otherwise `name-change-without-event` (`warning`).
+- **ISTAT ids win** (§5.2): every internal event is resolved to its interval (side rule of §3.5 item 6), which takes the root of its component.
+  - A chain whose intervals carry two roots is cut where the root changes (`identity-public-internal-mismatch`, `warning`); with intervals without events between the two roots the cut cannot be placed (`identity-split-undetermined`, `blocking`). Events of two components on one interval: `identity-origin-conflict` (`blocking`).
+  - Chains with the same root are one entity: no anomaly when the earlier one ends with a suppression and the later one starts with an establishment (documented reconstitution, e.g. Sassofeltrio); `identity-public-internal-mismatch` (`warning`) otherwise; `identity-overlap` (`blocking`) if they overlap.
+- **Entities without root** (key `nk:`):
+  - regions and UTS: always `blocking` (`identity-origin-missing` with internal data complete, `internal-data-required` otherwise);
+  - municipalities: `identity-origin-missing` (`warning`) when the municipality crawl is complete; with internal data incomplete, `internal-data-required` (`blocking`) only for an entity starting with `CS`/`AN` after the first calendar date (a possible reconstitution, §6.1), no anomaly otherwise.
+- **Registry file format**: one file per kind (§5.3), `{ "kind", "next_id", "entries": { "<natural key>": <entry> } }`, keys sorted. Entries: entities `{ id, members }` (the ISTAT ids of the identity component, ascending; empty for `nk:` keys), versions `{ id, valid_to }` (half-open end), variations `{ id }`. New keys of one call get ids in a total, deterministic order independent of the input order: entities by first `validFrom`, then first ISTAT code, then natural key; versions by `validFrom`, then entity id; variations by date, then natural key. A natural key given twice in one call is a bug (error). Kinds: `region`, `province`, `municipality`, `<level>-version`, `variation`.
+- **Remaps**: a key that changes keeps its id, the entry moves to the new key and the correspondence is appended to `registry/remaps.json` (`{ kind, from_key, to_key, id, reason, recorded_on }`, `recorded_on` = `dates.today`; the remaps of one run sorted by `kind`, then `from_key`). Reasons: `origin-id-available` (§5.3, not retroactive, `info`), `root-changed` and `key-moved` (retroactive, `warning`).
+- **Moved-key rule**: when an existing version key disappears and the same entity gets a new key whose interval overlaps it (the old interval from the key and `valid_to`), **reuse the old id** (the earliest overlapping old key), record the remap, log a `warning` and mark the run as retroactive (§10.2).
+- **Changed root**: when an identity component (Step 7) changes root between two runs but shares members with a registered entity whose key disappeared, **reuse its id** (the lowest when several), record the remap and mark the run as retroactive.
+- **Missing internal data**: an `internal-data-unavailable` gap (Step 7) becomes `blocking` here only when a decision needs it (§6.1): `internal-data-required` above.
 - **Acceptance**:
   - golden 1–5 (identity parts);
   - two builds on the same store produce identical ids;

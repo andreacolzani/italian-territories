@@ -164,6 +164,16 @@ export class Store {
     return { manifest, rows: await this.#snapshotLog(level).rows(manifest.row_hashes) };
   }
 
+  /** Like {@link getSnapshot}, keeping each row's hash next to it (equal rows, equal hashes). */
+  async getSnapshotEntries<L extends Level>(
+    level: L,
+    date: IsoDate,
+  ): Promise<Stored<SnapshotManifest, Hashed<SnapshotRowByLevel[L]>> | undefined> {
+    const manifest = await this.getSnapshotManifest(level, date);
+    if (manifest === undefined) return undefined;
+    return { manifest, rows: await this.#snapshotLog(level).entries(manifest.row_hashes) };
+  }
+
   /** The snapshot manifest of the current projection version, without reading its rows. */
   async getSnapshotManifest(level: Level, date: IsoDate): Promise<SnapshotManifest | undefined> {
     const manifest = await this.#readManifest(this.#snapshotPath(level, date), snapshotManifestSchema);

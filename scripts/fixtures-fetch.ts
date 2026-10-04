@@ -3,7 +3,10 @@
  * stores the bodies exactly as served (internal reports stay double-encoded, §3.3) at their
  * §11.1 paths, adding or replacing their manifest entries.
  *
- * Usage: npm run fixtures:fetch
+ * Usage: npm run fixtures:fetch [-- <fixture path>...]
+ *
+ * With fixture paths (relative to `test/fixtures/`), only those downloads are recorded; the
+ * others, whose event lists and counts depend on the download date, are left untouched.
  *
  * Bodies are only checked for content type and envelope here: the adapters' row schemas are
  * exercised by the fixture tests, so a schema problem never prevents recording the evidence.
@@ -87,6 +90,10 @@ function staticDownloads(): Download[] {
     snapshot(64, '1948-01-01', ['golden-15']),
     snapshot(68, '2025-12-31', ['golden-4', 'quirk-2']),
     snapshot(68, '2026-01-01', ['golden-4']),
+    snapshot(51, '1923-02-07', ['golden-6']),
+    snapshot(51, '1923-02-08', ['golden-6']),
+    snapshot(50, '1936-06-03', ['golden-6']),
+    snapshot(50, '1936-06-04', ['golden-6']),
     ...Object.entries(EVENT_LIST_USED_BY).map(([pfun, usedBy]) => ({
       request: eventListRequest(publicBase, Number(pfun) as EventListPfun, UNIFICATION, today),
       usedBy,
@@ -205,11 +212,17 @@ function piemonteDownloads(regions: unknown[]): Download[] {
 }
 
 async function main(): Promise<void> {
-  const downloads = staticDownloads();
+  const only = new Set(process.argv.slice(2));
+  const selected = (d: Download): boolean => only.size === 0 || only.has(describeRequest(d.request).path);
+  const downloads = staticDownloads().filter(selected);
+  const unknown = [...only].filter((path) => !staticDownloads().some((d) => describeRequest(d.request).path === path));
+  if (unknown.length > 0) throw new Error(`not a static download: ${unknown.join(', ')}`);
   const recorded = await Promise.all(downloads.map(record));
-  const regionList = recorded.find((r) => r.entry.endpoint === 'r1:region-list');
-  if (regionList === undefined) throw new Error('r1 was not downloaded');
-  recorded.push(...(await Promise.all(piemonteDownloads(regionList.rows).map(record))));
+  if (only.size === 0) {
+    const regionList = recorded.find((r) => r.entry.endpoint === 'r1:region-list');
+    if (regionList === undefined) throw new Error('r1 was not downloaded');
+    recorded.push(...(await Promise.all(piemonteDownloads(regionList.rows).map(record))));
+  }
 
   const manifest = JSON.parse(await readFile(MANIFEST_PATH, 'utf8')) as { fixtures: ManifestEntry[] };
   const byPath = new Map(manifest.fixtures.map((e, i) => [e.path, i]));

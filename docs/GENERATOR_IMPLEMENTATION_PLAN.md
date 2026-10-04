@@ -417,16 +417,18 @@ Estimated bootstrap cost: ~2,500 breakpoints × 3 levels × 2 (verification) ≈
 
 ### 6.6 Code resolver
 
-`resolve(level, code, date, side)` returns the entity (and version) identified by an ISTAT code:
+`resolve(level, code, date, side)` returns the **snapshot interval** identified by an ISTAT code: the maximal interval `[validFrom, validTo)` during which the code identifies the same projected snapshot row, built from the snapshots of the calendar dates. The resolver knows nothing of entities: Step 9 attaches intervals to entities.
 
 1. `side = successor` → look up the code on `date`; `side = predecessor` → on `date − 1`.
-2. If not found, apply **same-day aliases**: code-change events on `date` (pfun 105 for municipalities; internal `RN`/type changes for UTS) mapping old code ↔ new code; follow the chain.
-3. For municipalities, fall back to the **cadastral code** (when present on both sides).
-4. If still unresolved → `blocking` anomaly with full context.
+2. If not found, apply **same-day aliases**: code-change events on `date` mapping the code of `date − 1` to the code of `date`; follow the chain towards the side. Sources:
+   - municipalities: pfun 105 (`PRO_COM_T` is the code of `date − 1`, `PRO_COM_T_REL` the code of `date`; verified on Finalborgo: `PRO_COM_T` `010877` (D − 1), `PRO_COM_T_REL` `009813` (D): the suppression row's code `009813` resolves back to `010877`);
+   - UTS and regions: internal events of one identity component (§5.1). `RN` carries only the new code (Nuoro `114` in 2026): the old code is the one of the same record's last earlier event. A type change pairs the `ESCT` and `CSCT` codes of the component on `date` (Sassari `090` → `312`).
+3. For municipalities, fall back to the **cadastral code** of the event row (when present on both sides).
+4. If still unresolved, or a step reaches more than one interval → `blocking` anomaly `code-unresolved` with full context.
 
 A foreign state counterpart (`Stato estero`, no code; allowed only in `AS`, `AN`, `CE`, §3.5 item 15) is never passed to the resolver: the adapters already turn it into the `abroad` flag.
 
-Verified on real data: all 20 same-day suppressions and 15 same-day absorbing codes resolve; one case needs the cadastral fallback.
+Verified on real snapshots of `D − 1` and `D`: all 20 same-day suppressions resolve through aliases and the 15 same-day absorbing codes resolve directly; none needs the cadastral fallback (the cadastral case found at design time came from a comparison with ANPR, not with snapshots). The new code of a same-day code change of a municipality suppressed the same day (the pfun 105 `AP` rows of golden-6) never appears in a snapshot and does not resolve: those participations have no effect (§4.3).
 
 ### 6.7 Identity resolution between consecutive snapshots
 
@@ -682,6 +684,7 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 48 and 51 on 1927-01-11; pfun 46, 49 and 50 on 1927-01-12 | golden-6, golden-16 |
 | pfun 46 and 49 on 1947-12-31; pfun 68 and 64 on 1948-01-01 | golden-15 |
 | pfun 68 on 2025-12-31 and 2026-01-01 | golden-4 |
+| pfun 51 on 1923-02-07 and 1923-02-08; pfun 50 on 1936-06-03 and 1936-06-04 (Step 8) | golden-6 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
 | r1, r2, r3 (full lists) | golden-4, golden-15 |
@@ -925,13 +928,14 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - incremental crawl touches only new pairs;
   - degradation test with the internal family unavailable.
 
-### Step 8 — Code resolver
+### Step 8 — Code resolver — DONE
 
 - **Deliverables**:
-  - Per-level interval index: code → list of `(validFrom, validTo, row)`, built from the snapshot store.
-  - `resolve(level, code, date, side)` per §6.6, returning `{ entityKey, version, path: "direct" | "alias" | "cadastral" }`.
-  - Unresolved codes raise `ResolutionError`, converted to a `blocking` anomaly.
-- **Acceptance**: golden-6 (all 20 same-day suppressions from the real pfun 98/105 fixtures; exactly one via `cadastral`) and the Sud Sardegna/Ogliastra side-rule example.
+  - Per-level interval index: code → list of `(validFrom, validTo, row)`, built from the snapshots stored for the calendar dates; consecutive equal rows of a code are merged. A code duplicated in one snapshot is a `blocking` anomaly (`snapshot-duplicate-code`) and is left out of that date.
+  - `resolve(level, code, date, side)` per §6.6, returning `{ intervalKey, interval, path: "direct" | "alias" | "cadastral" }`. `intervalKey` is `<code>@<validFrom>` of the interval: it is not an identity (two consecutive intervals of the same entity have different keys); Step 9 maps intervals to entities.
+  - Same-day aliases from pfun 105 (municipalities) and from the internal `RN`/type change events (UTS and regions).
+  - Unresolved or ambiguous codes raise `ResolutionError`, converted to a `blocking` anomaly `code-unresolved`.
+- **Acceptance**: golden-6 (all 20 same-day suppressions resolve through aliases on the real snapshots of `D − 1` and `D` and the real pfun 98/105 fixtures; none via `cadastral`); the cadastral fallback covered by a synthetic test; the Sud Sardegna/Ogliastra side-rule example.
 
 ### Step 9 — Identity resolution and registry
 

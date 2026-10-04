@@ -462,8 +462,11 @@ Internal data is **acquired before identity resolution** (UTS and region identit
 
 - Build versions per entity by collapsing consecutive days with identical published attributes (internally half-open).
 - Parent references: municipality → UTS via `COD_PROV` (pre-1948) / `COD_UTS` (post-1948) resolved to entity ids on that date; UTS → region via `COD_COMP`/`COD_REG`; municipality `region_id` from its own region code, checked against the UTS region (I5).
+  - The parent code is resolved **date by date** over the whole period of the row, to the entity that code identifies at the parent level on each date. A version therefore splits where the entity behind an unchanged parent code changes, and only there: attribute changes of the parent entity (§4.2) do not split it.
 - UTS type pre-1948 is always `province`.
 - UTS abbreviation: post-1948 `SIGLA_AUTOMOBILISTICA`; pre-1948 derived from `SIGLA_UTS` of the UTS's municipalities on that date (must be unanimous; otherwise `blocking`). Values not matching `^[A-Z]{2}$` must be covered by an override (§6.10), otherwise `blocking`.
+  - Unanimity is checked on each date over the non-null `SIGLA_UTS` values; null values are ignored. A missing post-1948 `SIGLA_AUTOMOBILISTICA` is left to the overrides and to I8.
+- **Undetermined fields**: a parent code that identifies no entity on some date, or a pre-1948 abbreviation that is missing or not unanimous, is a `blocking` anomaly (`version-parent-unresolved`, `abbreviation-underived`, one per version and cause). The field is null in the internal model and the version is kept, so later stages still run; I4/I8 report the null field, the checks depending on it skip the version, and the emitter refuses to publish it (Steps 15–16).
 
 ### 6.10 Overrides (curated corrections)
 
@@ -690,6 +693,13 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 50 on 1928-05-03, 1928-05-04, 1947-11-27 and 1947-11-28 (Step 9) | golden-3 |
 | pfun 61 on 2025-12-31 and 2026-01-01; r5 for Gallura Nord-Est Sardegna (113, type 1) and Oristano (115, type 1) (Step 9) | golden-4 |
 | pfun 64 on 2014-12-31 and 2015-01-01 (Step 9) | golden-5 |
+| pfun 46 and 49 on 1929-05-13, 1929-05-14, 1947-11-24 and 1947-11-25; pfun 68 and 64 on 2021-06-16 and 2021-06-17 (Step 10) | golden-2 |
+| pfun 46 and 49 on 1947-11-27 and 1947-11-28; pfun 68, 64 and 61 on 1974-08-20 and 1974-09-13 (Step 10) | golden-3 |
+| pfun 68 and 61 on 2014-12-31 and 2015-01-01 (Step 10) | golden-5 |
+| pfun 46 and 49 on 1936-06-04, 1939-10-21 and 1946-01-30; pfun 50 on 1939-10-21 and 1946-01-30 (Step 10) | golden-10 |
+| pfun 44, 48 and 51 on 1920-10-15 and 1920-10-16 (Step 10) | golden-11 |
+| pfun 68, 64 and 61 on 2009-01-28 and 2009-01-29 (Step 10) | golden-12 |
+| pfun 44 on 1927-01-11 (Step 10) | golden-16 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
 | r1, r2, r3 (full lists) | golden-4, golden-15 |
@@ -970,11 +980,15 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - two builds on the same store produce identical ids;
   - moved-key scenario reuses the id and is classified retroactive.
 
-### Step 10 — Versions
+### Step 10 — Versions — DONE
 
 - **Deliverables**: version builder (§6.9), internally half-open:
   - parent resolution;
   - abbreviation derivation. Non-conforming abbreviations are allowed here and checked by I8 after overrides.
+- **Parents**: the parent code of a row (`COD_PROV`/`COD_UTS`, `COD_COMP`/`COD_REG`) is resolved, on every date of the row, to the entity that code identifies at the parent level (from the Step 9 entities), so a version also splits where the parent entity behind an unchanged code changes. Regions are built first, then UTS, then municipalities.
+- **Abbreviations**: `SIGLA_AUTOMOBILISTICA` from 1948; before, the `SIGLA_UTS` of the municipalities of the UTS on each date (null values ignored), which must be unanimous. A missing `SIGLA_AUTOMOBILISTICA` stays null without an anomaly here: an override may supply it, and I8 checks the result.
+- **Undetermined fields**: a parent code identifying no entity (`version-parent-unresolved`) or a pre-1948 abbreviation missing or not unanimous (`abbreviation-underived`) is a `blocking` anomaly, one per version and cause. The field is null in the internal model (`provinceId`, `regionId`, `abbreviation` are nullable there) and the version is kept, so later stages still run.
+- **Version ids**: assigned through the registry (`<entity id>:<validFrom>`, Step 9) after building.
 - **Acceptance**: golden 2, 3, 5, 10, 11, 12, 15, 16; I1–I3 unit tests.
 
 ### Step 11 — Variations and links
@@ -1008,6 +1022,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 ### Step 15 — Invariants
 
 - **Deliverables**: I1–I15 as independent, individually testable checks; anomaly reporting (§8.2); the `warning` check for active municipalities whose current version has an 8xx code (D30).
+- **Null fields** (Step 10): I4 reports a null `provinceId`/`regionId` and I8 a null `abbreviation`; the checks that depend on those fields (I5, I7 and similar) skip the versions where they are null instead of adding derived anomalies.
 - **Acceptance**:
   - a negative test for each invariant (a crafted dataset violating it is rejected); golden-17 for I13;
   - I15: a `ceded` or `annexed` participant with `abroad: false`, and an `abroad: true` participant without `AS`, `AN` or `CE`, are both rejected;
@@ -1022,6 +1037,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - `meta.json`;
   - JSON Schemas in `dist/schema/`;
   - `changes.json`: diff against the `dist/` of the previous commit. An item is `retroactive` if it touches any date before the previous `meta.generated_at` date, other than closing a version that was open.
+  - a field that the public schema does not admit as null but is null internally (Step 10) stops the emitter with an error, whatever the anomalies.
 - **Acceptance**: byte-identical output across two runs on the same store; schema validation of all outputs; §4.4 example reproduced.
 
 ### Step 17 — Commands: bootstrap, update, rebuild, audit, validate, diff

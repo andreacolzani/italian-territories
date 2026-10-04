@@ -108,6 +108,45 @@ function staticDownloads(): Download[] {
     snapshot(61, '2026-01-01', ['golden-4']),
     snapshot(64, '2014-12-31', ['golden-5']),
     snapshot(64, '2015-01-01', ['golden-5']),
+    // Step 10: the parents of the golden worlds and the municipality snapshots of version changes.
+    ...(['1929-05-13', '1929-05-14', '1947-11-24', '1947-11-25'] as const).flatMap((date) => [
+      snapshot(46, date, ['golden-2']),
+      snapshot(49, date, ['golden-2']),
+    ]),
+    ...(['2021-06-16', '2021-06-17'] as const).flatMap((date) => [
+      snapshot(68, date, ['golden-2']),
+      snapshot(64, date, ['golden-2']),
+    ]),
+    ...(['1947-11-27', '1947-11-28'] as const).flatMap((date) => [
+      snapshot(46, date, ['golden-3']),
+      snapshot(49, date, ['golden-3']),
+    ]),
+    ...(['1974-08-20', '1974-09-13'] as const).flatMap((date) => [
+      snapshot(68, date, ['golden-3']),
+      snapshot(64, date, ['golden-3']),
+      snapshot(61, date, ['golden-3']),
+    ]),
+    ...(['2014-12-31', '2015-01-01'] as const).flatMap((date) => [
+      snapshot(68, date, ['golden-5']),
+      snapshot(61, date, ['golden-5']),
+    ]),
+    ...(['1936-06-04', '1939-10-21', '1946-01-30'] as const).flatMap((date) => [
+      snapshot(46, date, ['golden-10']),
+      snapshot(49, date, ['golden-10']),
+    ]),
+    snapshot(50, '1939-10-21', ['golden-10']),
+    snapshot(50, '1946-01-30', ['golden-10']),
+    ...(['1920-10-15', '1920-10-16'] as const).flatMap((date) => [
+      snapshot(44, date, ['golden-11']),
+      snapshot(48, date, ['golden-11']),
+      snapshot(51, date, ['golden-11']),
+    ]),
+    ...(['2009-01-28', '2009-01-29'] as const).flatMap((date) => [
+      snapshot(68, date, ['golden-12']),
+      snapshot(64, date, ['golden-12']),
+      snapshot(61, date, ['golden-12']),
+    ]),
+    snapshot(44, '1927-01-11', ['golden-16']),
     ...Object.entries(EVENT_LIST_USED_BY).map(([pfun, usedBy]) => ({
       request: eventListRequest(publicBase, Number(pfun) as EventListPfun, UNIFICATION, today),
       usedBy,

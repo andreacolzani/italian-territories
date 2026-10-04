@@ -1,0 +1,203 @@
+{
+"resultset":[
+{
+"COD_RIP":1
+,"COD_REG":"01"
+,"DEN_REG":"Piemonte"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80087670016"
+,"COD_NUTS2_2010":"ITC1"
+}
+,{
+"COD_RIP":1
+,"COD_REG":"02"
+,"DEN_REG":"Valle d\u0027Aosta\/Vall\u00E9e d\u0027Aoste"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+,"COD_REG_FISCALE":"80002270074"
+,"COD_NUTS2_2010":"ITC2"
+}
+,{
+"COD_RIP":1
+,"COD_REG":"03"
+,"DEN_REG":"Lombardia"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80050050154"
+,"COD_NUTS2_2010":"ITC4"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"04"
+,"DEN_REG":"Trentino-Alto Adige\/S\u00FCdtirol"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+,"COD_REG_FISCALE":"80003690221"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"05"
+,"DEN_REG":"Veneto"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80007580279"
+,"COD_NUTS2_2010":"ITH3"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"06"
+,"DEN_REG":"Friuli-Venezia Giulia"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+,"COD_REG_FISCALE":"80014930327"
+,"COD_NUTS2_2010":"ITH4"
+}
+,{
+"COD_RIP":1
+,"COD_REG":"07"
+,"DEN_REG":"Liguria"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"00849050109"
+,"COD_NUTS2_2010":"ITC3"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"08"
+,"DEN_REG":"Emilia-Romagna"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80062590379"
+,"COD_NUTS2_2010":"ITH5"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"09"
+,"DEN_REG":"Toscana"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"01386030488"
+,"COD_NUTS2_2010":"ITI1"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"10"
+,"DEN_REG":"Umbria"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80000130544"
+,"COD_NUTS2_2010":"ITI2"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"11"
+,"DEN_REG":"Marche"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80008630420"
+,"COD_NUTS2_2010":"ITI3"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"12"
+,"DEN_REG":"Lazio"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80143490581"
+,"COD_NUTS2_2010":"ITI4"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"13"
+,"DEN_REG":"Abruzzo"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80003170661"
+,"COD_NUTS2_2010":"ITF1"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"14"
+,"DEN_REG":"Molise"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"00169440708"
+,"COD_NUTS2_2010":"ITF2"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"15"
+,"DEN_REG":"Campania"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80011990639"
+,"COD_NUTS2_2010":"ITF3"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"16"
+,"DEN_REG":"Puglia"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80017210727"
+,"COD_NUTS2_2010":"ITF4"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"17"
+,"DEN_REG":"Basilicata"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"80002950766"
+,"COD_NUTS2_2010":"ITF5"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"18"
+,"DEN_REG":"Calabria"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+,"COD_REG_FISCALE":"02205340793"
+,"COD_NUTS2_2010":"ITF6"
+}
+,{
+"COD_RIP":5
+,"COD_REG":"19"
+,"DEN_REG":"Sicilia"
+,"DEN_RIP":"Isole"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+,"COD_REG_FISCALE":"80012000826"
+,"COD_NUTS2_2010":"ITG1"
+}
+,{
+"COD_RIP":5
+,"COD_REG":"20"
+,"DEN_REG":"Sardegna"
+,"DEN_RIP":"Isole"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+,"COD_REG_FISCALE":"80002870923"
+,"COD_NUTS2_2010":"ITG2"
+}
+]
+}

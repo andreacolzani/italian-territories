@@ -1,0 +1,164 @@
+{
+"resultset":[
+{
+"COD_RIP":1
+,"COD_REG":"01"
+,"DEN_REG":"Piemonte"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":1
+,"COD_REG":"02"
+,"DEN_REG":"Valle d\u0027Aosta"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+}
+,{
+"COD_RIP":1
+,"COD_REG":"03"
+,"DEN_REG":"Lombardia"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"04"
+,"DEN_REG":"Trentino-Alto Adige\/S\u00FCdtirol"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"05"
+,"DEN_REG":"Veneto"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"06"
+,"DEN_REG":"Friuli-Venezia Giulia"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+}
+,{
+"COD_RIP":1
+,"COD_REG":"07"
+,"DEN_REG":"Liguria"
+,"DEN_RIP":"Nord-ovest"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":2
+,"COD_REG":"08"
+,"DEN_REG":"Emilia-Romagna"
+,"DEN_RIP":"Nord-est"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"09"
+,"DEN_REG":"Toscana"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"10"
+,"DEN_REG":"Umbria"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"11"
+,"DEN_REG":"Marche"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":3
+,"COD_REG":"12"
+,"DEN_REG":"Lazio"
+,"DEN_RIP":"Centro"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"13"
+,"DEN_REG":"Abruzzo"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"14"
+,"DEN_REG":"Molise"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"15"
+,"DEN_REG":"Campania"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"16"
+,"DEN_REG":"Puglia"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"17"
+,"DEN_REG":"Basilicata"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":4
+,"COD_REG":"18"
+,"DEN_REG":"Calabria"
+,"DEN_RIP":"Sud"
+,"TIPO_REG":"1"
+,"DESC_TIPO_REG":"Regione a Statuto ordinario"
+}
+,{
+"COD_RIP":5
+,"COD_REG":"19"
+,"DEN_REG":"Sicilia"
+,"DEN_RIP":"Isole"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+}
+,{
+"COD_RIP":5
+,"COD_REG":"20"
+,"DEN_REG":"Sardegna"
+,"DEN_RIP":"Isole"
+,"TIPO_REG":"2"
+,"DESC_TIPO_REG":"Regione a Statuto speciale"
+}
+]
+}

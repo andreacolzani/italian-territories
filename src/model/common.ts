@@ -63,7 +63,7 @@ export type EntityStatus = (typeof ENTITY_STATUSES)[number];
 export const LINK_KINDS = ['merged_into', 'detached_into', 'transferred_to'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
-export const VARIATION_ORIGINS = ['istat', 'inferred', 'override'] as const;
+export const VARIATION_ORIGINS = ['istat', 'inferred'] as const;
 export type VariationOrigin = (typeof VARIATION_ORIGINS)[number];
 
 export const PARTICIPANT_ROLES = [

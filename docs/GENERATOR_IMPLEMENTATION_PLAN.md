@@ -221,7 +221,7 @@ Names:
   "id": 1843,                       // stable integer from registry
   "date": "2026-01-01",             // first day of the new state
   "istat_act_id": 6151,             // null if unknown / inferred
-  "origin": "istat",                // "istat" | "inferred" | "override"
+  "origin": "istat",                // "istat" | "inferred"
   "description": "ISTITUITE LA CITTA' METROPOLITANA DI SASSARI ...",  // ISTAT text, nullable
   "participants": [
     { "level": "province", "territory_id": 95, "istat_events": ["AQES", "CECS", "RN"], "abroad": false,
@@ -499,10 +499,13 @@ Directory `overrides/`, one JSON file per topic. Entry:
 }
 ```
 
-- Applied after building, before derived fields and invariants.
-- Each run checks whether every override is still needed; an override whose target already has the corrected value (ISTAT fixed it) or no longer matches anything is reported as **obsolete** (`warning`).
-- Override-driven variations use `origin: "override"`.
-- The only override known at design time is the `VG` abbreviation above.
+- Each file is an array of entries. The target period is inclusive (`date_to` is the last day covered, `null` = no end), like the public model (§4.1).
+- **Fields**: a closed set, discriminated by `field`; v1 allows only the UTS `abbreviation` (value matching `^[A-Z]{2}$`). Adding a field is a deliberate extension of the schema and of the applier.
+- **Loading**: keys are unique across files, and two overrides of the same level, field and code must not overlap in time. An unreadable or invalid file, a duplicate key or an overlap is a defect of the repository: the loader throws `OverrideFileError` instead of reporting an anomaly.
+- Applied after building versions and variations, before derived fields and invariants.
+- **Whole versions only**: an override replaces the field of the versions whose `istat_code` is the target code and that lie **entirely** inside the target period. Versions are never split, so an override creates no version boundary and no variation, and version ids stay valid. A version with the target code that overlaps the period only in part is `blocking` (`override-partial-overlap`) and keeps its value. If an override makes two contiguous versions equal, I3 reports it.
+- Each run checks whether every override is still needed; an override that matches no version, or whose fully covered versions all hold its value already (ISTAT fixed it) without partial overlaps, is reported as **obsolete** (`warning`, `override-obsolete`).
+- The only override known at design time is the `VG` abbreviation above (`overrides/abbreviations.json`; UTS 801 exists in `[1921-01-05, 1923-02-08)`, inside the target period).
 
 ### 6.11 ANPR cross-check
 
@@ -574,7 +577,7 @@ Anomalies go to `anomalies.json` with `level`, `code` (stable machine identifier
 
 | Level | Examples |
 |---|---|
-| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); version boundary explained by no event, parent change or upstream warning (§4.3) |
+| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); override partly overlapping a version (§6.10); version boundary explained by no event, parent change or upstream warning (§4.3) |
 | `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences; current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
 | `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
@@ -716,6 +719,7 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 68, 64 and 61 on 2009-01-28 and 2009-01-29 (Step 10) | golden-12 |
 | pfun 44 on 1927-01-11 (Step 10) | golden-16 |
 | pfun 46, 49 and 50 on 1947-09-15 and 1947-09-16 (Step 11) | golden-9, golden-18, golden-19 |
+| pfun 44, 48 and 51 on 1923-02-07 and 1923-02-08 (Step 12; pfun 51 shared with golden-6) | golden-7 |
 | r6 for Setteville (025075), Quero Vas (025070) and Alano di Piave (025002) (Step 11) | golden-1 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
@@ -822,6 +826,7 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
   - `ResponseValidationError`: permanent, rows violate the schema;
   - `EndpointDisabledError`: the endpoint was disabled by an earlier `ResponseValidationError`.
 - `ResolutionError` (Step 8)
+- `OverrideFileError` (Step 12): invalid or inconsistent override files (§6.10)
 - `InvariantViolation` (Step 15)
 
 Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` passed through the pipeline.
@@ -1023,10 +1028,12 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Variation ids**: assigned through the registry (§5.3) after building.
 - **Acceptance**: golden 1, 2, 4, 6, 9, 18, 19 (variation part); I9, I10, I14 on the full worlds of two consecutive days; a pair without a rule is blocking.
 
-### Step 12 — Overrides
+### Step 12 — Overrides — DONE
 
 - **Deliverables**: loader with zod schema, applier, obsolescence check (§6.10); `overrides/abbreviations.json` with the VG entry.
-- **Acceptance**: golden-7; obsolete-override test; I8 passes on the real 1921 fixture only after the override.
+  - Overrides apply to whole versions only (partial overlap → `override-partial-overlap`, `blocking`); no version splits and no override variations, so `origin` is `istat` or `inferred` (a new value can be added later as a compatible change).
+  - I8 is implemented here as the definitive invariant (`src/invariants/`); Step 15 integrates it into the overall check.
+- **Acceptance**: golden-7 (world 1921-06-01 → 1923-02-08, so the 801 version is closed inside the target period); obsolete-override test; I8 passes on the real 1921 fixture only after the override.
 
 ### Step 13 — Derived fields
 

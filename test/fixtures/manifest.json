@@ -1183,7 +1183,8 @@
       "completeness": "full",
       "note": null,
       "used_by": [
-        "golden-6"
+        "golden-6",
+        "golden-7"
       ]
     },
     {
@@ -1198,7 +1199,8 @@
       "completeness": "full",
       "note": null,
       "used_by": [
-        "golden-6"
+        "golden-6",
+        "golden-7"
       ]
     },
     {
@@ -2356,6 +2358,66 @@
       "note": null,
       "used_by": [
         "golden-1"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/regions/pfun-44_1923-02-07.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-44",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=44&pdata=07/02/1923"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-7"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/regions/pfun-44_1923-02-08.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-44",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=44&pdata=08/02/1923"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-7"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-48_1923-02-07.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-48",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=48&pdata=07/02/1923"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-7"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-48_1923-02-08.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-48",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=48&pdata=08/02/1923"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-7"
       ]
     }
   ]

@@ -86,6 +86,8 @@ export interface TransitionResult<L extends Level = Level> {
   starts: ReadonlyMap<string, IstatEventCode[]>;
   /** Maximal sequences of linked intervals, sorted by first `validFrom`, then code. */
   chains: SnapshotInterval<L>[][];
+  /** Links along which the name changes without a `CD`/`CDAP` event (`name-change-without-event`). */
+  renamesWithoutEvent: IntervalLink[];
 }
 
 export interface MatchTransitionsOptions<L extends Level> {
@@ -210,10 +212,12 @@ export function matchTransitions<L extends Level>(options: MatchTransitionsOptio
     }
   }
 
+  const renamesWithoutEvent: IntervalLink[] = [];
   for (const link of kept) {
     const from = intervals.get(link.from);
     const to = intervals.get(link.to);
     if (from === undefined || to === undefined || nameOf(from) === nameOf(to) || renamed.has(link.to)) continue;
+    renamesWithoutEvent.push(link);
     anomalies.add({
       level: 'warning',
       code: TRANSITION_ANOMALIES.nameChange,
@@ -238,8 +242,19 @@ export function matchTransitions<L extends Level>(options: MatchTransitionsOptio
     });
   }
 
-  kept.sort((a, b) => compareStrings(a.date, b.date) || compareStrings(a.from, b.from));
-  return { level, intervals, links: kept, ends, starts, chains: chainsOf(all, kept, intervals) };
+  const byDate = (a: IntervalLink, b: IntervalLink): number =>
+    compareStrings(a.date, b.date) || compareStrings(a.from, b.from);
+  kept.sort(byDate);
+  renamesWithoutEvent.sort(byDate);
+  return {
+    level,
+    intervals,
+    links: kept,
+    ends,
+    starts,
+    chains: chainsOf(all, kept, intervals),
+    renamesWithoutEvent,
+  };
 }
 
 /** Interval key, as produced by the resolver (`<code>@<validFrom>`). */

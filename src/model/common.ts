@@ -7,7 +7,10 @@
 export const LEVELS = ['region', 'province', 'municipality'] as const;
 export type Level = (typeof LEVELS)[number];
 
-/** ISTAT event codes (§2). */
+/**
+ * ISTAT event codes (§2). `CT` is undocumented by ISTAT and appears only in the internal UTS
+ * events (r5), for a change of UTS type without a new record (§3.5 item 18).
+ */
 export const ISTAT_EVENT_CODES = [
   'PV',
   'CS',
@@ -23,6 +26,7 @@ export const ISTAT_EVENT_CODES = [
   'RN',
   'RNAPUTS',
   'VACST',
+  'CT',
   'ES',
   'ESCT',
   'AS',

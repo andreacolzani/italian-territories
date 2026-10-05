@@ -2189,6 +2189,174 @@
       "used_by": [
         "golden-16"
       ]
+    },
+    {
+      "path": "situas-public/snapshots/regions/pfun-46_1947-09-15.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-46",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=46&pdata=15/09/1947"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-9",
+        "golden-18",
+        "golden-19"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-49_1947-09-15.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-49",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=49&pdata=15/09/1947"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-9",
+        "golden-18",
+        "golden-19"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1947-09-15.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=15/09/1947"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-9",
+        "golden-18",
+        "golden-19"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/regions/pfun-46_1947-09-16.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-46",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=46&pdata=16/09/1947"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-9",
+        "golden-18",
+        "golden-19"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/provinces/pfun-49_1947-09-16.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-49",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=49&pdata=16/09/1947"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-9",
+        "golden-18",
+        "golden-19"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-50_1947-09-16.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-50",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=16/09/1947"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-9",
+        "golden-18",
+        "golden-19"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/025075_setteville.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=025075&com=Setteville"
+        }
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/025070_quero-vas.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=025070&com=Quero Vas"
+        }
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/025002_alano-di-piave.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=025002&com=Alano di Piave"
+        }
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
     }
   ]
 }

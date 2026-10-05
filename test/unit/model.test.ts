@@ -146,7 +146,7 @@ describe('vocabulary', () => {
   });
 
   it('lists every ISTAT event code of §2', () => {
-    expect(ISTAT_EVENT_CODES).toHaveLength(17);
+    expect(ISTAT_EVENT_CODES).toHaveLength(18);
   });
 });
 

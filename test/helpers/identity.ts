@@ -6,6 +6,7 @@ import { canonicalJson } from '../../src/http/index.ts';
 import {
   buildIdentityGraph,
   internalIdentity,
+  type IdentityGraph,
   type IdentitySource,
   type InternalIdentity,
 } from '../../src/identity/index.ts';
@@ -57,13 +58,20 @@ export async function utsIdentity(
   records: readonly [string, UtsListRecord['type'], string][],
   complete = true,
 ): Promise<InternalIdentity> {
+  return internalIdentity(await utsGraph(records), complete, (e) => ({ ...e, recordId: e.utsId }), 'r5:uts-events');
+}
+
+/** The UTS identity graph of r5 fixtures, as `[code, type, fixture file]`. */
+export async function utsGraph(
+  records: readonly [string, UtsListRecord['type'], string][],
+): Promise<IdentityGraph<InternalUtsEvent>> {
   const sources: IdentitySource<InternalUtsEvent>[] = [];
   for (const [code, type, file] of records) {
     const listed = utsList.find((r) => r.code === code && r.type === type);
     if (listed === undefined) throw new Error(`UTS ${code} (${type}) not listed by r2`);
     sources.push({ listed, events: await decodedRows('utsEvents', `r5-uts-events/${file}`) });
   }
-  const graph = buildIdentityGraph<InternalUtsEvent>({
+  return buildIdentityGraph<InternalUtsEvent>({
     level: 'province',
     sources,
     pointer: (e) => ({ id: e.utsId, originId: e.originId }),
@@ -72,11 +80,20 @@ export async function utsIdentity(
     eventKey: canonicalJson,
     anomalies: new AnomalyCollector(),
   });
-  return internalIdentity(graph, complete, (e) => ({ ...e, recordId: e.utsId }), 'r5:uts-events');
 }
 
 /** Internal municipality identity from r6 fixtures (file names); never complete. */
 export async function municipalityIdentity(files: readonly string[]): Promise<InternalIdentity> {
+  return internalIdentity(
+    await municipalityGraph(files),
+    false,
+    (e) => ({ ...e, recordId: e.originId }),
+    'r6:municipality-events',
+  );
+}
+
+/** The municipality identity graph of r6 fixtures (file names). */
+export async function municipalityGraph(files: readonly string[]): Promise<IdentityGraph<InternalMunicipalityEvent>> {
   const sources: IdentitySource<InternalMunicipalityEvent>[] = [];
   for (const file of files) {
     const events = await decodedRows('municipalityEvents', `r6-municipality-events/${file}`);
@@ -84,7 +101,7 @@ export async function municipalityIdentity(files: readonly string[]): Promise<In
     if (first === undefined) throw new Error(`${file} has no events`);
     sources.push({ listed: { code: first.currentCode, name: first.currentName, type: null, originId: null }, events });
   }
-  const graph = buildIdentityGraph<InternalMunicipalityEvent>({
+  return buildIdentityGraph<InternalMunicipalityEvent>({
     level: 'municipality',
     sources,
     pointer: (e) => ({ id: e.originId, originId: e.originId }),
@@ -93,7 +110,6 @@ export async function municipalityIdentity(files: readonly string[]): Promise<In
     eventKey: canonicalJson,
     anomalies: new AnomalyCollector(),
   });
-  return internalIdentity(graph, false, (e) => ({ ...e, recordId: e.originId }), 'r6:municipality-events');
 }
 
 /** Internal identity of Piemonte (r4 for its compartment and region records); never complete. */

@@ -516,12 +516,22 @@ ANPR is a **non-blocking source**:
 - **Structural problems** (download failure, missing columns): the cross-check is skipped for the run with a `warning`.
 - ANPR problems never raise a blocking `ResponseValidationError`.
 
-Join ANPR rows to municipality versions by cadastral code plus date overlap. Classify discrepancies (never blocking):
+Join ANPR rows to municipality versions by cadastral code plus date overlap. A version without a cadastral code (§3.5 item 3) falls back to the ANPR rows with its ISTAT code plus date overlap. Every anomaly states the method (`matchedBy`: `cadastral` | `istat-code`). The same rule holds for both methods: consecutive rows of the join key (the cadastral code, or the ISTAT code for the fallback) are normal and are compared day by day; rows of the join key valid on the same day are ambiguous. On those days the version is not compared (`anpr-not-comparable`, `info`, no row is chosen); the rest of the version is compared normally.
+
+Comparisons, on the overlap of each version and ANPR row:
+- **ISTAT code**: equal.
+- **Name**: `DENOMINAZIONE_IT` is uppercase; it must equal the official or the Italian name in uppercase (verified on 2025-12-31: 7,780 official and 116 Italian names, no divergence). Two levels: names equal after removing diacritics and making apostrophes uniform, but different in the exact form (`Sampèire`/`SAMPEIRE`), are `info` (`anpr-name-diacritics`); names different even then are a `warning` (`anpr-divergent-name`).
+- **Province**: `IDPROVINCIAISTAT` is the historical code (`COD_PROV_STORICO`: Milano `015`, not `215`); it must equal the historical code of the version's province on the same dates. Versions with an undetermined province (§6.9) are skipped.
+- **ANPR lags and anachronisms**: a different ISTAT code or province is looked up in the municipality's own history (the ISTAT codes of its versions; the historical codes of their provinces). A value the municipality had **earlier** is an ANPR lag (§3.4, e.g. Sardinia 2026: Alghero still `090003` in `090`): `info` (`anpr-lagging-istat-code`, `anpr-lagging-province`). Otherwise, a value it has **later** is an anachronism (§3.4, e.g. Trentino 1920–23 in `022`): `info` (`anpr-anachronistic-istat-code`, `anpr-anachronistic-province`). A value that never appears in its history is a `warning` (`anpr-divergent-istat-code`, `anpr-divergent-province`).
+- **`EX` region**: the ANPR row overlapping the entity's last version with the latest start has region `EX` iff the entity is former Italian. ANPR not marking `EX` an entity that is former Italian (e.g. Tenda) is `info` (`anpr-former-italian-missing`); ANPR marking `EX` an entity that is not former Italian is a `warning` (`anpr-former-italian-divergence`).
+- **Dates**, comparing coverages (the versions of an entity; the rows of an ANPR key, i.e. cadastral code, or ISTAT code for rows without one): an entity no row matches is a missing entity; a maximal period of existence no row covers is a missing period; a period only ANPR covers, in a stretch of rows matching no version, is an unmatched period; any other difference is an off-by-one date when it lasts one day, a date divergence otherwise.
+
+Classify discrepancies (never blocking). Warnings are one anomaly per divergence, with full context; info anomalies are one per code, with the count and the list of items in `context`.
 
 | Level | Cases |
 |---|---|
-| `info` | ANPR missing the entity or period; one-day date differences; ANPR rows split without attribute change |
-| `warning` | Divergent ISTAT code, name or province on periods ANPR covers; ANPR `EX` region vs our `is_former_italian` disagreement |
+| `info` | ANPR missing the entity (`anpr-missing-entity`) or period (`anpr-missing-period`); one-day date differences (`anpr-date-off-by-one`); ANPR rows split without attribute change (`anpr-split-rows`); days with ambiguous rows (`anpr-not-comparable`); names differing only in diacritics or apostrophes (`anpr-name-diacritics`); ISTAT codes and provinces of an earlier or later time of the municipality (`anpr-lagging-istat-code`, `anpr-lagging-province`, `anpr-anachronistic-istat-code`, `anpr-anachronistic-province`); former Italian entities without `EX` (`anpr-former-italian-missing`); rows dropped by the adapter (`anpr-row-dropped`) |
+| `warning` | ISTAT code or province never in the municipality's history, name different beyond diacritics, on periods ANPR covers (`anpr-divergent-istat-code`, `anpr-divergent-province`, `anpr-divergent-name`); start or end differing by more than one day (`anpr-date-divergence`, golden-3); periods only ANPR knows (`anpr-unmatched-period`); ANPR `EX` on an entity that is not former Italian (`anpr-former-italian-divergence`); cross-check skipped (`anpr-unavailable`) |
 
 ### 6.12 Emit
 
@@ -580,8 +590,8 @@ Anomalies go to `anomalies.json` with `level`, `code` (stable machine identifier
 | Level | Examples |
 |---|---|
 | `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); override partly overlapping a version (§6.10); version boundary explained by no event, parent change or upstream warning (§4.3); cycle among the successors of suppressed entities (`successor-cycle`, §7) |
-| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences; current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
-| `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
+| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences (ISTAT code or province never in the municipality's history, name beyond diacritics, dates by more than one day, periods only ANPR knows, `EX` on an entity that is not former Italian, §6.11); current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
+| `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates, split or ambiguous rows, names differing only in diacritics, lagging or anachronistic ISTAT codes and provinces, missing `EX` on former Italian entities (§6.11); historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
 A run with any `blocking` anomaly never publishes and never commits data to `main`.
 
@@ -767,7 +777,7 @@ If a request in this table returns something that contradicts the expectations o
 11. **Bolzano/Bozen** (internal 6): `official_name = "Bolzano/Bozen"`, `italian_name = "Bolzano"`, `foreign_name = "Bozen"` from 1920-10-16 (`AN`, code 802039).
 12. **Bilingual chronology**: rename rows from 2009-01-29 (e.g. Duino Aurisina → Duino Aurisina-Devin Nabrežina, `COMUNE_A_REL` Devin Nabrežina) produce new versions with `foreign_name` set from that date.
 13. **Name/snapshot consistency**: the 1921 snapshot agrees with the last preceding pfun 104 rename for all 1,725 matched municipalities.
-14. **ANPR classification**: of 3,309 distinct suppressions, ~489 are absent from ANPR → `info`, never blocking.
+14. **ANPR classification**: suppressed municipalities absent from ANPR (§3.4: about 490 at design time, mostly 1866–1873 and 1924) → `info` (`anpr-missing-entity`), never blocking. The exact number is fixed by the first full run (Step 17) and asserted from then on.
 15. **1948 regime boundary**: compartments on 1947-12-31 and regions on 1948-01-01 with the same origin are the same entities with a new version (`type` compartment → region). The regions of 1871 (e.g. Piemonte, origin 14, `CS` act 6109) are linked to their predecessor compartment through r7 details.
 16. **1927 regime boundary**: crossing from pfun 51/48/44 to pfun 50/49/46 does not create spurious versions. Only real changes of 1927-01-12 (new provinces, same-day suppressions of golden-6) produce versions.
 17. **Counts (I13)**: reconstructed counts for the download date equal the three count fixtures.
@@ -1049,10 +1059,14 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - golden-19: Tenda former Italian with `current_successors = [Briga Alta, Limone Piemonte]`;
   - Sassofeltrio active with no successors.
 
-### Step 14 — ANPR cross-check
+### Step 14 — ANPR cross-check — DONE
 
 - **Deliverables**: join and classification (§6.11). Any ANPR failure (`AnprFormatError`, download failure, exhausted retries, open circuit, HTTP errors) skips the cross-check with a single `warning` and never blocks (D22).
-- **Acceptance**: golden 3 (`warning`) and 14 (`info` counts); a structurally broken CSV yields one `warning` and a successful run.
+- **Acceptance**: golden 3 (`warning`); every `info` case on synthetic data (golden-14 needs the full municipality world: its count is fixed and asserted in Step 17); a structurally broken CSV yields one `warning` and a successful run.
+  - Ambiguity: consecutive rows of the join key are compared day by day; only the days on which rows of the join key overlap are `anpr-not-comparable`, with both methods.
+  - Names: `Sampèire`/`SAMPEIRE` is `info` (`anpr-name-diacritics`); a name different even without diacritics is a `warning`.
+  - ISTAT codes and provinces: a value of an earlier time of the municipality is a lag, of a later time an anachronism (both `info`), a value never in its history a `warning`. On the 2025-12-31/2026-01-01 world the 377 + 377 Sardinian divergences are `anpr-lagging-istat-code` and `anpr-lagging-province`.
+  - `EX`: Tenda (former Italian, ANPR region `01`) is `info` (`anpr-former-italian-missing`); `EX` on an entity that is not former Italian is a `warning`.
 
 ### Step 15 — Invariants
 
@@ -1088,6 +1102,8 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - incremental scenario adding a fusion (exit 0);
   - retroactive scenario (exit 2);
   - removed inferred breakpoint: an `inferred` date already published as a version boundary is no longer confirmed (Step 6) and leaves the calendar; the two versions it separated merge into one, and the run is classified as retroactive (exit 2).
+  - golden-14 on the full run: the number of suppressed municipalities absent from ANPR (`anpr-missing-entity`) is reported to the maintainer, fixed in §11.3 and asserted.
+  - ANPR counts are evaluated only on the full run: the test worlds cover a few days and lack the history the classification needs (a later province, a cession of 1947, the continuation of a suppressed municipality), so their counts are not significant. The count of every ANPR `warning` code (`anpr-divergent-*`, `anpr-date-divergence`, `anpr-unmatched-period`, `anpr-former-italian-divergence`) is reported to the maintainer, to decide whether to downgrade any of them to `info`.
 
 ### Step 18 — GitHub Actions
 

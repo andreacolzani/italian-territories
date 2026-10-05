@@ -606,14 +606,16 @@ A run with any `blocking` anomaly never publishes and never commits data to `mai
 | `dist/municipalities.json` | Array of municipality entities |
 | `dist/variations.json` | Array of variations |
 | `dist/anomalies.json` | Non-blocking anomalies of the build that produced this release |
-| `dist/changes.json` | Diff vs the previous release: added/updated/removed entities, versions and variations by id, each flagged `retroactive: true` when it touches dates before the previous release's generation date |
-| `dist/meta.json` | `schema_version` (semver), `data_version` (`YYYY.MM.DD`), `generated_at`, per-source fetch time and content hash, counts per level, anomaly counts per level |
+| `dist/changes.json` | Diff vs the previous release: added/updated/removed entities, versions and variations by id, each flagged `retroactive: true` when it changes the published state of a day before the previous release's `data_version`; updated and removed items carry `affected_from`, the first such day (Step 16) |
+| `dist/meta.json` | `schema_version` (semver), `data_version` (`YYYY.MM.DD`, the today of the build that produced the data files: it identifies the data content), `generated_at`, per source family (§6.1) fetch time, content hash and number of stored responses, counts per level (entities, active, versions) and of variations, anomaly counts per level |
 | `dist/schema/*.schema.json` | JSON Schemas of all files above |
 
 Releases:
 - git tag `data-YYYY.MM.DD`;
 - GitHub Release with the `dist/` files attached;
 - npm package with `dist/` (version `MAJOR.YYYYMMDD.PATCH`, where MAJOR follows `schema_version`).
+
+A release is either a **data** release (new data files) or a **schemas** release (same data files, new JSON Schemas after a generator change, Step 16): a schemas release keeps the previous `data_version`, data files, `anomalies.json` and meta, changes only `schema_version` and `generated_at` and publishes an empty, non-retroactive `changes.json`. It increments the npm PATCH; its git tag must be distinguishable from the data release with the same `data_version` (Step 18).
 
 ---
 
@@ -641,6 +643,8 @@ Releases:
 7. Classify the result:
    - **additive** (only new versions/variations after the previous generation date, closing of open versions, new entities) → commit and publish;
    - **retroactive** (anything touching earlier dates, registry remaps, audit mismatches) → open a PR, **no publish** until merged.
+
+   Events ISTAT publishes late (dated before the previous release's `data_version`) change days already published, so they make the run retroactive (PR), closings of open versions included (Step 16).
 
 ### 10.3 Workflows
 
@@ -801,7 +805,7 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
 
 - Node ≥ 22.18, TypeScript strict, ESM.
 - Runtime dependencies: only `zod` (v4, using its built-in JSON Schema export) and `csv-parse` (ANPR).
-- Dev dependencies: `typescript`, `vitest`, `eslint` with `typescript-eslint`, `@eslint/js` and `eslint-config-prettier`, `prettier`, `@types/node`. No transpiler or TS runner (`tsx`, `ts-node`): Node runs the `.ts` sources directly.
+- Dev dependencies: `typescript`, `vitest`, `eslint` with `typescript-eslint`, `@eslint/js` and `eslint-config-prettier`, `prettier`, `@types/node`, `ajv` (tests only, never at runtime: validation of the published files against the published JSON Schemas, Step 16). No transpiler or TS runner (`tsx`, `ts-node`): Node runs the `.ts` sources directly.
 - Adding any other dependency requires approval.
 - Platform APIs to use: global `fetch`, `node:crypto` (SHA-256), `node:util` `parseArgs` (CLI), `node:fs/promises`.
 
@@ -842,6 +846,7 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
 - `ResolutionError` (Step 8)
 - `OverrideFileError` (Step 12): invalid or inconsistent override files (§6.10)
 - `InvariantViolation` (Step 15)
+- `EmitError` (Step 16): the emitter refuses to publish (an undetermined field, a blocking anomaly, a file violating its public model, an invalid previous release)
 
 Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` passed through the pipeline.
 
@@ -1086,15 +1091,25 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - I12 compares every snapshot it is given (`storeSnapshotSets(store)` streams every stored one, probes included; audit samples use the same `SnapshotSet` shape), per level and date, projecting each version: the three names (split as the builder does), codes, type, cadastral code, the codes of its UTS and region **on that date**, the historical codes (§5.5) and the abbreviation. The expected abbreviation of a version is the value of the override applied to it, if any; else `SIGLA_AUTOMOBILISTICA` of the snapshot; before 1948 the one the municipality rows of the same snapshot report, derived with the builder's `municipalityAbbreviations` (null when not unanimous; not compared when the date has no municipality rows: `checkI12Detailed` and the I12 result of `checkInvariants` then carry `uncompared.abbreviation`, the number of versions and of dates left out). One anomaly per level and date, listing at most 20 differences with the total.
   - Fixtures downloaded for golden-17: pfun 68, 64 and 61 on 2026-10-01, the date of the count fixtures (§11.2).
 
-### Step 16 — Emitters, meta and changes
+### Step 16 — Emitters, meta and changes — DONE
 
 - **Deliverables**:
   - public emitters (§6.12, §9) with inclusive dates and deterministic formatting;
   - `meta.json`;
   - JSON Schemas in `dist/schema/`;
-  - `changes.json`: diff against the `dist/` of the previous commit. An item is `retroactive` if it touches any date before the previous `meta.generated_at` date, other than closing a version that was open.
+  - `changes.json`: diff against the previous release. An item is `retroactive` if it changes the published state of any day before the previous `meta.data_version`; closing a version that was open changes only the days after its new end (implementation notes below).
   - a field that the public schema does not admit as null but is null internally (Step 10) stops the emitter with an error, whatever the anomalies.
 - **Acceptance**: byte-identical output across two runs on the same store; schema validation of all outputs; §4.4 example reproduced.
+- **Implementation notes** (decided with the maintainer):
+  - `src/emit/`: `toPublicData` (internal → public; inclusive ends only here; `role: null` participations dropped; entities by `id`, versions by `valid_from`, participants by `(level, territory_id)` and links by `(level, from, to)` with levels in the order region, province, municipality; `istat_events` alphabetically), `toPublicAnomalies` (warnings then infos, by code, then by the canonical JSON of message and context), `emitDataset`, `computeChanges`, `buildMeta`/`sourceSummaries`, `loadPublishedDataset`. Every file is validated against its public model before anything is written; meta and changes have zod models too and their JSON Schemas are generated with the others (`dist/schema/meta.schema.json`, `changes.schema.json`). Anomaly codes are kebab-case (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`).
+  - `generated_at` is an input (the CLI reads the clock, the emitter never does). `emitDataset` returns the kind of release (files written atomically, `meta.json` always last):
+    - `unchanged`: the four data files (regions, provinces, municipalities, variations) and the JSON Schemas are identical to the previous release: `dist/` is **not touched**; `anomalies.json` stays the one of the build that produced the release and `generated_at` is not renewed; the current anomalies go to the run summary (Step 17);
+    - `schemas`: same data files, different schema files (a generator change): `dist/schema/`, an empty non-retroactive `changes.json` and `meta.json` are written, so the published schemas never lag behind the generator; the data files and `anomalies.json` stay those of the previous release, and so does its meta (`data_version`, which identifies the data content, sources, counts, anomaly counts) except `schema_version` and `generated_at`; `changes.json` goes from the previous release to the same `data_version` with the new `generated_at`. Step 17 treats it as an additive, non-retroactive release;
+    - `data`: every file is written.
+  - The previous release is an input (`null` for the first one: everything added, nothing retroactive); Step 17 decides where it comes from (`dist/` in the checkout, `git show`, `diff <from> <to>`).
+  - Retroactivity by **days modified**, the reference being the previous `data_version`. `affected_from` of a version: the earlier `valid_from` when any field other than `valid_until` changed, otherwise the day after the earlier end (null = open), so closing an open version at `U` is additive iff `U + 1` is not before the reference; of a variation: the earlier date; of an entity (entity-level fields only, its versions are items of their own): the earliest date among the links added or removed, and for `status` the day after the end of the last version (old or new); `istat_origin_id`, `is_former_italian` and `current_successors` carry no date (`affected_from` null, not retroactive: they follow from dated items flagged on their own). Removed items: their first day; added items are retroactive iff their first day precedes the reference.
+  - `meta.sources` per family `situas-public-snapshots`, `situas-public-reports` (stored event lists; counts are not stored), `situas-internal`, `anpr`: `{ fetched_at, content_hash, manifests }`, the latest `fetched_at` of the store manifests of the current projection version, the SHA-256 of the canonical JSON of the sorted `[manifest key, content_hash]` pairs, their number; ANPR from the downloaded response (`manifests: 1`); `null` for a family without responses or a skipped cross-check. `schema_version` starts at `1.0.0`.
+  - Every output is validated with Ajv (dev dependency, tests only) against the JSON Schema published next to it (`test/helpers/json-schema.ts`; formats `date` and `date-time` defined with the generator's date rules): emitted datasets of the unit and golden tests, and the repository `dist/` once it holds a release.
 
 ### Step 17 — Commands: bootstrap, update, rebuild, audit, validate, diff
 
@@ -1107,6 +1122,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - **`validate` on `dist/`**: implemented as a command that reads the published files back into the internal model (inclusive → half-open with the `src/dates/` conversions, no local conversion) and runs `checkInvariants` with I2, I7, I12, I13 and I14 reported as `skipped`, never as passed (they need unpublished data, snapshots, counts or event accounts).
 - **Acceptance**:
   - **I12 timing**: measure the time I12 takes on the complete run (every stored snapshot, probes included) and report it to the maintainer, who decides whether it needs optimising. Also report `uncompared.abbreviation` of the I12 result.
+  - **`sourceSummaries` timing**: measure the time `sourceSummaries` (Step 16, `meta.json`) takes on the complete store (it reads every snapshot manifest, the municipality ones holding thousands of row hashes each) and report it to the maintainer, who decides whether it needs optimising.
   - end-to-end test on a reduced world (Veneto, Sardinia, Venezia Giulia) with the fixture transport;
   - incremental scenario adding a fusion (exit 0);
   - retroactive scenario (exit 2);
@@ -1120,7 +1136,8 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - `data-cache` branch checkout and push;
   - PR creation on exit code 2 (a pinned PR-creation action is allowed in workflows);
   - release and npm publish.
-- **Acceptance**: dry-run on a fork; no publish on exit codes 1, 2 or 3.
+- **Schemas releases** (Step 16, §9): a release whose data files are unchanged and whose schemas changed keeps the previous `data_version` and increments the PATCH of the npm version (`MAJOR.YYYYMMDD.PATCH`, MAJOR following `schema_version`). The git tag scheme must distinguish it from the data release with the same `data_version`: today `data-YYYY.MM.DD` would collide (e.g. a suffix carrying the PATCH, to be decided in this step).
+- **Acceptance**: dry-run on a fork; no publish on exit codes 1, 2 or 3; a schemas release gets its own tag and npm PATCH.
 - **Open points** (to discuss or implement in this step):
   - the automatic update must also update `CHANGELOG.md`. Releases created with the `GITHUB_TOKEN` do not trigger other workflows, so `update-changelog.yml` (manual releases only) is not enough: the update has to happen inside the release flow, or the release has to be created with a PAT/GitHub App;
   - decide how the workflows that commit to `main` (changelog, data releases) behave when `main` is protected (bypass for GitHub Actions, PAT/GitHub App, or PR).
@@ -1164,7 +1181,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D21 | Unknown or unexpected ISTAT event codes are blocking schema violations | The vocabulary drives roles and links; it must be extended deliberately |
 | D22 | ANPR is a non-blocking source; its dates are converted to half-open in the adapter; any ANPR failure (format, download, exhausted retries, HTTP) skips the cross-check with a single `warning` (§6.11) | Cross-check only; one internal date convention everywhere |
 | D23 | Internal data is crawled before identity resolution | UTS/region identity depends on it (union-find over `id ↔ id_origine`) |
-| D24 | Minimal dependencies (`zod`, `csv-parse`); generator code not published to npm | Small attack surface; the npm package is a data package |
+| D24 | Minimal dependencies (`zod`, `csv-parse`); generator code not published to npm; `ajv` only as a dev dependency for tests (JSON Schema validation of the published files), never at runtime | Small attack surface; the npm package is a data package |
 | D25 | Three request scopes: host (pool, AIMD, rate limit), family (circuit breaker), endpoint (permanent validation errors) | Congestion is per server; heavy snapshots must not trip light reports; a schema change concerns one report and the run should collect all problems |
 | D26 | `ResponseValidationError` and `EndpointDisabledError` do not count for the circuit breaker (neither failure nor reset), do not reduce AIMD concurrency and never trigger `staleFallback`; AIMD and the circuit breaker react only to transport failures (429, 5xx, timeout, connection reset) and transient validation errors | A schema violation is neither congestion nor unavailability; stale data must not hide a blocking problem |
 | D27 | Internal adapters accept every event code of §2; each `(level, event code)` pair needs an explicit role/link rule when building variations, and a pair without a rule is blocking; coverage is checked against the pairs observed by the build (a build report, not stored data) | Per-level code sets are not documented by ISTAT; the vocabulary is closed by explicit rules, not by guessed sets |

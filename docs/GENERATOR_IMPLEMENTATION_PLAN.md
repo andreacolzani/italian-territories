@@ -736,6 +736,7 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 61 on 2013-12-27 and 2013-12-28; r6 for Quero (025042) and Vas (025064) (Step 13: Quero → Quero Vas → Setteville) | golden-1 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
+| pfun 68, 64 and 61 on the download date of the counts, 2026-10-01 (Step 15: I13 compares the reconstruction with the counts, I12 with the snapshots) | golden-17 |
 | r1, r2, r3 (full lists) | golden-4, golden-15 |
 | r4 for Piemonte: every record listed by r1 with that name (compartment and region) | golden-15 |
 | r5 for the province records of Sassari (090, type 1), Cagliari (092, type 1), Milano (015, type 1) | golden-4, golden-5 |
@@ -1068,7 +1069,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - ISTAT codes and provinces: a value of an earlier time of the municipality is a lag, of a later time an anachronism (both `info`), a value never in its history a `warning`. On the 2025-12-31/2026-01-01 world the 377 + 377 Sardinian divergences are `anpr-lagging-istat-code` and `anpr-lagging-province`.
   - `EX`: Tenda (former Italian, ANPR region `01`) is `info` (`anpr-former-italian-missing`); `EX` on an entity that is not former Italian is a `warning`.
 
-### Step 15 — Invariants
+### Step 15 — Invariants — DONE
 
 - **Deliverables**: I1–I15 as independent, individually testable checks; anomaly reporting (§8.2); the `warning` check for active municipalities whose current version has an 8xx code (D30).
 - **Null fields** (Step 10): I4 reports a null `provinceId`/`regionId` and I8 a null `abbreviation`; the checks that depend on those fields (I5, I7 and similar) skip the versions where they are null instead of adding derived anomalies.
@@ -1078,6 +1079,12 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - I7: a wrong `COD_PROV_STORICO` fallback (§3.5 item 16) makes I7 fail;
   - I7: an 8xx code whose prefix is the code of a UTS of another time is `info`; one whose prefix never was a UTS code is blocking; a mismatch with suffix < 800 is blocking at any date;
   - the 8xx `warning` fires for an active municipality whose current code has suffix ≥ 800.
+- **Implementation notes** (decided with the maintainer):
+  - The invariants run on the **internal model** (derived entities, half-open intervals, `role: null` participations). `checkInvariants(world, anomalies?)` returns one result per invariant, `passed`, `failed` or `skipped` (with the reason): an invariant whose data the world lacks (I2 `existence`; I7 `historicalCodes`; I12 `snapshots`, `historicalCodes` and `overrides`; I13 `counts`; I14 `accounts` and `variationIdOf`) is **never** reported as passed. `validate` on `dist/` (Step 17) reads the files back with the `src/dates/` conversions (no local conversion) and so runs with I2, I7, I12, I13 and I14 skipped. `assertInvariants(report)` throws `InvariantViolation` when one failed.
+  - Each violation is a `blocking` anomaly with code `invariant-i<n>` and `context.invariant`. I1 reports order, overlaps, inverted intervals and entities without versions; the zero-length version is I10's. I3 compares the published fields only. I6 reports one anomaly per pair of entities sharing a value over a common period (the versions of one entity are I1's). I9's only exemption is the versions starting on the first calendar date. I10 also requires every variation to have a participation with effect; participants with `role: null` are the ones the emitter drops. I11 recomputes the derived fields with `deriveFields` and compares them field by field (one violation per entity and field), then applies the rule on suppressed entities without current successors. I14 also checks that the variation key resolves to a variation that exists, and that the drop reason is known.
+  - I7: the UTS codes "of some time in the dataset" are exclusively those of the checked world: the codes of every version of every UTS and their historical codes. Test worlds covering a few dates pass the missing ones through the explicit, test-only `extraUtsCodes` parameter. The `info` anomaly is `municipality-8xx-prefix-of-another-uts`; the D30 `warning` is `active-municipality-8xx-code` (`checkActive8xxCodes`).
+  - I12 compares every snapshot it is given (`storeSnapshotSets(store)` streams every stored one, probes included; audit samples use the same `SnapshotSet` shape), per level and date, projecting each version: the three names (split as the builder does), codes, type, cadastral code, the codes of its UTS and region **on that date**, the historical codes (§5.5) and the abbreviation. The expected abbreviation of a version is the value of the override applied to it, if any; else `SIGLA_AUTOMOBILISTICA` of the snapshot; before 1948 the one the municipality rows of the same snapshot report, derived with the builder's `municipalityAbbreviations` (null when not unanimous; not compared when the date has no municipality rows: `checkI12Detailed` and the I12 result of `checkInvariants` then carry `uncompared.abbreviation`, the number of versions and of dates left out). One anomaly per level and date, listing at most 20 differences with the total.
+  - Fixtures downloaded for golden-17: pfun 68, 64 and 61 on 2026-10-01, the date of the count fixtures (§11.2).
 
 ### Step 16 — Emitters, meta and changes
 
@@ -1097,7 +1104,9 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - A `blocked` snapshot stage (Step 6) stops the pipeline before identity resolution.
   - Inferred breakpoints are kept in `calendar.json` across runs (source `inferred`): a calendar rebuilt from the sources must not lose them. Step 6 removes those no longer confirmed, and a published event on the same date replaces the `inferred` source.
   - Run summary written to `.cache/last-run.json`, for the workflows.
+  - **`validate` on `dist/`**: implemented as a command that reads the published files back into the internal model (inclusive → half-open with the `src/dates/` conversions, no local conversion) and runs `checkInvariants` with I2, I7, I12, I13 and I14 reported as `skipped`, never as passed (they need unpublished data, snapshots, counts or event accounts).
 - **Acceptance**:
+  - **I12 timing**: measure the time I12 takes on the complete run (every stored snapshot, probes included) and report it to the maintainer, who decides whether it needs optimising. Also report `uncompared.abbreviation` of the I12 result.
   - end-to-end test on a reduced world (Veneto, Sardinia, Venezia Giulia) with the fixture transport;
   - incremental scenario adding a fusion (exit 0);
   - retroactive scenario (exit 2);

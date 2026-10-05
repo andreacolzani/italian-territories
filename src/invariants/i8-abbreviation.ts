@@ -6,34 +6,34 @@
  * One `blocking` anomaly per offending version.
  */
 import { ABBREVIATION_PATTERN } from '../model/common.ts';
-import type { Anomaly, ProvinceEntity } from '../model/internal.ts';
+import type { Anomaly, Entity } from '../model/internal.ts';
+import { violation } from './anomaly.ts';
 
 export const I8_ANOMALY = 'invariant-i8';
 
-export function checkI8(provinces: readonly ProvinceEntity[]): Anomaly[] {
+export function checkI8(provinces: readonly Entity<'province'>[]): Anomaly[] {
   const anomalies: Anomaly[] = [];
   for (const entity of provinces) {
     for (const version of entity.versions) {
       const { abbreviation } = version;
       if (abbreviation !== null && ABBREVIATION_PATTERN.test(abbreviation)) continue;
-      anomalies.push({
-        level: 'blocking',
-        code: I8_ANOMALY,
-        message:
+      anomalies.push(
+        violation(
+          'I8',
           abbreviation === null
-            ? `I8: province entity ${entity.id}, version ${version.id} (code ${version.istatCode}) has no abbreviation`
-            : `I8: province entity ${entity.id}, version ${version.id} (code ${version.istatCode}) has abbreviation ` +
-              `${JSON.stringify(abbreviation)}, not two uppercase letters`,
-        context: {
-          invariant: 'I8',
-          entityId: entity.id,
-          versionId: version.id,
-          istatCode: version.istatCode,
-          validFrom: version.validFrom,
-          validTo: version.validTo,
-          abbreviation,
-        },
-      });
+            ? `province entity ${entity.id}, version ${version.id} (code ${version.istatCode}) has no abbreviation`
+            : `province entity ${entity.id}, version ${version.id} (code ${version.istatCode}) has abbreviation ` +
+                `${JSON.stringify(abbreviation)}, not two uppercase letters`,
+          {
+            entityId: entity.id,
+            versionId: version.id,
+            istatCode: version.istatCode,
+            validFrom: version.validFrom,
+            validTo: version.validTo,
+            abbreviation,
+          },
+        ),
+      );
     }
   }
   return anomalies;

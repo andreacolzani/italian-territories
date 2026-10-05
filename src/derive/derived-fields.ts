@@ -26,7 +26,7 @@
 import type { AnomalyCollector } from '../anomalies.ts';
 import type { IsoDate } from '../dates/index.ts';
 import type { Level, LinkKind } from '../model/common.ts';
-import type { DerivedFields, EntityByLevel, EntityLink, Variation } from '../model/internal.ts';
+import type { DerivedFields, Entity, EntityLink, Variation } from '../model/internal.ts';
 
 /** Stable anomaly codes of the derived fields (§8.2). */
 export const DERIVED_ANOMALIES = {
@@ -39,7 +39,7 @@ const SUCCESSION_KINDS: readonly LinkKind[] = ['merged_into', 'detached_into'];
 
 export type DerivedEntity<E> = E & DerivedFields;
 
-export function deriveFields<L extends Level, E extends EntityByLevel[L]>(options: {
+export function deriveFields<L extends Level, E extends Entity<L>>(options: {
   level: L;
   entities: readonly E[];
   variations: readonly Variation[];

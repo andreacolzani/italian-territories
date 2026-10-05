@@ -281,6 +281,17 @@ export class Store {
     return { manifest, rows: await this.#internalLog(report).rows(manifest.row_hashes) };
   }
 
+  /** Manifests of report `report` with the current projection version, by `key`. */
+  async internalReports(report: InternalReportNumber): Promise<InternalReportManifest[]> {
+    const dir = join(this.dir, 'internal', 'reports', `r${report}`);
+    const manifests: InternalReportManifest[] = [];
+    for (const name of (await listFiles(dir)).filter((n) => n.endsWith(MANIFEST_SUFFIX)).sort()) {
+      const manifest = await this.#readManifest(join(dir, name), internalReportManifestSchema);
+      if (manifest?.projection_version === this.#versions.internal[report]) manifests.push(manifest);
+    }
+    return manifests;
+  }
+
   // -------------------------------------------------------------------------------------------
 
   async #putManifest<M extends Manifest>(

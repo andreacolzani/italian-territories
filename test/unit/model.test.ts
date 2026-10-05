@@ -318,7 +318,7 @@ describe('public variation model (§4.3)', () => {
 describe('anomalies (§8.2)', () => {
   const anomaly = {
     level: 'warning',
-    code: 'anpr.date_mismatch',
+    code: 'anpr-date-divergence',
     message: 'SITUAS start date differs from ANPR',
     context: { entity_id: 10704, situas: '1947-11-28', anpr: '1947-12-13' },
   };
@@ -326,6 +326,9 @@ describe('anomalies (§8.2)', () => {
   it('accepts anomalies of every level internally', () => {
     expect(anomalySchema.safeParse({ ...anomaly, level: 'blocking' }).success).toBe(true);
     expect(anomalySchema.safeParse({ ...anomaly, code: 'Not Stable' }).success).toBe(false);
+    expect(anomalySchema.safeParse({ ...anomaly, code: 'invariant-i8' }).success).toBe(true);
+    expect(anomalySchema.safeParse({ ...anomaly, code: 'anpr.date_mismatch' }).success).toBe(false);
+    expect(anomalySchema.safeParse({ ...anomaly, code: 'trailing-' }).success).toBe(false);
   });
 
   it('never publishes blocking anomalies', () => {

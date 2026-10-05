@@ -15,7 +15,7 @@ function def(schema: Record<string, unknown>, name: string): ObjectSchema {
 }
 
 describe('JSON Schema generation', () => {
-  it('produces one draft 2020-12 schema per published data file', () => {
+  it('produces one draft 2020-12 schema per published file', () => {
     const schemas = generateJsonSchemas();
     expect(Object.keys(schemas)).toEqual([
       'regions.schema.json',
@@ -23,10 +23,12 @@ describe('JSON Schema generation', () => {
       'municipalities.schema.json',
       'variations.schema.json',
       'anomalies.schema.json',
+      'changes.schema.json',
+      'meta.schema.json',
     ]);
-    for (const schema of Object.values(schemas)) {
+    for (const [name, schema] of Object.entries(schemas)) {
       expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
-      expect(schema.type).toBe('array');
+      expect(schema.type).toBe(['changes.schema.json', 'meta.schema.json'].includes(name) ? 'object' : 'array');
     }
   });
 

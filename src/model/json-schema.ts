@@ -6,6 +6,8 @@
 import { z } from 'zod';
 import {
   anomaliesFileSchema,
+  changesSchema,
+  metaSchema,
   municipalitiesFileSchema,
   provincesFileSchema,
   regionsFileSchema,
@@ -19,6 +21,8 @@ export const PUBLIC_FILE_MODELS = {
   municipalities: municipalitiesFileSchema,
   variations: variationsFileSchema,
   anomalies: anomaliesFileSchema,
+  changes: changesSchema,
+  meta: metaSchema,
 } as const;
 
 export type PublicFileName = keyof typeof PUBLIC_FILE_MODELS;

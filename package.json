@@ -29,7 +29,7 @@
     "fixtures:fetch": "node scripts/fixtures-fetch.ts"
   },
   "dependencies": {
-    "csv-parse": "^6.2.1",
+    "csv-parse": "^7.0.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {

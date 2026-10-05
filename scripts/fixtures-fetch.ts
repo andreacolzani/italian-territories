@@ -147,6 +147,15 @@ function staticDownloads(): Download[] {
       snapshot(61, date, ['golden-12']),
     ]),
     snapshot(44, '1927-01-11', ['golden-16']),
+    // Step 11: the cessions of 1947-09-16 and the act grouping the Setteville merger.
+    ...(['1947-09-15', '1947-09-16'] as const).flatMap((date) => [
+      snapshot(46, date, ['golden-9', 'golden-18', 'golden-19']),
+      snapshot(49, date, ['golden-9', 'golden-18', 'golden-19']),
+      snapshot(50, date, ['golden-9', 'golden-18', 'golden-19']),
+    ]),
+    internal(reportUrls.municipalityEvents({ code: '025075', name: 'Setteville' }), ['golden-1']),
+    internal(reportUrls.municipalityEvents({ code: '025070', name: 'Quero Vas' }), ['golden-1']),
+    internal(reportUrls.municipalityEvents({ code: '025002', name: 'Alano di Piave' }), ['golden-1']),
     ...Object.entries(EVENT_LIST_USED_BY).map(([pfun, usedBy]) => ({
       request: eventListRequest(publicBase, Number(pfun) as EventListPfun, UNIFICATION, today),
       usedBy,

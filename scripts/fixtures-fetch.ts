@@ -160,6 +160,11 @@ function staticDownloads(): Download[] {
     internal(reportUrls.municipalityEvents({ code: '025075', name: 'Setteville' }), ['golden-1']),
     internal(reportUrls.municipalityEvents({ code: '025070', name: 'Quero Vas' }), ['golden-1']),
     internal(reportUrls.municipalityEvents({ code: '025002', name: 'Alano di Piave' }), ['golden-1']),
+    // Step 13: the merger of Quero and Vas into Quero Vas (2013-12-28), first link of the chain.
+    snapshot(61, '2013-12-27', ['golden-1']),
+    snapshot(61, '2013-12-28', ['golden-1']),
+    internal(reportUrls.municipalityEvents({ code: '025042', name: 'Quero' }), ['golden-1']),
+    internal(reportUrls.municipalityEvents({ code: '025064', name: 'Vas' }), ['golden-1']),
     ...Object.entries(EVENT_LIST_USED_BY).map(([pfun, usedBy]) => ({
       request: eventListRequest(publicBase, Number(pfun) as EventListPfun, UNIFICATION, today),
       usedBy,

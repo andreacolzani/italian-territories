@@ -12,10 +12,14 @@ import {
   type VariationLevelInput,
 } from '../../src/build/index.ts';
 import { compareDates, type IsoDate } from '../../src/dates/index.ts';
-import type { IdentityGraph } from '../../src/identity/index.ts';
+import { internalIdentity, type IdentityGraph } from '../../src/identity/index.ts';
 import { LEVELS, type IstatEventCode, type Level } from '../../src/model/common.ts';
 import type { EntityByLevel, Variation } from '../../src/model/internal.ts';
+import { IntervalIndex } from '../../src/resolve/index.ts';
+import type { InternalMunicipalityEvent, InternalUtsEvent } from '../../src/sources/situas-internal/index.ts';
+import { snapshotIndex } from './identity.ts';
 import { decodedRows } from './internal.ts';
+import { withSources } from './sources.ts';
 import { buildWorld, type BuiltWorld, type VersionWorld } from './versions.ts';
 
 export interface VariationWorld extends VersionWorld {
@@ -179,5 +183,100 @@ export function accountViolations(built: BuiltVariations): string[] {
       return [`${a.source}#${a.index}: variation ${a.variation} not registered`];
     }
     return [];
+  });
+}
+
+function loadEventLists() {
+  return withSources(async ({ situasPublic }) => {
+    const list = async <L extends Level>(level: L, pfun: number, to: IsoDate) =>
+      (await situasPublic.fetchEventList(level, pfun as never, '1861-03-17', to)).data;
+    return {
+      municipality: {
+        98: await list('municipality', 98, '2026-09-30'),
+        100: await list('municipality', 100, '2026-10-01'),
+        103: await list('municipality', 103, '2026-10-01'),
+        104: await list('municipality', 104, '2026-09-30'),
+        105: await list('municipality', 105, '2026-09-30'),
+      },
+      province: {
+        112: await list('province', 112, '2026-10-01'),
+        113: await list('province', 113, '2026-10-01'),
+        114: await list('province', 114, '2026-10-01'),
+      },
+      region: {
+        106: await list('region', 106, '2026-10-01'),
+        107: await list('region', 107, '2026-10-01'),
+        108: await list('region', 108, '2026-10-01'),
+      },
+    };
+  });
+}
+
+let loaded: ReturnType<typeof loadEventLists> | undefined;
+
+/** The full-range event list fixtures of every level (loaded once). */
+export function eventLists(): ReturnType<typeof loadEventLists> {
+  loaded ??= loadEventLists();
+  return loaded;
+}
+
+/** The lists of a level with only the rows of `dates`. */
+async function listsOn(level: Level, dates: readonly IsoDate[]): Promise<Record<number, unknown[]>> {
+  const byPfun = (await eventLists())[level] as Record<number, { date: IsoDate }[]>;
+  return Object.fromEntries(Object.entries(byPfun).map(([pfun, rows]) => [pfun, onDates(rows, dates)]));
+}
+
+export interface WorldOptions {
+  /** Codes kept per level; `false`: an empty level (no snapshots of those dates). */
+  codes?: { region?: string[] | false; province?: string[] | false; municipality?: string[] };
+  municipalities?: IdentityGraph<InternalMunicipalityEvent>;
+  provinces?: { graph: IdentityGraph<InternalUtsEvent>; details?: string[] };
+}
+
+/**
+ * A world of the real snapshots of `dates` (optionally reduced to some codes), with the event rows and
+ * internal events of every date but the first.
+ */
+export async function fixtureWorld(dates: readonly IsoDate[], options: WorldOptions = {}): Promise<BuiltVariations> {
+  const { codes = {} } = options;
+  const eventDates = dates.slice(1);
+  const indexes = await withSources(async ({ situasPublic }) => ({
+    region:
+      codes.region === false
+        ? new IntervalIndex('region', new Map())
+        : await snapshotIndex(situasPublic, 'region', dates, codes.region),
+    province:
+      codes.province === false
+        ? new IntervalIndex('province', new Map())
+        : await snapshotIndex(situasPublic, 'province', dates, codes.province),
+    municipality: await snapshotIndex(situasPublic, 'municipality', dates, codes.municipality),
+  }));
+  const { municipalities, provinces } = options;
+  return buildVariationWorld({
+    region: { index: indexes.region, eventLists: await listsOn('region', eventDates) },
+    province: {
+      index: indexes.province,
+      eventLists: await listsOn('province', eventDates),
+      internal:
+        provinces === undefined
+          ? null
+          : internalIdentity(provinces.graph, true, (e) => ({ ...e, recordId: e.utsId }), 'r5:uts-events'),
+    },
+    municipality: {
+      index: indexes.municipality,
+      eventLists: await listsOn('municipality', eventDates),
+      internal:
+        municipalities === undefined
+          ? null
+          : internalIdentity(municipalities, false, (e) => ({ ...e, recordId: e.originId }), 'r6:municipality-events'),
+    },
+    internalEvents: {
+      ...(municipalities === undefined ? {} : { municipality: onDates(variationEvents(municipalities), eventDates) }),
+      ...(provinces === undefined
+        ? {}
+        : {
+            province: onDates(variationEvents(provinces.graph, await utsDetails(provinces.details ?? [])), eventDates),
+          }),
+    },
   });
 }

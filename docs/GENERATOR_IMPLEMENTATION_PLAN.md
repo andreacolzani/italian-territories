@@ -535,11 +535,13 @@ Join ANPR rows to municipality versions by cadastral code plus date overlap. Cla
 Computed after overrides, per level:
 
 - **`status`**: `active` iff the last version is open.
-- **`predecessors`**: links whose `to` is this entity, taken from the variation that opened the entity's **first** version.
-- **`successors`**: links whose `from` is this entity, taken from the variation that closed the entity's **last** version. Empty for active entities. Intermediate closures (gaps such as Sassofeltrio 1929–1947) are ignored: an entity that is active again has no successors.
-- **`current_successors`**: transitive closure over `successors` (following `merged_into` and `detached_into`) until reaching **active** entities of the same level; ids sorted ascending; cycle-safe. Empty for active entities.
+- **Source of the links**: by date, from **every** variation of that date (same level only), whatever act references the version boundary: a cession (`AS`) and a partial transfer (`CE`) of the same day in different acts both count. The links of all those variations are joined without duplicates and sorted by linked entity id, then kind, then variation id. Participants without effect are ignored; participants matter only to read the role that closed the last version (below).
+- **`predecessors`**: links whose `to` is this entity, from the variations dated on `valid_from` of the entity's **first** version.
+- **`successors`**: links whose `from` is this entity, from the variations dated on the day after `valid_until` of the entity's **last** version. Empty for active entities. Intermediate closures (gaps such as Sassofeltrio 1929–1947) are ignored: an entity that is active again has no successors.
+- **`current_successors`**: transitive closure over `successors` (following `merged_into` and `detached_into`) until reaching **active** entities of the same level; ids sorted ascending; entities already visited are not followed again. Empty for active entities.
   - Example: Quero (1866–2013) → Quero Vas (2013–2024) → Setteville ⇒ Quero's `current_successors = [Setteville]`.
-- **`is_former_italian`**: `true` iff the entity is suppressed and every terminal path of its successor graph ends in an entity whose last version was closed with role `ceded` (cession abroad). An entity closed with `ceded` is a terminal point of the transitive computation even when it has links (D33): it is former Italian itself, and an entity merged into it is former Italian if all its paths end in ceded entities. Partial cessions of surviving entities do not count. `current_successors` is computed as above, regardless of this flag (Tenda, 1947: `is_former_italian = true`, `current_successors = [Briga Alta, Limone Piemonte]`, golden-19).
+- **`is_former_italian`**: `true` iff the entity is suppressed and every terminal path of its successor graph ends in an entity whose last version was closed with role `ceded` (cession abroad). An entity closed with `ceded` is a terminal point of the transitive computation even when it has links (D33): it is former Italian itself, and an entity merged into it is former Italian if all its paths end in ceded entities. Partial cessions of surviving entities do not count. `current_successors` is computed as above, regardless of this flag (Tenda, 1947: `is_former_italian = true`, `current_successors = [Briga Alta, Limone Piemonte]`, golden-19). Whether the last version was closed with `ceded` is read from the entity's participants whose `version_before_id` is that version.
+- **Cycles**: a cycle among final closures (the `merged_into`/`detached_into` successors of suppressed entities) is a `blocking` anomaly `successor-cycle`, one per strongly connected component, with the entities involved; it is never treated as a path that does not end in a ceded entity.
 
 Consumer contract (for the Laravel package): `is_former_italian` is evaluated first. Moving a stored reference to the current territory is
 - impossible if `is_former_italian = true`: never migrated automatically; its `current_successors`, if any, are the parts of its territory that stayed Italian and may only be proposed under user supervision;
@@ -577,7 +579,7 @@ Anomalies go to `anomalies.json` with `level`, `code` (stable machine identifier
 
 | Level | Examples |
 |---|---|
-| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); override partly overlapping a version (§6.10); version boundary explained by no event, parent change or upstream warning (§4.3) |
+| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); override partly overlapping a version (§6.10); version boundary explained by no event, parent change or upstream warning (§4.3); cycle among the successors of suppressed entities (`successor-cycle`, §7) |
 | `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences; current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
 | `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
@@ -721,6 +723,7 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 46, 49 and 50 on 1947-09-15 and 1947-09-16 (Step 11) | golden-9, golden-18, golden-19 |
 | pfun 44, 48 and 51 on 1923-02-07 and 1923-02-08 (Step 12; pfun 51 shared with golden-6) | golden-7 |
 | r6 for Setteville (025075), Quero Vas (025070) and Alano di Piave (025002) (Step 11) | golden-1 |
+| pfun 61 on 2013-12-27 and 2013-12-28; r6 for Quero (025042) and Vas (025064) (Step 13: Quero → Quero Vas → Setteville) | golden-1 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
 | r1, r2, r3 (full lists) | golden-4, golden-15 |
@@ -1035,7 +1038,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - I8 is implemented here as the definitive invariant (`src/invariants/`); Step 15 integrates it into the overall check.
 - **Acceptance**: golden-7 (world 1921-06-01 → 1923-02-08, so the 801 version is closed inside the target period); obsolete-override test; I8 passes on the real 1921 fixture only after the override.
 
-### Step 13 — Derived fields
+### Step 13 — Derived fields — DONE
 
 - **Deliverables**: the computations of §7.
 - **Acceptance**:

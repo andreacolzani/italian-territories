@@ -9,106 +9,20 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { IsoDate } from '../../src/dates/index.ts';
-import { internalIdentity, type IdentityGraph } from '../../src/identity/index.ts';
 import type { Level } from '../../src/model/common.ts';
 import type { Variation } from '../../src/model/internal.ts';
-import { IntervalIndex } from '../../src/resolve/index.ts';
-import type { InternalMunicipalityEvent, InternalUtsEvent } from '../../src/sources/situas-internal/index.ts';
-import { municipalityGraph, snapshotIndex, utsGraph } from '../helpers/identity.ts';
-import { withSources } from '../helpers/sources.ts';
+import { municipalityGraph, utsGraph } from '../helpers/identity.ts';
 import {
   accountViolations,
-  buildVariationWorld,
-  onDates,
-  utsDetails,
-  variationEvents,
+  eventLists,
+  fixtureWorld,
   variationOf,
   variationPropertyViolations,
   type BuiltVariations,
 } from '../helpers/variations.ts';
 import { entityAt } from '../helpers/versions.ts';
 
-const lists = await withSources(async ({ situasPublic }) => {
-  const list = async <L extends Level>(level: L, pfun: number, to: IsoDate) =>
-    (await situasPublic.fetchEventList(level, pfun as never, '1861-03-17', to)).data;
-  return {
-    municipality: {
-      98: await list('municipality', 98, '2026-09-30'),
-      100: await list('municipality', 100, '2026-10-01'),
-      103: await list('municipality', 103, '2026-10-01'),
-      104: await list('municipality', 104, '2026-09-30'),
-      105: await list('municipality', 105, '2026-09-30'),
-    },
-    province: {
-      112: await list('province', 112, '2026-10-01'),
-      113: await list('province', 113, '2026-10-01'),
-      114: await list('province', 114, '2026-10-01'),
-    },
-    region: {
-      106: await list('region', 106, '2026-10-01'),
-      107: await list('region', 107, '2026-10-01'),
-      108: await list('region', 108, '2026-10-01'),
-    },
-  };
-});
-
-/** The lists of a level with only the rows of `dates`. */
-function listsOn(level: Level, dates: readonly IsoDate[]): Record<number, unknown[]> {
-  const byPfun = lists[level] as Record<number, { date: IsoDate }[]>;
-  return Object.fromEntries(Object.entries(byPfun).map(([pfun, rows]) => [pfun, onDates(rows, dates)]));
-}
-
-interface WorldOptions {
-  /** Codes kept per level; `false`: an empty level (no snapshots of those dates). */
-  codes?: { region?: string[] | false; province?: string[] | false; municipality?: string[] };
-  municipalities?: IdentityGraph<InternalMunicipalityEvent>;
-  provinces?: { graph: IdentityGraph<InternalUtsEvent>; details?: string[] };
-}
-
-/** A world of `dates`, with the event rows and internal events of every date but the first. */
-async function world(dates: readonly IsoDate[], options: WorldOptions = {}): Promise<BuiltVariations> {
-  const { codes = {} } = options;
-  const eventDates = dates.slice(1);
-  const indexes = await withSources(async ({ situasPublic }) => ({
-    region:
-      codes.region === false
-        ? new IntervalIndex('region', new Map())
-        : await snapshotIndex(situasPublic, 'region', dates, codes.region),
-    province:
-      codes.province === false
-        ? new IntervalIndex('province', new Map())
-        : await snapshotIndex(situasPublic, 'province', dates, codes.province),
-    municipality: await snapshotIndex(situasPublic, 'municipality', dates, codes.municipality),
-  }));
-  const { municipalities, provinces } = options;
-  return buildVariationWorld({
-    region: { index: indexes.region, eventLists: listsOn('region', eventDates) },
-    province: {
-      index: indexes.province,
-      eventLists: listsOn('province', eventDates),
-      internal:
-        provinces === undefined
-          ? null
-          : internalIdentity(provinces.graph, true, (e) => ({ ...e, recordId: e.utsId }), 'r5:uts-events'),
-    },
-    municipality: {
-      index: indexes.municipality,
-      eventLists: listsOn('municipality', eventDates),
-      internal:
-        municipalities === undefined
-          ? null
-          : internalIdentity(municipalities, false, (e) => ({ ...e, recordId: e.originId }), 'r6:municipality-events'),
-    },
-    internalEvents: {
-      ...(municipalities === undefined ? {} : { municipality: onDates(variationEvents(municipalities), eventDates) }),
-      ...(provinces === undefined
-        ? {}
-        : {
-            province: onDates(variationEvents(provinces.graph, await utsDetails(provinces.details ?? [])), eventDates),
-          }),
-    },
-  });
-}
+const lists = await eventLists();
 
 /** Participants of a variation as `[level, entity id, events, role]`. */
 function roles(variation: Variation): [Level, number, string[], string | null][] {
@@ -133,7 +47,7 @@ function expectComplete(built: BuiltVariations, allowed: readonly string[] = [])
 
 describe('golden-1: Setteville and the mergers of 2024-01-22', async () => {
   const dates: IsoDate[] = ['2024-01-21', '2024-01-22'];
-  const built = await world(dates, {
+  const built = await fixtureWorld(dates, {
     codes: { region: false, province: false },
     municipalities: await municipalityGraph([
       '025075_setteville.json',
@@ -185,10 +99,13 @@ describe('golden-1: Setteville and the mergers of 2024-01-22', async () => {
 });
 
 describe('golden-2: Sassofeltrio', async () => {
-  const built = await world(['1929-05-13', '1929-05-14', '1947-11-24', '1947-11-25', '2021-06-16', '2021-06-17'], {
-    codes: { region: ['08', '11'], province: ['041', '099'], municipality: ['041060', '099031', '041035', '041026'] },
-    municipalities: await municipalityGraph(['099031_sassofeltrio.json']),
-  });
+  const built = await fixtureWorld(
+    ['1929-05-13', '1929-05-14', '1947-11-24', '1947-11-25', '2021-06-16', '2021-06-17'],
+    {
+      codes: { region: ['08', '11'], province: ['041', '099'], municipality: ['041060', '099031', '041035', '041026'] },
+      municipalities: await municipalityGraph(['099031_sassofeltrio.json']),
+    },
+  );
   const at = (code: string, date: IsoDate) => entityAt(built.entities.municipality, code, date);
   const sassofeltrio = at('099031', '2021-06-17');
   const monteGrimano = at('041035', '1929-05-14');
@@ -241,7 +158,7 @@ describe('golden-2: Sassofeltrio', async () => {
 
 describe('golden-4: Sardinia 2026', async () => {
   const dates: IsoDate[] = ['2025-12-31', '2026-01-01'];
-  const built = await world(dates, {
+  const built = await fixtureWorld(dates, {
     codes: {
       region: ['20'],
       province: ['090', '091', '092', '095', '111', '292', '113', '114', '115', '116', '117', '119', '312', '318'],
@@ -321,7 +238,7 @@ describe('golden-4: Sardinia 2026', async () => {
 });
 
 describe('golden-6: same-day suppressions', async () => {
-  const built = await world(['1927-01-11', '1927-01-12']);
+  const built = await fixtureWorld(['1927-01-11', '1927-01-12']);
   const at = (code: string, date: IsoDate) => entityAt(built.entities.municipality, code, date);
 
   it('Finalborgo, Finale Marina, Finale Pia: last versions in Genova, merged into Finale Ligure', () => {
@@ -362,7 +279,7 @@ describe('golden-6: same-day suppressions', async () => {
 });
 
 describe('golden-6: Cantonale (1936-06-04)', async () => {
-  const built = await world(['1936-06-03', '1936-06-04'], { codes: { region: false, province: false } });
+  const built = await fixtureWorld(['1936-06-03', '1936-06-04'], { codes: { region: false, province: false } });
 
   it('suppressed under its same-day code, merged into Chignolo Po', () => {
     const cantonale = entityAt(built.entities.municipality, '015992', '1936-06-03');
@@ -382,7 +299,7 @@ describe('golden-6: Cantonale (1936-06-04)', async () => {
 });
 
 describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
-  const built = await world(['1947-09-15', '1947-09-16']);
+  const built = await fixtureWorld(['1947-09-15', '1947-09-16']);
   const at = (code: string, date: IsoDate) => entityAt(built.entities.municipality, code, date);
   const participantOf = (entityId: number) =>
     variationOf(built, 'municipality', entityId, '1947-09-16').participants.find((p) => p.entityId === entityId);
@@ -448,7 +365,7 @@ describe('full worlds of two consecutive days (I9, I10, I14)', () => {
     ['2021-06-16', '2021-06-17'],
   ]) {
     it(`${dates[1]}: every boundary referenced, every row accounted for`, async () => {
-      expectComplete(await world(dates));
+      expectComplete(await fixtureWorld(dates));
     });
   }
 });

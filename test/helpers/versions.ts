@@ -43,6 +43,10 @@ export interface BuiltWorld {
   identity: { [L in Level]?: LevelIdentity<L> };
   /** Snapshot intervals of each entity id, per level. */
   intervals: Record<Level, Map<number, readonly HalfOpenInterval[]>>;
+  /** The entities of identity resolution with their registry ids, per level. */
+  identified: { [L in Level]: IdentifiedEntity<L>[] };
+  /** The registry of the build (in memory: its directory is removed). */
+  registry: Registry;
   /** Anomalies of identity resolution (Step 9). */
   identityAnomalies: AnomalyCollector;
   /** Anomalies of the version builder only. */
@@ -97,6 +101,12 @@ export async function buildWorld(world: VersionWorld): Promise<BuiltWorld> {
         province: provinces.identity,
         ...(municipalities === null ? {} : { municipality: municipalities.identity }),
       },
+      identified: {
+        region: regions.entities,
+        province: provinces.entities,
+        municipality: municipalities?.entities ?? [],
+      },
+      registry,
       intervals: {
         region: intervalsById(regions.entities),
         province: intervalsById(provinces.entities),
@@ -113,11 +123,11 @@ function intervalsById(entities: readonly IdentifiedEntity[]): Map<number, reado
 }
 
 /** The entity with a version of `code` on `date`. */
-export function entityAt<L extends Level>(
-  entities: readonly EntityDraft<L>[],
+export function entityAt<E extends { versions: readonly (HalfOpenInterval & { istatCode: string })[] }>(
+  entities: readonly E[],
   code: string,
   date: IsoDate,
-): EntityDraft<L> {
+): E {
   const entity = entities.find((e) => e.versions.some((v) => v.istatCode === code && within(v, date)));
   if (entity === undefined) throw new Error(`no entity with ${code} on ${date}`);
   return entity;

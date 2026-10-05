@@ -55,7 +55,7 @@
 | **UTS** | *Unità territoriale sovracomunale*: province, autonomous province, metropolitan city, free consortium of municipalities, non-administrative unit. |
 | **Same-day alias** | A code assigned to an entity on day D by a code-change event, when on the same day D the entity is also suppressed (or the code otherwise never appears in any snapshot). |
 
-ISTAT event codes: `PV` first validity, `CS` establishment, `CSCT` establishment by type change, `AN` annexation from foreign state, `AQES` acquisition by extinction, `AQ` territory acquisition, `CE` territory cession, `CECS` cession for establishment of a new unit, `CD` rename, `AP` change of parent, `CDAP` rename + change of parent, `RN` renumbering, `RNAPUTS` renumbering after UTS change (undocumented by ISTAT), `VACST` change of statute type, `ES` extinction, `ESCT` extinction by type change, `AS` cession to foreign state.
+ISTAT event codes: `PV` first validity, `CS` establishment, `CSCT` establishment by type change, `AN` annexation from foreign state, `AQES` acquisition by extinction, `AQ` territory acquisition, `CE` territory cession, `CECS` cession for establishment of a new unit, `CD` rename, `AP` change of parent, `CDAP` rename + change of parent, `RN` renumbering, `RNAPUTS` renumbering after UTS change (undocumented by ISTAT), `VACST` change of statute type, `CT` change of UTS type without a new record (undocumented by ISTAT, internal UTS events only, §3.5 item 18), `ES` extinction, `ESCT` extinction by type change, `AS` cession to foreign state.
 
 ---
 
@@ -160,6 +160,12 @@ Known ANPR problems (all verified): rows split by territorial events with identi
     - a related territory named `Stato estero` with no code is a foreign state. It is allowed only in `AS`, `AN` and `CE` events (verified: `AS` in 98 and 112; `AN` in 100, 113 and 107; `CE` in 17 rows of 103, all on 1947-09-16, partial cessions abroad of surviving municipalities such as Bardonecchia, Gorizia and Trieste). It is never resolved by the code resolver (§6.6), never produces links and never appears as a related territory in the model: the row is flagged `abroad` and the participant gets `abroad: true` (§4.3, D31). In any other event (`AQ` included), or with a code, it is a schema violation.
 16. **`COD_PROV_STORICO` absent in some periods**: pfun 64 on 1948-01-01 has no `COD_PROV_STORICO`; it is present in the 2024–2026 snapshots. Normalisation: `historicalCode = COD_PROV_STORICO ?? COD_UTS` for UTS rows and `historicalUtsCode = COD_PROV_STORICO ?? COD_UTS` (the row's own parent code) for municipality rows; before 1948 the historical code is the UTS code. The projection holds the **effective** value, so the field appearing or disappearing over time does not create false changes in equality and completeness checks (§6.5). The adapter reports the number of fallback rows and their distinct UTS codes, outside the projection; they become one `info` anomaly per level (Step 6). The fallback is checked by I7 (D29).
 17. **Codes with suffix ≥ 800**: codes assigned retroactively to suppressed municipalities. They appear in every snapshot in which the municipality exists, and their prefix does **not** indicate membership: it may be a later province (`005801` Bagnasco d'Asti in Alessandria 006 before Asti existed; `095809` Siamanna in Cagliari 092 before Oristano; `093801` Vallenoncello in Udine 030 before Pordenone) or an earlier one (`001xxx` municipalities in the province of Aosta 007). Membership comes only from `COD_PROV`/`COD_UTS`. Verified: in the 1921, 1927-01-11 and 1927-01-12 snapshots, 36, 41 and 63 rows have a prefix different from their historical UTS code, all with suffix ≥ 800; in 1942 and 2024 none (D30).
+18. **`CT`, change of UTS type without a new record**: an event code missing from the ISTAT documentation, found only in the internal UTS events (r5). Verified (2026-10):
+    - r5 of Bolzano/Bozen (021, type 2) and Trento (022, type 2) return one row each: `CT` "Cambio Tipologia di statuto", 1972-12-05, act 6102, "RICONOSCIMENTO DELL'AUTONOMIA PER LE PROVINCE DI TRENTO E BOLZANO/BOZEN", with the same `id_uts` (83 and 75) as the type 1 records; r2 lists both records of each UTS with the same origin id;
+    - pfun 64 on 1972-12-04 and 1972-12-05 (94 rows each): for 021 and 022 only `TIPO_UTS` changes (1 → 2); code, name, region and abbreviation are unchanged;
+    - among the r4/r5 histories of every r1/r2 record, `CT` appears only in those two rows; the public lists cannot carry it (closed vocabularies per endpoint); r6 was not checked (it needs the full municipality crawl).
+
+    `CT` is part of the vocabulary of §2, accepted only by the internal reports, and is a change of attribute (the type) of the same entity (Step 11 rules).
 
 ---
 
@@ -218,7 +224,7 @@ Names:
   "origin": "istat",                // "istat" | "inferred" | "override"
   "description": "ISTITUITE LA CITTA' METROPOLITANA DI SASSARI ...",  // ISTAT text, nullable
   "participants": [
-    { "level": "province", "territory_id": 95, "istat_events": ["RN", "AQES", "CECS"], "abroad": false,
+    { "level": "province", "territory_id": 95, "istat_events": ["AQES", "CECS", "RN"], "abroad": false,
       "role": "changed", "version_before_id": 812, "version_after_id": 813 },
     { "level": "province", "territory_id": 146, "istat_events": ["CS"], "abroad": false,
       "role": "established", "version_before_id": null, "version_after_id": 901 },
@@ -231,7 +237,7 @@ Names:
 }
 ```
 
-Participant `role` is derived from the participant's **effect**, not from event codes alone:
+Participant `role` is derived from the participant's **effect**, not from event codes alone. The effect is evaluated **per event** (Step 11): a closing event (`ES`, `ESCT`, `AS`) needs the entity's version ending on the date, an opening event (`CS`, `CSCT`, `AN`) the version starting on it, a change of attribute (`CD`, `AP`, `CDAP`, `RN`, `RNAPUTS`, `CT`, `VACST`) both; a territorial event needs the entity to exist around the date, and takes the version boundary of that date only when no other event of the same entity on that date (change of attribute, opening or closing, in any act) explains it already; otherwise it stays `territory_changed` without versions. Within one participant (same act) the role stays `changed`: e.g. a rename in one act and a cession of territory in another on the same day: only the variation of the rename references the boundary. `istat_events` lists the participant's events with an effect, sorted alphabetically.
 
 | Role | Condition |
 |---|---|
@@ -241,11 +247,16 @@ Participant `role` is derived from the participant's **effect**, not from event 
 | `ceded` | as above, own event `AS` |
 | `changed` | both non-null, entity has own events |
 | `territory_changed` | both null; only territorial events (`AQ`, `CE`, `AQES`, `CECS`) and no attribute change |
-| `indirect` | both non-null, **no own event**: the version changed because of another participant (e.g. municipalities whose province changed region) |
+| `indirect` | both non-null, **no own event**: the version changed because of another participant (e.g. municipalities whose province changed region), or a change reported upstream without events (`inferred` variation, below) |
 
 Participant `abroad` (boolean): `true` when the counterpart of one of its events is a foreign state (`AS`, `AN` or `CE` with `Stato estero`, §3.5 item 15), otherwise `false`. It requires one of those events. A foreign counterpart never produces a link (D31).
 
-Participations with **no effect** (no version change, no link, not territorial) are dropped from public output and logged at `info` level (e.g. the same-day `AP` of a municipality suppressed on that day).
+Participations with **no effect** (no version change, no link, not territorial) are dropped from public output and logged at `info` level (e.g. the same-day `AP` of a municipality suppressed on that day). An event without effect is dropped even when the same participant has other events with effect in the variation (golden-6: Finalborgo's `AP` and `ES` share act 2767; the participant is `["ES"]` and the `AP` row is dropped).
+
+Version boundaries without an own event of the entity (I9):
+- a boundary between contiguous versions where the province or region changes gets an `indirect` participant in the variation of that date in which an old or new parent (province or region) participates; with several, the first by natural key;
+- otherwise, a boundary already reported upstream (`identity-cadastral-continuity`, `name-change-without-event`, `inferred-breakpoint`) gets an `inferred` variation (`origin: "inferred"`, no act id, one `indirect` participant);
+- any other uncovered boundary is `blocking` (`version-boundary-unexplained`).
 
 Link kinds (same level only; each link appears once even if ISTAT reports it from both sides):
 
@@ -257,7 +268,9 @@ Link kinds (same level only; each link appears once even if ISTAT reports it fro
 
 Cessions abroad and annexations are expressed by roles (`ceded`, `annexed`) and have no link.
 
-Grouping: one variation per `(istat_act_id, date)`. When the act id is unknown (public-only data), group by `(date, level, subject entity)` and set `istat_act_id = null`. `PV` never produces a variation: versions starting on 1861-03-17 with `PV` have no opening variation.
+The kind follows from the effect: `merged_into` when `from` no longer exists on the date, otherwise `detached_into` when `to` did not exist the day before, otherwise `transferred_to`. Territory flows: subject → related for `ES`, `ESCT`, `AS`, `CE`, `CECS`; related → subject for `CS`, `CSCT`, `AN`, `AQES`, `AQ`; none for changes of attribute. A link between two states of the same entity is not a link (e.g. `ESCT` Sassari `090` → `312`).
+
+Grouping: one variation per `(istat_act_id, date)`, across levels. When the act id is unknown (public rows without a matching internal event), the rows of one date and level are grouped into the **connected components** of the entities they mention (subject or related territory), with `istat_act_id = null`; such a group never joins a variation with an act id, whose events are exactly those matched to that act. `PV` never produces a variation: versions starting on 1861-03-17 with `PV` have no opening variation.
 
 ### 4.4 Published example (abridged)
 
@@ -310,7 +323,7 @@ Files committed in `registry/`, one per kind: entities (`regions.json`, `provinc
 |---|---|
 | Entity | `istat:<root origin id>` (root of the union-find chain, §5.1); fallback `nk:<level>:<first istat_code>:<first valid_from>` when no origin id is available yet (re-keyed when it becomes available) |
 | Version | `<entity id>:<validFrom>` |
-| Variation | `act:<istat_act_id>:<date>`; fallback `nk:<date>:<level>:<entity id>`; inferred `inferred:<date>:<level>:<entity id>` |
+| Variation | `act:<istat_act_id>:<date>`; fallback `nk:<date>:<level>:<entity id>` (the smallest subject entity id of the group, §4.3); inferred `inferred:<date>:<level>:<entity id>` |
 
 Rules:
 - Ids are assigned on first appearance and **never reused or renumbered**.
@@ -427,6 +440,8 @@ Estimated bootstrap cost: ~2,500 breakpoints × 3 levels × 2 (verification) ≈
 3. For municipalities, fall back to the **cadastral code** of the event row (when present on both sides).
 4. If still unresolved, or a step reaches more than one interval → `blocking` anomaly `code-unresolved` with full context.
 
+Territorial events (`AQES`, `AQ`, `CE`, `CECS`): the subject and a surviving related territory are looked up on `date` (successor side); when the code does not exist there (not found after steps 1–3), they are looked up on `date − 1` (predecessor side), because the territory ceases that day. Verified on 1947-09-16: six municipalities ceded abroad (`AS`) give part of their territory to Italian municipalities the same day (e.g. Tenda `CE` → Limone Piemonte and `CECS` → Briga Alta; `AQ` Limone Piemonte ← Tenda), D33.
+
 A foreign state counterpart (`Stato estero`, no code; allowed only in `AS`, `AN`, `CE`, §3.5 item 15) is never passed to the resolver: the adapters already turn it into the `abroad` flag.
 
 Verified on real snapshots of `D − 1` and `D`: all 20 same-day suppressions resolve through aliases and the 15 same-day absorbing codes resolve directly; none needs the cadastral fallback (the cadastral case found at design time came from a comparison with ANPR, not with snapshots). The new code of a same-day code change of a municipality suppressed the same day (the pfun 105 `AP` rows of golden-6) never appears in a snapshot and does not resolve: those participations have no effect (§4.3).
@@ -521,13 +536,13 @@ Computed after overrides, per level:
 - **`successors`**: links whose `from` is this entity, taken from the variation that closed the entity's **last** version. Empty for active entities. Intermediate closures (gaps such as Sassofeltrio 1929–1947) are ignored: an entity that is active again has no successors.
 - **`current_successors`**: transitive closure over `successors` (following `merged_into` and `detached_into`) until reaching **active** entities of the same level; ids sorted ascending; cycle-safe. Empty for active entities.
   - Example: Quero (1866–2013) → Quero Vas (2013–2024) → Setteville ⇒ Quero's `current_successors = [Setteville]`.
-- **`is_former_italian`**: `true` iff the entity is suppressed, `current_successors` is empty, and every terminal path of its successor graph ends with a `ceded` role (cession abroad). Partial cessions of surviving entities do not count.
+- **`is_former_italian`**: `true` iff the entity is suppressed and every terminal path of its successor graph ends in an entity whose last version was closed with role `ceded` (cession abroad). An entity closed with `ceded` is a terminal point of the transitive computation even when it has links (D33): it is former Italian itself, and an entity merged into it is former Italian if all its paths end in ceded entities. Partial cessions of surviving entities do not count. `current_successors` is computed as above, regardless of this flag (Tenda, 1947: `is_former_italian = true`, `current_successors = [Briga Alta, Limone Piemonte]`, golden-19).
 
-Consumer contract (for the Laravel package): moving a stored reference to the current territory is
+Consumer contract (for the Laravel package): `is_former_italian` is evaluated first. Moving a stored reference to the current territory is
+- impossible if `is_former_italian = true`: never migrated automatically; its `current_successors`, if any, are the parts of its territory that stayed Italian and may only be proposed under user supervision;
 - the entity's current version if `status = active`;
 - the only element of `current_successors` if it has exactly one;
-- ambiguous (user supervision required) if it has more than one;
-- impossible if `is_former_italian = true`.
+- ambiguous (user supervision required) if it has more than one.
 
 For provinces, consumers should prefer resolving through the municipality, whose current version carries the current `province_id`.
 
@@ -559,7 +574,7 @@ Anomalies go to `anomalies.json` with `level`, `code` (stable machine identifier
 
 | Level | Examples |
 |---|---|
-| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision |
+| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); version boundary explained by no event, parent change or upstream warning (§4.3) |
 | `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; obsolete override; relevant ANPR divergences; current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
 | `info` | Dropped no-effect participations; ANPR gaps and off-by-one dates; historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
@@ -700,6 +715,8 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 44, 48 and 51 on 1920-10-15 and 1920-10-16 (Step 10) | golden-11 |
 | pfun 68, 64 and 61 on 2009-01-28 and 2009-01-29 (Step 10) | golden-12 |
 | pfun 44 on 1927-01-11 (Step 10) | golden-16 |
+| pfun 46, 49 and 50 on 1947-09-15 and 1947-09-16 (Step 11) | golden-9, golden-18, golden-19 |
+| r6 for Setteville (025075), Quero Vas (025070) and Alano di Piave (025002) (Step 11) | golden-1 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
 | r1, r2, r3 (full lists) | golden-4, golden-15 |
@@ -748,6 +765,9 @@ If a request in this table returns something that contradicts the expectations o
 16. **1927 regime boundary**: crossing from pfun 51/48/44 to pfun 50/49/46 does not create spurious versions. Only real changes of 1927-01-12 (new provinces, same-day suppressions of golden-6) produce versions.
 17. **Counts (I13)**: reconstructed counts for the download date equal the three count fixtures.
 18. **Partial cessions abroad (1947-09-16)**: the 17 `CE` rows of pfun 103 whose counterpart is `Stato estero` (e.g. Gorizia 031007, Trieste 032006, Bardonecchia 001022) produce participations with role `territory_changed`, `abroad: true` and no link; the municipalities stay `is_former_italian: false`.
+19. **Cession with partial transfers on the same day (1947-09-16)**: Tenda (004820) gives part of its territory to Limone Piemonte (004110, `CE`/`AQ`) and to the new Briga Alta (004031, `CECS`/`CS`) and is ceded to France (`AS`) the same day (D33).
+   - Expect: Tenda has role `ceded`, `abroad: true`, events `["AS", "CE", "CECS"]`, links `merged_into` Limone Piemonte and Briga Alta; `is_former_italian: true`, `current_successors = [Briga Alta, Limone Piemonte]`.
+   - None of the six municipalities ceded that day with same-day transfers (Tenda, Briga Marittima, Castel Dobra, Merna, Opacchiasella, San Martino Quisca) produces `code-unresolved` (§6.6).
 
 ---
 
@@ -963,7 +983,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - otherwise a closed interval needs `ES`/`ESCT`/`AS` on `d` and an opened one `CS`/`CSCT`/`AN` on `d` (municipalities: pfun 98/100; UTS and regions: internal events; public 112/113 and 106/107 are cross-checks, `identity-public-event-unmatched` `warning`); events only count on dates where intervals open or close;
   - municipalities only: one closed and one opened interval with the same non-null cadastral code and no events are linked (`identity-cadastral-continuity`, `warning`; Step 11 creates the `inferred` variation); anything else is `transition-unexplained` (`blocking`);
   - an interval with several successors or predecessors keeps none of those links (`identity-transition-conflict`, `blocking`);
-  - a name change along a link needs a `CD`/`CDAP` event on `d` (pfun 104/105, 114/108 or internal), otherwise `name-change-without-event` (`warning`).
+  - a name change along a link needs a `CD`/`CDAP` event on `d` (pfun 104/105, 114/108 or internal), otherwise `name-change-without-event` (`warning`); those links are returned as `renamesWithoutEvent`, so that Step 11 recognises the boundaries already reported.
 - **ISTAT ids win** (§5.2): every internal event is resolved to its interval (side rule of §3.5 item 6), which takes the root of its component.
   - A chain whose intervals carry two roots is cut where the root changes (`identity-public-internal-mismatch`, `warning`); with intervals without events between the two roots the cut cannot be placed (`identity-split-undetermined`, `blocking`). Events of two components on one interval: `identity-origin-conflict` (`blocking`).
   - Chains with the same root are one entity: no anomaly when the earlier one ends with a suppression and the later one starts with an establishment (documented reconstitution, e.g. Sassofeltrio); `identity-public-internal-mismatch` (`warning`) otherwise; `identity-overlap` (`blocking`) if they overlap.
@@ -991,13 +1011,17 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Version ids**: assigned through the registry (`<entity id>:<validFrom>`, Step 9) after building.
 - **Acceptance**: golden 2, 3, 5, 10, 11, 12, 15, 16; I1–I3 unit tests.
 
-### Step 11 — Variations and links
+### Step 11 — Variations and links — DONE
 
 - **Deliverables**: grouping by act id, participants with roles, links with kinds, dedup, and dropping no-effect participations (§4.3).
-  - Public rows are matched to internal events by `(date, entity resolved from the code at that date, event code)`, which provides `istat_act_id` and `description`.
-  - Unmatched public rows keep `istat_act_id = null` and `description = null`.
+  - Public rows are matched to internal events by `(date, entity resolved from the code at that date, event code)`, which provides `istat_act_id` and `description`. An internal event belongs to the entity whose ISTAT origin id is the root of its identity component (§5.1); for regions and UTS its r7/r8 details add related territories.
+  - Unmatched public rows keep `istat_act_id = null` and `description = null` and are grouped by connected components (§4.3).
   - Every `(level, event code)` pair has an explicit rule (role and links); a pair without a rule is a `blocking` anomaly (D27). Coverage is checked against the event code summary computed by the build (Step 7).
-- **Acceptance**: golden 1, 2, 4, 6, 9, 18; I9, I10, I14; a pair without a rule is blocking.
+- **Rules** (`src/build/event-rules.ts`): per pair, the effect (closing, opening, change of attribute, territorial, first validity), the side identifying the subject and the related territory of a row (§3.5 item 6), and the direction of the territory flow (§4.3). Pairs: those of the public lists plus those observed in the internal histories of every region and UTS record (regions: `PV CS CSCT AN ES ESCT AS AQES AQ CE CECS CD VACST`; UTS: `PV CS CSCT AN ES ESCT AS AQES AQ CE CECS CD AP RN CT`; municipalities: `PV CS AN ES AS AQES AQ CE CECS CD AP CDAP RN RNAPUTS`).
+- **Effect** per event, links, `indirect` participants, `inferred` variations and `version-boundary-unexplained`: §4.3. Territorial events fall back to `date − 1` (§6.6).
+- **Accounting (I14)**: every event row (public lists and internal events) is represented in a variation or dropped with a reason: `first-validity` (`PV`), `no-effect` (`info` anomaly `participation-without-effect`), `unresolved` (`code-unresolved`), `unknown-entity` (`variation-entity-unknown`, `blocking`), `rule-missing` (`event-rule-missing`, `blocking`). A public row matching internal events of several acts stays unmatched (`variation-act-ambiguous`, `warning`).
+- **Variation ids**: assigned through the registry (§5.3) after building.
+- **Acceptance**: golden 1, 2, 4, 6, 9, 18, 19 (variation part); I9, I10, I14 on the full worlds of two consecutive days; a pair without a rule is blocking.
 
 ### Step 12 — Overrides
 
@@ -1012,6 +1036,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
   - Sud Sardegna with multiple successors;
   - Fiume former Italian;
   - golden-18: municipalities with a partial cession abroad are not former Italian;
+  - golden-19: Tenda former Italian with `current_successors = [Briga Alta, Limone Piemonte]`;
   - Sassofeltrio active with no successors.
 
 ### Step 14 — ANPR cross-check
@@ -1113,6 +1138,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D30 | Municipality codes with suffix ≥ 800 are exempt from the strict I7 prefix rule: the prefix must be a UTS code of some time, differences are `info`; an active municipality with an 8xx current code is a `warning` | ISTAT assigns 8xx codes retroactively to suppressed municipalities with the prefix of a later or earlier province; membership comes from `COD_PROV`/`COD_UTS` only |
 | D31 | A foreign state counterpart (`Stato estero`, no code) is allowed only in `AS`, `AN`, `CE`; it is never resolved and never produces links; the participant carries the public flag `abroad` | Cessions and annexations involve territories outside the perimeter (D16), which have no entity; the flag keeps the information without inventing one |
 | D32 | Store manifests carry a `projection_version` per projection; only manifests with the current version are compared or used; a version change requires `rebuild --refetch` and is never retroactive. A refresh with the same content writes nothing; event-list change detection is semantic (rows compared by date range with everything the store knows, not with a previous manifest) | A projection change is a change of the generator, not of the data: it must neither look like an ISTAT correction nor mix rows of different shapes |
+| D33 | A cession abroad with partial transfers to Italian territories on the same day keeps its links (`merged_into`, the ceded entity ceases); the entity is former Italian (closed with `ceded`, a terminal point of `is_former_italian`); its `current_successors` are the parts that stayed Italian and are never used for automatic migration (§7) | Verified on 1947-09-16 (Tenda, Briga Marittima and four municipalities of Gorizia): the domestic flows are real and must not be lost, but the entity itself went abroad |
 
 ---
 

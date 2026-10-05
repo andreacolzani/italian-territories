@@ -101,7 +101,8 @@ export interface VariationDraft extends Omit<Variation, 'id'> {
   key: string;
 }
 
-export type DropReason = 'first-validity' | 'no-effect' | 'unresolved' | 'unknown-entity' | 'rule-missing';
+export const DROP_REASONS = ['first-validity', 'no-effect', 'unresolved', 'unknown-entity', 'rule-missing'] as const;
+export type DropReason = (typeof DROP_REASONS)[number];
 
 /** What became of one event row (I14). */
 export interface EventAccount {

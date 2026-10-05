@@ -226,8 +226,8 @@ export const anomalySchema = z
     level: z.enum(ANOMALY_LEVELS),
     code: z
       .string()
-      .regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/)
-      .meta({ description: 'Stable machine identifier.' }),
+      .regex(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/)
+      .meta({ description: 'Stable machine identifier, kebab-case.' }),
     message: z.string().min(1),
     context: z.record(z.string(), z.unknown()),
   })
@@ -246,6 +246,126 @@ export const municipalitiesFileSchema = z.array(municipalitySchema).meta({ title
 export const variationsFileSchema = z.array(variationSchema).meta({ title: 'Variations' });
 export const anomaliesFileSchema = z.array(publishedAnomalySchema).meta({ title: 'Anomalies' });
 
+// ---------------------------------------------------------------------------------------------
+// Meta (§9)
+// ---------------------------------------------------------------------------------------------
+
+/** Request families of §6.1, the sources summarised by `meta.json`. */
+export const SOURCE_FAMILIES = ['situas-public-snapshots', 'situas-public-reports', 'situas-internal', 'anpr'] as const;
+export type SourceFamily = (typeof SOURCE_FAMILIES)[number];
+
+const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
+
+export const DATA_VERSION_PATTERN = /^\d{4}\.\d{2}\.\d{2}$/;
+
+const dataVersionSchema = z
+  .string()
+  .regex(DATA_VERSION_PATTERN)
+  .meta({ description: 'Date of the build (its "today") as YYYY.MM.DD.' });
+
+const generatedAtSchema = z.iso.datetime().meta({ description: 'Wall-clock time of the build (UTC).' });
+
+export const sourceSummarySchema = z
+  .strictObject({
+    fetched_at: isoDateSchema.meta({ description: 'Latest fetch date among the stored responses used.' }),
+    content_hash: sha256Schema.meta({
+      description: 'SHA-256 of the canonical JSON of the sorted [response key, content hash] pairs.',
+    }),
+    manifests: z.int().positive().meta({ description: 'Number of stored responses.' }),
+  })
+  .meta({ id: 'SourceSummary' });
+
+const levelCountsSchema = z
+  .strictObject({
+    entities: z.int().nonnegative(),
+    active: z.int().nonnegative(),
+    versions: z.int().nonnegative(),
+  })
+  .meta({ id: 'LevelCounts' });
+
+export const metaSchema = z
+  .strictObject({
+    schema_version: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+$/)
+      .meta({ description: 'Semantic version of the published data contract.' }),
+    data_version: dataVersionSchema,
+    generated_at: generatedAtSchema,
+    sources: z
+      .strictObject(
+        Object.fromEntries(SOURCE_FAMILIES.map((f) => [f, sourceSummarySchema.nullable()])) as Record<
+          SourceFamily,
+          z.ZodNullable<typeof sourceSummarySchema>
+        >,
+      )
+      .meta({ description: 'Per request family (§6.1); null when the build used none of its responses.' }),
+    counts: z.strictObject({
+      regions: levelCountsSchema,
+      provinces: levelCountsSchema,
+      municipalities: levelCountsSchema,
+      variations: z.int().nonnegative(),
+    }),
+    anomalies: z.strictObject({ warning: z.int().nonnegative(), info: z.int().nonnegative() }),
+  })
+  .meta({ title: 'Meta' });
+
+// ---------------------------------------------------------------------------------------------
+// Changes (§9)
+// ---------------------------------------------------------------------------------------------
+
+const retroactiveSchema = z.boolean().meta({
+  description: 'True when the item changes the published state of a day before the previous data_version.',
+});
+
+const affectedFromSchema = isoDateSchema.meta({ description: 'First day whose published state changes.' });
+
+export const addedItemSchema = z
+  .strictObject({ id: idSchema, retroactive: retroactiveSchema })
+  .meta({ id: 'AddedItem' });
+
+export const updatedItemSchema = z
+  .strictObject({
+    id: idSchema,
+    fields: z.array(z.string().min(1)).min(1).meta({ description: 'Published fields that changed.' }),
+    affected_from: affectedFromSchema
+      .nullable()
+      .meta({ description: 'First day whose published state changes; null when only undated fields changed.' }),
+    retroactive: retroactiveSchema,
+  })
+  .meta({ id: 'UpdatedItem' });
+
+export const removedItemSchema = z
+  .strictObject({ id: idSchema, affected_from: affectedFromSchema, retroactive: retroactiveSchema })
+  .meta({ id: 'RemovedItem' });
+
+export const changeSetSchema = z
+  .strictObject({
+    added: z.array(addedItemSchema),
+    updated: z.array(updatedItemSchema),
+    removed: z.array(removedItemSchema),
+  })
+  .meta({ id: 'ChangeSet' });
+
+const levelChangesSchema = z
+  .strictObject({ entities: changeSetSchema, versions: changeSetSchema })
+  .meta({ id: 'LevelChanges' });
+
+const releaseSchema = z
+  .strictObject({ data_version: dataVersionSchema, generated_at: generatedAtSchema })
+  .meta({ id: 'Release' });
+
+export const changesSchema = z
+  .strictObject({
+    from: releaseSchema.nullable().meta({ description: 'The previous release; null for the first one.' }),
+    to: releaseSchema,
+    retroactive: z.boolean().meta({ description: 'True when any item is retroactive.' }),
+    regions: levelChangesSchema,
+    provinces: levelChangesSchema,
+    municipalities: levelChangesSchema,
+    variations: changeSetSchema,
+  })
+  .meta({ title: 'Changes' });
+
 export type EntityLink = z.output<typeof entityLinkSchema>;
 export type RegionVersion = z.output<typeof regionVersionSchema>;
 export type ProvinceVersion = z.output<typeof provinceVersionSchema>;
@@ -257,6 +377,13 @@ export type Participant = z.output<typeof participantSchema>;
 export type VariationLink = z.output<typeof variationLinkSchema>;
 export type Variation = z.output<typeof variationSchema>;
 export type Anomaly = z.output<typeof anomalySchema>;
+export type SourceSummary = z.output<typeof sourceSummarySchema>;
+export type Meta = z.output<typeof metaSchema>;
+export type AddedItem = z.output<typeof addedItemSchema>;
+export type UpdatedItem = z.output<typeof updatedItemSchema>;
+export type RemovedItem = z.output<typeof removedItemSchema>;
+export type ChangeSet = z.output<typeof changeSetSchema>;
+export type Changes = z.output<typeof changesSchema>;
 
 // ---------------------------------------------------------------------------------------------
 

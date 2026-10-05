@@ -173,6 +173,8 @@ function staticDownloads(): Download[] {
       request: countRequest(publicBase, pfun, { date: today }),
       usedBy: ['golden-17'],
     })),
+    // Step 15: the snapshots of the day the counts above were downloaded (2026-10-01), whose reconstruction I13 compares.
+    ...([68, 64, 61] as const).map((pfun) => snapshot(pfun, '2026-10-01', ['golden-17'])),
     internal(reportUrls.regionList(), ['golden-4', 'golden-15']),
     internal(reportUrls.utsList(), ['golden-4', 'golden-15']),
     internal(reportUrls.municipalityList(), ['golden-4', 'golden-15']),

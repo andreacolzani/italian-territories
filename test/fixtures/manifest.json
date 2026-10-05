@@ -2419,6 +2419,80 @@
       "used_by": [
         "golden-7"
       ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2013-12-27.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=27/12/2013"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
+    },
+    {
+      "path": "situas-public/snapshots/municipalities/pfun-61_2013-12-28.json",
+      "source": "situas-public",
+      "endpoint": "snapshot:pfun-61",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=61&pdata=28/12/2013"
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/025042_quero.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=025042&com=Quero"
+        }
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/025064_vas.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=025064&com=Vas"
+        }
+      },
+      "fetched_at": "2026-10-05",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-1"
+      ]
     }
   ]
 }

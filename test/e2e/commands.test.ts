@@ -256,6 +256,29 @@ describe('rebuild', () => {
       ['2000-01-01', null, 'G224'],
     ]);
   });
+
+  it('--refetch refreshes the stored snapshots with bounded concurrency', async () => {
+    const box = await bootstrapped(baseWorld());
+    const inRefresh = () => {
+      const stage = box.live.findLast((l) => l.includes('"msg":"stage '));
+      return stage?.includes('"stage start","stage":"refresh"') === true;
+    };
+    let active = 0;
+    let peak = 0;
+    let refreshRequests = 0;
+    box.world.hold = () => {
+      if (!inRefresh()) return null;
+      refreshRequests++;
+      peak = Math.max(peak, ++active);
+      return new Promise<void>((resolve) => setImmediate(resolve)).finally(() => active--);
+    };
+    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-01')).toBe(0);
+    expect(refreshRequests).toBeGreaterThan(box.config.http.maxConcurrency);
+    // Above one: the stage no longer waits for each snapshot; the HTTP client's AIMD limit caps it.
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(box.config.http.maxConcurrency);
+    expect((await box.summary()).refreshed_snapshots).toBe(refreshRequests);
+  });
 });
 
 describe('failures', () => {

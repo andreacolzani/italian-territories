@@ -10,7 +10,12 @@
  * (shared with the audit corrections) nothing is refreshed and the run blocks (`refresh-too-large`):
  * a `rebuild --refetch` is needed. `rebuild --refetch` refreshes every stored snapshot, unbounded.
  */
-import { failureCause, SNAPSHOT_ANOMALIES, storeSnapshotProvider } from '../completeness/index.ts';
+import {
+  failureCause,
+  SNAPSHOT_ANOMALIES,
+  storeSnapshotProvider,
+  type SnapshotFailureCause,
+} from '../completeness/index.ts';
 import { isBetweenInclusive, type IsoDate } from '../dates/index.ts';
 import { LEVELS, type Level } from '../model/common.ts';
 import { silentProgress, type StageProgress } from '../progress.ts';
@@ -43,17 +48,41 @@ export async function refreshStoredSnapshots(
   if (!budget.consume(ctx, targets.length)) return 0;
   progress.add(targets.length);
   const provider = storeSnapshotProvider({ store, source: ctx.sources.situasPublic, mustRefresh: () => true });
+
+  // Bounded concurrency, as the snapshot stage: the workers share one queue; outcomes are reported
+  // afterwards in target order, so counts and anomalies do not depend on completion order.
+  const failures = new Map<number, { cause: SnapshotFailureCause; error: Error }>();
+  let fatal: { error: unknown } | undefined;
+  const queue = targets.entries();
+  const worker = async () => {
+    for (const [i, { level, date }] of queue) {
+      if (fatal !== undefined) return;
+      try {
+        await provider.snapshot(level, date);
+        progress.done();
+      } catch (error) {
+        const cause = failureCause(error);
+        if (cause === undefined) {
+          fatal ??= { error };
+          return;
+        }
+        failures.set(i, { cause, error: error as Error });
+        progress.done(true);
+      }
+    }
+  };
+  const workers = Math.min(ctx.config.http.maxConcurrency, targets.length);
+  await Promise.all(Array.from({ length: workers }, worker));
+  if (fatal !== undefined) throw fatal.error;
+
   let count = 0;
-  for (const { level, date } of targets) {
-    try {
-      await provider.snapshot(level, date);
+  for (const [i, { level, date }] of targets.entries()) {
+    const failure = failures.get(i);
+    if (failure === undefined) {
       count++;
       refreshed?.add(`${level}|${date}`);
-      progress.done();
-    } catch (error) {
-      const cause = failureCause(error);
-      if (cause === undefined) throw error;
-      progress.done(true);
+    } else {
+      const { cause, error } = failure;
       const code = {
         unavailable: SNAPSHOT_ANOMALIES.unavailable,
         rejected: SNAPSHOT_ANOMALIES.rejected,
@@ -62,8 +91,8 @@ export async function refreshStoredSnapshots(
       anomalies.add({
         level: 'blocking',
         code,
-        message: `refresh of the stored ${level} snapshot of ${date}: ${(error as Error).message}`,
-        context: { level, date, refresh: true, error: (error as Error).message },
+        message: `refresh of the stored ${level} snapshot of ${date}: ${error.message}`,
+        context: { level, date, refresh: true, error: error.message },
       });
     }
   }

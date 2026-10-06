@@ -391,7 +391,7 @@ describe('fetchEventList', () => {
     });
   });
 
-  it('turns a foreign state counterpart into abroad, only for AS, AN and CE (§3.5 item 15)', async () => {
+  it('turns a foreign state counterpart into abroad, only for AS, AN, CE and AQ (§3.5 item 15)', async () => {
     await withSources(async ({ situasPublic }) => {
       const lists = [
         await situasPublic.fetchEventList('municipality', 98, UNIFICATION, OLD_RANGE_TO),
@@ -432,7 +432,7 @@ describe('fetchEventList', () => {
       COMUNE_REL: 'Stato estero',
     };
     for (const invalid of [
-      { ...row, COD_VARIAZIONE: 'AQ' },
+      { ...row, COD_VARIAZIONE: 'AQES' },
       { ...row, PRO_COM_T_REL: '001999' },
     ]) {
       await withSources(
@@ -447,9 +447,12 @@ describe('fetchEventList', () => {
     await withSources(
       async ({ situasPublic }) => {
         const { data } = await situasPublic.fetchEventList('municipality', 103, UNIFICATION, FULL_RANGE_TO);
-        expect(data[0]).toMatchObject({ event: 'CE', related: null, abroad: true });
+        expect(data).toMatchObject([
+          { event: 'CE', related: null, abroad: true },
+          { event: 'AQ', related: null, abroad: true },
+        ]);
       },
-      { transport: constant(json({ resultset: [row] })) },
+      { transport: constant(json({ resultset: [row, { ...row, COD_VARIAZIONE: 'AQ' }] })) },
     );
   });
 

@@ -25,6 +25,9 @@ import {
   utsType,
   utsTypeLabel,
   relatedTerritory,
+  cleanText,
+  FOREIGN_STATE_NAME,
+  parseUtsTypeLabel,
 } from '../normalise.ts';
 import { INTERNAL_REPORTS, type InternalReportNumber } from './requests.ts';
 
@@ -89,7 +92,7 @@ export interface RegionEventDetail {
   date: IsoDate;
   code: string;
   name: string;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`; §3.5 item 15). */
+  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null } | null;
 }
@@ -102,7 +105,7 @@ export interface UtsEventDetail {
   name: string;
   type: UtsType;
   regionCode: string;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`; §3.5 item 15). */
+  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; type: UtsType | null; regionCode: string | null } | null;
 }
@@ -114,7 +117,7 @@ export interface MunicipalityEventDetail {
   code: string;
   name: string;
   utsCode: string;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`; §3.5 item 15). */
+  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; utsCode: string | null } | null;
 }
@@ -252,7 +255,8 @@ const utsEventDetails = z
     'Codice Compartimento/Regione': requiredCode(2),
     'Codice Provincia/Uts associato': optionalCode(3),
     'Denominazione associata': optionalText,
-    'Tipo Uts associato': utsTypeLabel.nullish(),
+    // Blank only when the associated territory is a foreign state (checked below, §3.5 item 15).
+    'Tipo Uts associato': z.string().nullish(),
     'Codice Compartimento/Regione associato': optionalCode(2),
   })
   .transform((r, ctx): UtsEventDetail => ({
@@ -267,12 +271,28 @@ const utsEventDetails = z
       {
         code: r['Codice Provincia/Uts associato'],
         name: r['Denominazione associata'],
-        type: r['Tipo Uts associato'] ?? null,
+        type: relatedUtsType(r['Tipo Uts associato'], r['Denominazione associata'], ctx),
         regionCode: r['Codice Compartimento/Regione associato'],
       },
       ctx,
     ),
   }));
+
+/**
+ * `Tipo Uts associato`: a label, or blank when the associated territory is a foreign state (verified:
+ * Cuneo, `CE` of 1947-09-16, act 2410). A blank label of any other territory is a schema violation.
+ */
+function relatedUtsType(
+  label: string | null | undefined,
+  name: string | null,
+  ctx: z.core.$RefinementCtx,
+): UtsType | null {
+  if (label == null) return null;
+  if (cleanText(label) !== null) return parseUtsTypeLabel(label, ctx);
+  if (name?.toLowerCase() === FOREIGN_STATE_NAME.toLowerCase()) return null;
+  ctx.addIssue({ code: 'custom', message: `blank UTS type label for the associated territory '${name ?? ''}'` });
+  return z.NEVER;
+}
 
 const municipalityEventDetails = z
   .object({

@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { loadCalendar } from '../../src/calendar/index.ts';
 import { loadPublishedDataset, type PublishedDataset } from '../../src/emit/index.ts';
 import { INVARIANT_IDS } from '../../src/invariants/index.ts';
+import { reportUrls } from '../../src/sources/situas-internal/index.ts';
+import { internalReportKey } from '../../src/store/index.ts';
 import { sandbox, type Sandbox } from '../helpers/commands.ts';
 import { publishedSchemaViolations } from '../helpers/json-schema.ts';
 import { baseWorld, withSettevilleFusion, withSilentCadastralChange } from '../helpers/world.ts';
@@ -158,7 +160,7 @@ describe('rebuild', () => {
   it('without --refetch is offline: same data from the store, I13 and ANPR included (exit 0)', async () => {
     const box = await bootstrapped(baseWorld());
     const before = await files(box.config.paths.dist);
-    box.world.failing = () => true;
+    // The network works: the run still sends nothing.
     const sent = box.world.requests.length;
     expect(await box.run('rebuild')).toBe(0);
     expect(box.world.requests.length).toBe(sent);
@@ -167,6 +169,34 @@ describe('rebuild', () => {
     expect(summary).toMatchObject({ today: '2026-10-01', release: { kind: 'unchanged' }, anomalies: { blocking: 0 } });
     expect(summary.invariants.every((i) => i.status === 'passed')).toBe(true);
     expect(summary.anomalies.by_code['anpr-unavailable']).toBeUndefined();
+  });
+
+  it('without --refetch never fetches a missing internal report: internal-data-unavailable (warning)', async () => {
+    const box = await bootstrapped(baseWorld());
+    // Alghero has no variation: its history is not needed by any decision (like an r9 of §6.8).
+    const url = reportUrls.municipalityEvents({ code: '090003', name: 'Alghero' });
+    await rm(join(box.config.paths.store, 'internal', 'reports', 'r6', `${internalReportKey(6, url)}.json`));
+    const sent = box.world.requests.length;
+    // Without its history Alghero is identified by its natural key: new ids, a retroactive release.
+    expect(await box.run('rebuild')).toBe(2);
+    expect(box.world.requests.length).toBe(sent);
+    const summary = await box.summary();
+    expect(summary.anomalies.blocking).toBe(0);
+    expect(summary.anomalies.by_code['internal-data-unavailable']).toMatchObject({ level: 'warning', anomalies: 1 });
+    expect(box.err).toContain('run update or rebuild --refetch');
+  });
+
+  it('without --refetch never fetches a missing snapshot: snapshot-unavailable (exit 3)', async () => {
+    const box = await bootstrapped(baseWorld());
+    const dir = join(box.config.paths.store, 'snapshots', 'region');
+    const [manifest] = (await readdir(dir)).filter((n) => n.endsWith('.json')).sort();
+    if (manifest === undefined) throw new Error('no stored region snapshot');
+    await rm(join(dir, manifest));
+    const sent = box.world.requests.length;
+    expect(await box.run('rebuild')).toBe(3);
+    expect(box.world.requests.length).toBe(sent);
+    expect((await box.summary()).anomalies.by_code['snapshot-unavailable']).toMatchObject({ level: 'blocking' });
+    expect(box.err).toContain('run update or rebuild --refetch');
   });
 
   it('without stored counts asks for update or rebuild --refetch (exit 3)', async () => {

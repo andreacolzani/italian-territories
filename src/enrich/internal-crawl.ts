@@ -127,6 +127,11 @@ export interface InternalCrawlOptions {
   concurrency: number;
   /** Requests whose refresh is mandatory (default: none). */
   mustRefresh?: (item: CrawlItem) => boolean;
+  /**
+   * Offline run (`rebuild` without `--refetch`): only the store is read; a missing report is
+   * unavailable (`internal-data-unavailable`, or `internal-list-unavailable` for r1–r3), never fetched.
+   */
+  offline?: boolean;
   levels?: readonly Level[];
   logger?: Logger;
   /** Counts every report request (Step 17 progress lines). */
@@ -151,6 +156,7 @@ class Crawl {
   readonly #store: Store;
   readonly #anomalies: AnomalyCollector;
   readonly #mustRefresh: (item: CrawlItem) => boolean;
+  readonly #offline: boolean;
   readonly #logger: Logger;
   readonly #progress: StageProgress;
   readonly #limit: number;
@@ -171,6 +177,7 @@ class Crawl {
     this.#store = options.store;
     this.#anomalies = options.anomalies;
     this.#mustRefresh = options.mustRefresh ?? (() => false);
+    this.#offline = options.offline ?? false;
     this.#logger = options.logger ?? silentLogger;
     this.#progress = options.progress ?? silentProgress;
     this.#limit = options.concurrency;
@@ -464,6 +471,7 @@ class Crawl {
         report: item.report,
         reportUrl,
         refresh: this.#mustRefresh(item),
+        offline: this.#offline,
         fetch: (options) => {
           this.#requests[item.report]++;
           return fetch(options);

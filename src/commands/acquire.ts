@@ -143,6 +143,7 @@ export async function acquireInternal(
     };
   }
   const crawl = await crawlInternal({
+    offline: isOffline(mode),
     source: ctx.sources.situasInternal,
     store,
     anomalies: ctx.anomalies,

@@ -14,6 +14,17 @@ export class StoreCorruptionError extends Error {
   }
 }
 
+/**
+ * A source an offline run (`rebuild` without `--refetch`, §10.1) needs is not in the store. Offline
+ * runs never fetch (§6.3): the caller treats it as the source being unavailable.
+ */
+export class NotInStoreError extends Error {
+  constructor(what: string) {
+    super(`${what} is not in the store (offline rebuild): run update or rebuild --refetch`);
+    this.name = 'NotInStoreError';
+  }
+}
+
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
 }

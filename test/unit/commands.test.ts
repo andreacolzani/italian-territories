@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { exitCodeOf, sampleDates } from '../../src/commands/index.ts';
+import {
+  createRunContext,
+  exitCodeOf,
+  OfflineRequestError,
+  runPipeline,
+  sampleDates,
+} from '../../src/commands/index.ts';
+import { resolveConfig } from '../../src/config.ts';
+import type { Transport } from '../../src/http/index.ts';
+import { silentLogger } from '../../src/logger.ts';
 import { toInternalData, toPublicData } from '../../src/emit/index.ts';
 import { checkInvariants } from '../../src/invariants/index.ts';
 import { baseline } from '../helpers/invariants.ts';
@@ -30,6 +39,38 @@ describe('exit codes (Step 17)', () => {
   it('gives 1 when a blocking anomaly other than an unavailability is present', () => {
     expect(exitCodeOf([blocking('snapshot-unavailable'), blocking('snapshot-schema-violation')], false)).toBe(1);
     expect(exitCodeOf([blocking('completeness-unverified')], false)).toBe(1);
+  });
+});
+
+describe('offline run context (rebuild without --refetch)', () => {
+  const context = (offline: boolean, transport: Transport) =>
+    createRunContext({
+      command: 'rebuild',
+      config: resolveConfig({ paths: { root: '/nonexistent' } }),
+      today: '2026-10-01',
+      logger: silentLogger,
+      runtime: { transport, now: () => 0, wallClock: () => '2026-10-01T00:00:00.000Z' },
+      offline,
+    });
+
+  it('refuses every request with a programming error, never reaching the runtime transport', async () => {
+    const sent: string[] = [];
+    const transport: Transport = (request) => {
+      sent.push(request.url);
+      return Promise.reject(new Error('unreachable'));
+    };
+    const ctx = context(true, transport);
+    await expect(ctx.sources.situasPublic.fetchSnapshot('region', '2026-10-01')).rejects.toBeInstanceOf(
+      OfflineRequestError,
+    );
+    await expect(ctx.sources.anpr.fetchAnpr()).rejects.toBeInstanceOf(OfflineRequestError);
+    expect(sent).toEqual([]);
+  });
+
+  it('offline modes need an offline context, online modes an online one', async () => {
+    const transport: Transport = () => Promise.reject(new Error('unreachable'));
+    await expect(runPipeline(context(false, transport), 'rebuild')).rejects.toThrow('needs an offline run context');
+    await expect(runPipeline(context(true, transport), 'update')).rejects.toThrow('needs an online run context');
   });
 });
 

@@ -10,7 +10,7 @@
 import type { ClientResult, RequestOptions } from '../http/index.ts';
 import { isUnavailable } from '../http/index.ts';
 import type { InternalReportNumber } from '../sources/situas-internal/index.ts';
-import type { InternalRowByReport, Store } from '../store/index.ts';
+import { NotInStoreError, type InternalRowByReport, type Store } from '../store/index.ts';
 
 export interface ObtainedReport<R> {
   rows: R[];
@@ -27,6 +27,8 @@ export interface InternalReportRequest<N extends InternalReportNumber> {
   reportUrl: string;
   fetch: (options: RequestOptions) => Promise<ClientResult<InternalRowByReport[N][]>>;
   refresh: boolean;
+  /** Offline run: never fetches; a report missing from the store throws `NotInStoreError`. */
+  offline?: boolean;
 }
 
 /** Throws the HTTP client errors of the fetch when no copy can stand in for it. */
@@ -37,6 +39,10 @@ export async function obtainInternalReport<N extends InternalReportNumber>(
   const { report, reportUrl, refresh } = request;
   const stored = await store.getInternalReport(report, reportUrl);
   if (stored !== undefined && !refresh) return { rows: stored.rows, origin: 'store' };
+  if (request.offline === true) {
+    if (stored !== undefined) return { rows: stored.rows, origin: 'store' };
+    throw new NotInStoreError(`internal report r${report} ${reportUrl}`);
+  }
   let result: ClientResult<InternalRowByReport[N][]>;
   try {
     result = await request.fetch({ cache: refresh ? 'refresh' : 'prefer', staleFallback: stored === undefined });

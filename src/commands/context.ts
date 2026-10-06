@@ -7,7 +7,7 @@
 import { AnomalyCollector } from '../anomalies.ts';
 import type { Config } from '../config.ts';
 import type { IsoDate } from '../dates/index.ts';
-import { HttpClient, type Clock, type Transport } from '../http/index.ts';
+import { HttpClient, type Clock, type HttpRequest, type Transport } from '../http/index.ts';
 import { logHttpEvents, type Logger } from '../logger.ts';
 import { stageProgress, type Scheduler, type StageProgress } from '../progress.ts';
 import { createSources, type Sources } from '../sources/index.ts';
@@ -42,7 +42,23 @@ export interface RunProcess {
   exit: (code: number) => void;
 }
 
+/**
+ * A request in an offline run (`rebuild` without `--refetch`, §10.1): a bug, since offline stages
+ * read only the store. Not a `NetworkError`, so the client neither retries nor degrades: it propagates.
+ */
+export class OfflineRequestError extends Error {
+  constructor(request: HttpRequest) {
+    super(`offline run: request to ${request.url} refused (offline stages must read only the store)`);
+    this.name = 'OfflineRequestError';
+  }
+}
+
+/** The transport of an offline run: refuses every request. */
+export const offlineTransport: Transport = (request) => Promise.reject(new OfflineRequestError(request));
+
 export interface RunContext {
+  /** Offline run: the client's transport is `offlineTransport`, whatever the runtime provides. */
+  offline: boolean;
   config: Config;
   today: IsoDate;
   logger: Logger;
@@ -60,15 +76,19 @@ export function createRunContext(options: {
   today: IsoDate;
   logger: Logger;
   runtime: Runtime;
+  /** `rebuild` without `--refetch`: no request can reach the runtime's transport. */
+  offline?: boolean;
 }): RunContext {
   const { config, logger, runtime } = options;
+  const offline = options.offline ?? false;
+  const transport = offline ? offlineTransport : runtime.transport;
   const summary = new SummaryBuilder(options.command, runtime.wallClock());
   summary.today = options.today;
   const log = logHttpEvents(logger);
   const client = new HttpClient({
     http: config.http,
     cacheDir: config.paths.httpCache,
-    ...(runtime.transport === undefined ? {} : { transport: runtime.transport }),
+    ...(transport === undefined ? {} : { transport }),
     ...(runtime.httpClock === undefined ? {} : { clock: runtime.httpClock }),
     ...(runtime.random === undefined ? {} : { random: runtime.random }),
     onEvent: (event) => {
@@ -77,6 +97,7 @@ export function createRunContext(options: {
     },
   });
   return {
+    offline,
     config,
     today: options.today,
     logger,

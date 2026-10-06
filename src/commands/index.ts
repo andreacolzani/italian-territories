@@ -8,7 +8,14 @@ import { INTERRUPT_EXIT_CODES, writeRunSummary, type InterruptSignal } from './s
 
 export { isOffline, type RunMode } from './acquire.ts';
 export { sampleDates } from './audit.ts';
-export { createRunContext, type RunContext, type RunProcess, type Runtime } from './context.ts';
+export {
+  createRunContext,
+  OfflineRequestError,
+  offlineTransport,
+  type RunContext,
+  type RunProcess,
+  type Runtime,
+} from './context.ts';
 export * from './exit-codes.ts';
 export { runAuditCommand, runPipeline } from './pipeline.ts';
 export { runDiff, runValidate } from './published.ts';
@@ -32,6 +39,8 @@ export async function runDataCommand(options: {
   today: IsoDate;
   logger: Logger;
   runtime: Runtime;
+  /** `rebuild` without `--refetch` (see `createRunContext`). */
+  offline?: boolean;
   run: (ctx: RunContext) => Promise<ExitCode>;
 }): Promise<ExitCode> {
   const { logger, runtime } = options;

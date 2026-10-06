@@ -58,10 +58,15 @@ const GLOBAL_OPTIONS = {
 } as const satisfies ParseArgsOptionsConfig;
 
 /** A data command: the run summary is always written (`paths.runSummary`). */
-function dataCommand(name: string, run: (ctx: RunContext, command: CommandContext) => Promise<ExitCode>) {
+function dataCommand(
+  name: string,
+  run: (ctx: RunContext, command: CommandContext) => Promise<ExitCode>,
+  offline: (command: CommandContext) => boolean = () => false,
+) {
   return (command: CommandContext): Promise<number> =>
     runDataCommand({
       command: name,
+      offline: offline(command),
       config: command.config,
       today: command.today,
       logger: command.logger,
@@ -100,8 +105,11 @@ export const commands: Record<string, Command> = {
     positionals: 0,
     defaultToday: async (values, config) =>
       values.refetch === true ? undefined : (await loadCalendar(config.paths.store))?.today,
-    run: dataCommand('rebuild', (ctx, command) =>
-      runPipeline(ctx, command.values.refetch === true ? 'rebuild-refetch' : 'rebuild'),
+    run: dataCommand(
+      'rebuild',
+      (ctx, command) => runPipeline(ctx, command.values.refetch === true ? 'rebuild-refetch' : 'rebuild'),
+      // Without --refetch the run is offline: the transport refuses every request (§6.3, §10.1).
+      (command) => command.values.refetch !== true,
     ),
   },
   audit: {

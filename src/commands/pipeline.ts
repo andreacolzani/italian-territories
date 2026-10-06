@@ -36,6 +36,9 @@ import { changeCounts } from './summary.ts';
 
 /** `bootstrap`, `update`, `rebuild` and `rebuild --refetch`. */
 export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitCode> {
+  if (isOffline(mode) !== ctx.offline) {
+    throw new Error(`mode ${mode} needs ${isOffline(mode) ? 'an offline' : 'an online'} run context`);
+  }
   const { store, config, today, anomalies } = ctx;
   const previousCalendar = await loadCalendar(store.dir);
   if (mode === 'update') {
@@ -106,6 +109,7 @@ export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitC
         source: ctx.sources.situasPublic,
         mustRefresh: (level, date) =>
           (refreshAll && !refreshed.has(`${level}|${date}`)) || (!isOffline(mode) && date === today),
+        offline: isOffline(mode),
       }),
       anomalies,
       concurrency: config.http.maxConcurrency,

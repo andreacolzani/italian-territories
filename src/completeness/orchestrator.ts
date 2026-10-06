@@ -36,6 +36,7 @@ import { silentLogger, type Logger } from '../logger.ts';
 import { silentProgress, type StageProgress } from '../progress.ts';
 import { LEVELS, type Level } from '../model/common.ts';
 import { regimeOf } from '../sources/situas-public/index.ts';
+import { NotInStoreError } from '../store/index.ts';
 import {
   HISTORICAL_CODE_FALLBACK_UTS_CODES,
   HISTORICAL_CODE_FALLBACKS,
@@ -374,6 +375,8 @@ export function failureCause(error: unknown): SnapshotFailureCause | undefined {
   // A 4xx other than 429 is not retried: the server refuses the request, it is not unavailable.
   if (error instanceof HttpStatusError) return 'rejected';
   if (error instanceof RetriesExhaustedError || error instanceof CircuitOpenError) return 'unavailable';
+  // Offline run: the source is not in the store, and fetching it is not allowed.
+  if (error instanceof NotInStoreError) return 'unavailable';
   return undefined;
 }
 

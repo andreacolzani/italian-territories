@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { canonicalJson, normaliseUrl, sha256 } from '../../src/http/index.ts';
 import type { RegionSnapshotRow } from '../../src/model/internal.ts';
 import { reportUrls } from '../../src/sources/situas-internal/index.ts';
+import { anprRecord } from '../../src/sources/anpr/index.ts';
 import type { UtsEventRow } from '../../src/sources/situas-public/index.ts';
 import {
   contentHash,
@@ -354,6 +355,65 @@ describe('internal reports', () => {
       });
       const store = new Store(dir, { projectionVersions: bumped((v) => (v.internal[3] = 2)) });
       expect(await store.getInternalReport(3, url)).toBeUndefined();
+    });
+  });
+});
+
+describe('counts', () => {
+  it('stores one manifest per request, writes nothing for the same count, keeps history', async () => {
+    await withTempDir(async (dir) => {
+      const store = new Store(dir);
+      const first = await store.putCount(61, '2026-10-01', { fetchedAt: '2026-10-01', rows: [{ count: 7894 }] });
+      expect(first.outcome).toBe('created');
+      expect(first.manifest).toMatchObject({ pfun: 61, date: '2026-10-01', projection_version: 1 });
+      const path = join(dir, 'counts', 'pfun-61', '2026-10-01.json');
+      const written = (await stat(path)).mtimeMs;
+      const same = await store.putCount(61, '2026-10-01', { fetchedAt: '2026-10-02', rows: [{ count: 7894 }] });
+      expect(same.outcome).toBe('unchanged');
+      expect((await stat(path)).mtimeMs).toBe(written);
+      const changed = await store.putCount(61, '2026-10-01', { fetchedAt: '2026-10-03', rows: [{ count: 7895 }] });
+      expect(changed.outcome).toBe('changed');
+      expect(changed.manifest.history).toEqual([
+        { fetched_at: '2026-10-01', content_hash: first.manifest.content_hash },
+      ]);
+      expect((await new Store(dir).getCount(61, '2026-10-01'))?.rows).toEqual([{ count: 7895 }]);
+      expect(await store.getCount(61, '2026-10-02')).toBeUndefined();
+      await store.putCount(64, '2026-10-01', { fetchedAt: '2026-10-01', rows: [{ count: 107 }] });
+      expect((await store.countManifests()).map((m) => [m.pfun, m.date])).toEqual([
+        [61, '2026-10-01'],
+        [64, '2026-10-01'],
+      ]);
+      const bumpedStore = new Store(dir, { projectionVersions: bumped((v) => (v.counts = 2)) });
+      expect(await bumpedStore.getCount(61, '2026-10-01')).toBeUndefined();
+      expect(await bumpedStore.countManifests()).toEqual([]);
+    });
+  });
+});
+
+describe('ANPR', () => {
+  it('stores the rows without lines, deduplicated, and writes nothing for the same content', async () => {
+    await withSources(async ({ anpr }) => {
+      const { data } = await anpr.fetchAnpr();
+      const rows = data.rows.slice(0, 50).map(anprRecord);
+      await withTempDir(async (dir) => {
+        const store = new Store(dir);
+        const put = await store.putAnpr({ fetchedAt: '2026-09-30', rows, adapterStats: { row_issues: [] } });
+        expect(put.outcome).toBe('created');
+        expect(put.manifest).toMatchObject({ endpoint: 'anpr:archivio-comuni', projection_version: 1 });
+        const stored = await new Store(dir).getAnpr();
+        expect(byCanonical(stored?.rows ?? [])).toEqual(byCanonical(rows));
+        expect(stored?.rows.every((r) => !('line' in r))).toBe(true);
+
+        // The same rows in another order (lines shifted by an insertion) are the same content.
+        const again = await store.putAnpr({ fetchedAt: '2026-10-07', rows: [...rows].reverse() });
+        expect(again.outcome).toBe('unchanged');
+        expect(await lines(join(dir, 'anpr', 'rows.ndjson'))).toHaveLength(new Set(byCanonical(rows)).size);
+
+        const changed = await store.putAnpr({ fetchedAt: '2026-10-14', rows: rows.slice(1) });
+        expect(changed.outcome).toBe('changed');
+        expect(changed.manifest.history).toHaveLength(1);
+        expect(await new Store(dir, { projectionVersions: bumped((v) => (v.anpr = 2)) }).getAnpr()).toBeUndefined();
+      });
     });
   });
 });

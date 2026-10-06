@@ -51,6 +51,16 @@ export async function listFiles(dir: string): Promise<string[]> {
   }
 }
 
+/** Names of the subdirectories of `dir` (none if it does not exist). */
+export async function listDirs(dir: string): Promise<string[]> {
+  try {
+    return (await readdir(dir, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+}
+
 /** Pretty JSON with a trailing newline, as every store document is written. */
 export function toJsonDocument(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;

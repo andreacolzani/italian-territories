@@ -6,7 +6,9 @@
  * - `rows/<level>.ndjson`, `snapshots/<level>/<date>.json`;
  * - `events/rows/pfun-<id>.ndjson`, `events/lists/pfun-<id>/<from>_<to>.json`;
  * - `internal/rows/r<n>.ndjson`, `internal/reports/r<n>/<key>.json`, where `key` is the SHA-256
- *   of the unencoded, normalised report URL.
+ *   of the unencoded, normalised report URL;
+ * - `counts/rows.ndjson`, `counts/pfun-<id>/<date>.json` (snapshot counts, I13);
+ * - `anpr/rows.ndjson`, `anpr/manifest.json` (the ANPR archive without CSV lines, §6.11).
  *
  * Every manifest carries the `projection_version` of its kind (`projection-versions.ts`): a
  * manifest with another version is never returned and never compared with new content.
@@ -43,14 +45,19 @@ import {
   type EventRowByLevel,
   type SnapshotPfun,
 } from '../sources/situas-public/index.ts';
-import { listFiles, readTextIfExists, StoreCorruptionError, toJsonDocument, writeFileAtomic } from './fs.ts';
+import { listDirs, listFiles, readTextIfExists, StoreCorruptionError, toJsonDocument, writeFileAtomic } from './fs.ts';
+import type { AnprRecord } from '../sources/anpr/index.ts';
 import {
+  anprManifestSchema,
   contentHash,
+  countManifestSchema,
   eventListManifestSchema,
   internalReportManifestSchema,
   sameStats,
   snapshotManifestSchema,
   type AdapterStats,
+  type AnprManifest,
+  type CountManifest,
   type EventListManifest,
   type InternalReportManifest,
   type Manifest,
@@ -73,6 +80,11 @@ export interface InternalRowByReport {
   7: RegionEventDetail;
   8: UtsEventDetail;
   9: MunicipalityEventDetail;
+}
+
+/** The stored row of a count response. */
+export interface CountRow {
+  count: number;
 }
 
 /** One normalised response to store. */
@@ -293,6 +305,60 @@ export class Store {
   }
 
   // -------------------------------------------------------------------------------------------
+  // Counts and ANPR
+  // -------------------------------------------------------------------------------------------
+
+  /** Stores the count of the snapshot request of `pfun` on `date` (one row). */
+  putCount(pfun: SnapshotPfun, date: IsoDate, input: StoreInput<CountRow>): Promise<PutResult<CountManifest>> {
+    const path = this.#countPath(pfun, date);
+    return this.#lock(path, async () => {
+      const hashes = (await this.#log<CountRow>(join('counts', 'rows.ndjson')).append(input.rows)).map((e) => e.hash);
+      return this.#putManifest(path, countManifestSchema, this.#versions.counts, hashes, input, (c) => ({
+        pfun,
+        date,
+        ...c,
+      }));
+    });
+  }
+
+  async getCount(pfun: SnapshotPfun, date: IsoDate): Promise<Stored<CountManifest, CountRow> | undefined> {
+    const manifest = await this.#readManifest(this.#countPath(pfun, date), countManifestSchema);
+    if (manifest?.projection_version !== this.#versions.counts) return undefined;
+    return { manifest, rows: await this.#log<CountRow>(join('counts', 'rows.ndjson')).rows(manifest.row_hashes) };
+  }
+
+  /** Count manifests of the current projection version, by `pfun`, then date. */
+  async countManifests(): Promise<CountManifest[]> {
+    const manifests: CountManifest[] = [];
+    const root = join(this.dir, 'counts');
+    for (const pfun of (await listDirs(root)).sort()) {
+      for (const name of (await listFiles(join(root, pfun))).filter((n) => n.endsWith(MANIFEST_SUFFIX)).sort()) {
+        const manifest = await this.#readManifest(join(root, pfun, name), countManifestSchema);
+        if (manifest?.projection_version === this.#versions.counts) manifests.push(manifest);
+      }
+    }
+    return manifests.sort((a, b) => a.pfun - b.pfun || compareDates(a.date, b.date));
+  }
+
+  /** Stores the ANPR archive (one manifest: the latest content, earlier ones in `history`). */
+  putAnpr(input: StoreInput<AnprRecord>): Promise<PutResult<AnprManifest>> {
+    const path = join(this.dir, 'anpr', `manifest${MANIFEST_SUFFIX}`);
+    return this.#lock(path, async () => {
+      const hashes = (await this.#anprLog().append(input.rows)).map((e) => e.hash);
+      return this.#putManifest(path, anprManifestSchema, this.#versions.anpr, hashes, input, (c) => ({
+        endpoint: 'anpr:archivio-comuni' as const,
+        ...c,
+      }));
+    });
+  }
+
+  async getAnpr(): Promise<Stored<AnprManifest, AnprRecord> | undefined> {
+    const manifest = await this.#readManifest(join(this.dir, 'anpr', `manifest${MANIFEST_SUFFIX}`), anprManifestSchema);
+    if (manifest?.projection_version !== this.#versions.anpr) return undefined;
+    return { manifest, rows: await this.#anprLog().rows(manifest.row_hashes) };
+  }
+
+  // -------------------------------------------------------------------------------------------
 
   async #putManifest<M extends Manifest>(
     path: string,
@@ -385,6 +451,14 @@ export class Store {
 
   #eventListDir(pfun: EventListPfun): string {
     return join(this.dir, 'events', 'lists', `pfun-${pfun}`);
+  }
+
+  #countPath(pfun: SnapshotPfun, date: IsoDate): string {
+    return join(this.dir, 'counts', `pfun-${pfun}`, `${date}${MANIFEST_SUFFIX}`);
+  }
+
+  #anprLog(): RowLog<AnprRecord> {
+    return this.#log(join('anpr', 'rows.ndjson'));
   }
 
   #snapshotLog<L extends Level>(level: L): RowLog<SnapshotRowByLevel[L]> {

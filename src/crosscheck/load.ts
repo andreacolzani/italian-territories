@@ -5,20 +5,25 @@
  * the rows the adapter dropped become one aggregated `info`. Any other error is a bug and propagates.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
+import type { IsoDate } from '../dates/index.ts';
 import { HttpClientError, ResponseValidationError, type RequestOptions } from '../http/index.ts';
-import { AnprFormatError, type AnprData, type AnprSource } from '../sources/anpr/index.ts';
+import { AnprFormatError, type AnprData, type AnprIssue, type AnprSource } from '../sources/anpr/index.ts';
 import { ANPR_ANOMALIES } from './anomalies.ts';
 
-/** The ANPR rows, or `null` when the cross-check must be skipped (already reported). */
+/**
+ * The ANPR rows with the `fetched_at` of the response, or `null` when the cross-check must be
+ * skipped (already reported).
+ */
 export async function loadAnpr(options: {
   source: AnprSource;
   anomalies: AnomalyCollector;
   request?: RequestOptions;
-}): Promise<AnprData | null> {
+}): Promise<(AnprData & { fetchedAt: IsoDate }) | null> {
   const { source, anomalies } = options;
   let data: AnprData;
+  let fetchedAt: IsoDate;
   try {
-    ({ data } = await source.fetchAnpr(options.request));
+    ({ data, fetchedAt } = await source.fetchAnpr(options.request));
   } catch (error) {
     if (!(
       error instanceof AnprFormatError ||
@@ -35,13 +40,17 @@ export async function loadAnpr(options: {
     });
     return null;
   }
-  if (data.issues.length > 0) {
-    anomalies.add({
-      level: 'info',
-      code: ANPR_ANOMALIES.rowDropped,
-      message: `${data.issues.length} malformed ANPR rows dropped`,
-      context: { count: data.issues.length, items: data.issues },
-    });
-  }
-  return data;
+  reportDroppedRows(data.issues, anomalies);
+  return { ...data, fetchedAt };
+}
+
+/** The rows the adapter dropped, as one aggregated `info` (none: nothing reported). */
+export function reportDroppedRows(issues: readonly AnprIssue[], anomalies: AnomalyCollector): void {
+  if (issues.length === 0) return;
+  anomalies.add({
+    level: 'info',
+    code: ANPR_ANOMALIES.rowDropped,
+    message: `${issues.length} malformed ANPR rows dropped`,
+    context: { count: issues.length, items: [...issues].sort((a, b) => a.line - b.line) },
+  });
 }

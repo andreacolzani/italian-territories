@@ -34,10 +34,16 @@ describe('cli', () => {
     expect(await main(['diff', 'a'], capture().io)).toBe(1);
   });
 
-  it('stubs report not implemented', async () => {
+  it('runs the commands on published directories (diff of missing releases is exit 1)', async () => {
     const { io, err } = capture();
-    expect(await main(['diff', 'a', 'b'], io)).toBe(2);
-    expect(err.join('')).toContain('not implemented');
+    expect(await main(['diff', 'missing-a', 'missing-b'], io)).toBe(1);
+    expect(err.join('')).toContain('no release in missing-a');
+  });
+
+  it('rejects a malformed --samples', async () => {
+    const { io, err } = capture();
+    expect(await main(['audit', '--samples', 'x'], io, resolveConfig(), () => '2026-10-01')).toBe(1);
+    expect(err.join('')).toContain('--samples');
   });
 });
 

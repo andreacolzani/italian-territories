@@ -33,6 +33,7 @@ import {
   RetriesExhaustedError,
 } from '../http/index.ts';
 import { silentLogger, type Logger } from '../logger.ts';
+import { silentProgress, type StageProgress } from '../progress.ts';
 import { LEVELS, type Level } from '../model/common.ts';
 import { regimeOf } from '../sources/situas-public/index.ts';
 import {
@@ -104,6 +105,8 @@ export interface SnapshotRunOptions {
   concurrency: number;
   levels?: readonly Level[];
   logger?: Logger;
+  /** Counts every snapshot request (Step 17 progress lines). */
+  progress?: StageProgress;
 }
 
 export interface SnapshotRunResult {
@@ -127,7 +130,7 @@ type Verification =
 export async function runSnapshots(options: SnapshotRunOptions): Promise<SnapshotRunResult> {
   const levels = options.levels ?? LEVELS;
   const logger = options.logger ?? silentLogger;
-  const run = new SnapshotRun(options.provider, options.concurrency);
+  const run = new SnapshotRun(options.provider, options.concurrency, options.progress ?? silentProgress);
 
   const pruned = await pruneInferred(options.calendar, levels, run);
   for (const { date, from } of pruned.removed) {
@@ -164,7 +167,7 @@ export async function runSnapshots(options: SnapshotRunOptions): Promise<Snapsho
         // The bisection proved S(date − 1) == S(from): [from, date) is complete for this level.
         done.add(intervalKey(level, from, result.date));
         found.push({ level, date: result.date, from, to });
-        logger.warn('inferred breakpoint found', { level, date: result.date, from, to });
+        logger.warn('inferred breakpoint found', { territoryLevel: level, date: result.date, from, to });
       } else if (result.kind === 'unverified') {
         options.anomalies.add({
           level: 'blocking',
@@ -272,8 +275,10 @@ class SnapshotRun {
   readonly #requests = new Map<string, Promise<SnapshotInfo | undefined>>();
   readonly #obtained = new Map<string, SnapshotInfo>();
   readonly #failures = new Map<string, SnapshotFailure>();
+  readonly #progress: StageProgress;
 
-  constructor(provider: SnapshotProvider, limit: number) {
+  constructor(provider: SnapshotProvider, limit: number, progress: StageProgress) {
+    this.#progress = progress;
     if (!Number.isInteger(limit) || limit < 1) throw new RangeError(`invalid concurrency ${limit}`);
     this.#provider = provider;
     this.#limit = limit;
@@ -284,15 +289,18 @@ class SnapshotRun {
     const key = `${level}|${date}`;
     let request = this.#requests.get(key);
     if (request === undefined) {
+      this.#progress.add(1);
       request = this.#slot(async () => {
         try {
           const info = await this.#provider.snapshot(level, date);
           this.#obtained.set(key, info);
+          this.#progress.done();
           return info;
         } catch (error) {
           const cause = failureCause(error);
           if (cause === undefined) throw error;
           this.#failures.set(key, { level, date, cause, error: error as Error });
+          this.#progress.done(true);
           return undefined;
         }
       });

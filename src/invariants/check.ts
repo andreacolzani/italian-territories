@@ -36,6 +36,16 @@ export interface InvariantResult {
   reason?: string;
   /** I12 only, when something was left out of the comparison: how much. */
   uncompared?: I12Uncompared;
+  /** Time the check took, when the caller passed a clock (`now`); never for skipped ones. */
+  durationMs?: number;
+}
+
+export interface CheckInvariantsOptions {
+  /**
+   * Monotonic milliseconds, read only to time each check (Step 17 run summary). The invariants
+   * never read the clock themselves (§12.0).
+   */
+  now?: () => number;
 }
 
 export interface InvariantReport {
@@ -45,17 +55,26 @@ export interface InvariantReport {
   anomalies: Anomaly[];
 }
 
-export async function checkInvariants(world: InvariantWorld, anomalies?: AnomalyCollector): Promise<InvariantReport> {
+export async function checkInvariants(
+  world: InvariantWorld,
+  anomalies?: AnomalyCollector,
+  options: CheckInvariantsOptions = {},
+): Promise<InvariantReport> {
   const { entities, variations } = world;
+  const { now } = options;
   const all: Anomaly[] = [];
   const results: InvariantResult[] = [];
+  let started = now?.() ?? 0;
   const record = (id: InvariantId, found: Anomaly[], extra: Partial<InvariantResult> = {}): void => {
     const violations = found.filter((a) => a.level === 'blocking').length;
     all.push(...found);
-    results.push({ id, status: violations === 0 ? 'passed' : 'failed', violations, ...extra });
+    const timing = now === undefined ? {} : { durationMs: now() - started };
+    results.push({ id, status: violations === 0 ? 'passed' : 'failed', violations, ...extra, ...timing });
+    started = now?.() ?? 0;
   };
   const skip = (id: InvariantId, reason: string): void => {
     results.push({ id, status: 'skipped', violations: 0, reason });
+    started = now?.() ?? 0;
   };
   const missing = (...fields: string[]): string => `the world has no ${fields.join(', ')}`;
 

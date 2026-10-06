@@ -257,19 +257,20 @@ describe('HttpClient: concurrency', () => {
     withTempDir(async (dir) => {
       const failures = new Set<string>();
       const gate = deferred<undefined>();
+      // The gate opens only when all 8 first attempts are inside the transport: they all started
+      // before the halving, whatever the scheduling (no wall-clock wait).
+      let arrived = 0;
       const transport: Transport = async (request) => {
+        if (!failures.has(request.url) && ++arrived === 8) gate.resolve(undefined);
         await gate.promise;
         if (failures.has(request.url)) return ok();
         failures.add(request.url);
         return json({}, 503);
       };
       const h = harness(dir, transport, { concurrency: 8, maxConcurrency: 8 });
-      const all = Promise.all(
+      await Promise.all(
         Array.from({ length: 8 }, (_, i) => h.client.request(publicEndpoint(), get(`0${i + 1}/04/2026`))),
       );
-      await new Promise((r) => setTimeout(r, 5));
-      gate.resolve(undefined);
-      await all;
       expect(h.client.concurrency(HOST)).toBe(4);
     }));
 
@@ -410,6 +411,10 @@ describe('HttpClient: response validation', () => {
       expect(again).toMatchObject({ endpoint: 'snapshot:pfun-64', reason: `invalid rows: ${rve.message}` });
       expect(transport.calls).toHaveLength(1);
       expect(h.client.isEndpointDisabled('snapshot:pfun-64')).toBe(true);
+      expect(eventsOf(h.events, 'validation-error')).toMatchObject([{ disabled: true }]);
+      expect(h.client.disabledEndpoints()).toEqual([
+        { endpoint: 'snapshot:pfun-64', cause: `invalid rows: ${rve.message}`, refused: 1 },
+      ]);
 
       // The rest of the family keeps working, so one run collects every problem.
       expect((await h.client.request(otherEndpoint(), get('01/01/2026', 49))).source).toBe('network');

@@ -10,7 +10,10 @@ import type { HttpClientEvent, HttpRequest } from './http/index.ts';
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
-export type LogFields = Record<string, unknown>;
+/** Keys the logger writes itself; a field never uses them (e.g. a territorial level is `territoryLevel`). */
+export const RESERVED_LOG_KEYS = ['time', 'level', 'msg'] as const;
+
+export type LogFields = Record<string, unknown> & Partial<Record<(typeof RESERVED_LOG_KEYS)[number], never>>;
 
 export interface Logger {
   debug: (msg: string, fields?: LogFields) => void;
@@ -34,7 +37,9 @@ export function createLogger(options: LoggerOptions): Logger {
     (level: LogLevel) =>
     (msg: string, fields: LogFields = {}): void => {
       if (level === 'debug' && options.verbose !== true) return;
-      const line = { time: new Date(now()).toISOString(), level, msg, ...fields };
+      const line: Record<string, unknown> = { time: new Date(now()).toISOString(), level, msg };
+      // Reserved keys are refused by the types; untyped callers can still never replace them.
+      for (const [key, value] of Object.entries(fields)) if (!(key in line)) line[key] = value;
       options.write(`${JSON.stringify(line, errorReplacer)}\n`);
     };
   return { debug: log('debug'), info: log('info'), warn: log('warn'), error: log('error') };
@@ -76,13 +81,17 @@ export function logHttpEvents(logger: Logger): (event: HttpClientEvent) => void 
         logger.error('http circuit open', { event: event.type, family: event.family, reason: event.reason });
         return;
       case 'validation-error':
-        logger.error('http validation error', {
-          event: event.type,
-          endpoint: event.endpoint,
-          ...requestFields(event.request),
-          error: event.error.message,
-          issues: event.error.issues.slice(0, 10),
-        });
+        // One line when the endpoint is disabled; later requests are refused silently (counted).
+        (event.disabled ? logger.error : logger.debug)(
+          event.disabled ? 'http endpoint disabled' : 'http validation error',
+          {
+            event: event.type,
+            endpoint: event.endpoint,
+            ...requestFields(event.request),
+            error: event.error.message,
+            issues: event.error.issues.slice(0, 10),
+          },
+        );
         return;
       case 'changed':
         logger.warn('http content changed', {

@@ -32,6 +32,17 @@ describe('logger', () => {
     ]);
   });
 
+  it('reserves time, level and message: refused by the types, never replaced at run time', () => {
+    const { logger, parsed } = capture();
+    logger.info('identity done', { territoryLevel: 'municipality' });
+    // @ts-expect-error `level` is reserved to the logger.
+    logger.info('identity done', { level: 'municipality', msg: 'x' });
+    expect(parsed()).toEqual([
+      { time: '2026-10-01T10:00:00.000Z', level: 'info', msg: 'identity done', territoryLevel: 'municipality' },
+      { time: '2026-10-01T10:00:00.000Z', level: 'info', msg: 'identity done' },
+    ]);
+  });
+
   it('writes debug lines only when verbose', () => {
     const quiet = capture();
     quiet.logger.debug('hidden');
@@ -60,6 +71,14 @@ describe('logger', () => {
       endpoint: 'snapshot:pfun-61',
       request: REQUEST,
       error: new ResponseValidationError('bad rows', [{ index: 3, message: 'COD_UTS missing', row: {} }]),
+      disabled: true,
+    });
+    onEvent({
+      type: 'validation-error',
+      endpoint: 'snapshot:pfun-61',
+      request: REQUEST,
+      error: new ResponseValidationError('bad rows', []),
+      disabled: false,
     });
     onEvent({
       type: 'changed',
@@ -86,12 +105,14 @@ describe('logger', () => {
       ['concurrency', 'debug'],
       ['circuit-open', 'error'],
       ['validation-error', 'error'],
+      ['validation-error', 'debug'],
       ['changed', 'warn'],
       ['degraded', 'warn'],
     ]);
     expect(lines[0]).toMatchObject({ url: REQUEST.url, attempt: 2, delay_ms: 800 });
     expect(lines[3]).toMatchObject({ error: 'bad rows', issues: [{ index: 3, message: 'COD_UTS missing' }] });
-    expect(lines[5]).toMatchObject({ body: { url: 'var_get_ua_uts_lov_rs?&uts=Sassari' }, fetched_at: '2026-09-30' });
+    expect(lines[3]).toMatchObject({ msg: 'http endpoint disabled' });
+    expect(lines[6]).toMatchObject({ body: { url: 'var_get_ua_uts_lov_rs?&uts=Sassari' }, fetched_at: '2026-09-30' });
   });
 });
 

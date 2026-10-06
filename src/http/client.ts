@@ -32,8 +32,17 @@ export type HttpClientEvent =
   | { type: 'retry'; endpoint: string; request: HttpRequest; attempt: number; reason: string; delayMs: number }
   | { type: 'concurrency'; host: string; limit: number }
   | { type: 'circuit-open'; family: Family; reason: string }
-  /** Also disables the endpoint for the rest of the run. */
-  | { type: 'validation-error'; endpoint: string; request: HttpRequest; error: ResponseValidationError }
+  /**
+   * A permanent validation error; `disabled` when it is the one that disabled the endpoint for the
+   * rest of the run (once per endpoint; later errors of requests already in flight are `false`).
+   */
+  | {
+      type: 'validation-error';
+      endpoint: string;
+      request: HttpRequest;
+      error: ResponseValidationError;
+      disabled: boolean;
+    }
   | {
       type: 'changed';
       endpoint: string;
@@ -95,6 +104,8 @@ export class HttpClient {
   readonly #breaker: CircuitBreaker;
   /** Endpoint id → reason, for endpoints disabled by a permanent validation error. */
   readonly #disabled = new Map<string, string>();
+  /** Endpoint id → requests refused because the endpoint was disabled. */
+  readonly #refused = new Map<string, number>();
 
   constructor(options: HttpClientOptions) {
     this.#http = options.http;
@@ -115,6 +126,13 @@ export class HttpClient {
     return this.#breaker.isOpen(family);
   }
 
+  /** Endpoints disabled in this run, with the cause and the requests refused since, by endpoint id. */
+  disabledEndpoints(): { endpoint: string; cause: string; refused: number }[] {
+    return [...this.#disabled]
+      .map(([endpoint, cause]) => ({ endpoint, cause, refused: this.#refused.get(endpoint) ?? 0 }))
+      .sort((a, b) => (a.endpoint < b.endpoint ? -1 : a.endpoint > b.endpoint ? 1 : 0));
+  }
+
   isEndpointDisabled(endpoint: string): boolean {
     return this.#disabled.has(endpoint);
   }
@@ -125,7 +143,10 @@ export class HttpClient {
     options: RequestOptions = {},
   ): Promise<ClientResult<T>> {
     const disabled = this.#disabled.get(endpoint.id);
-    if (disabled !== undefined) throw new EndpointDisabledError(endpoint.id, request, disabled);
+    if (disabled !== undefined) {
+      this.#refused.set(endpoint.id, (this.#refused.get(endpoint.id) ?? 0) + 1);
+      throw new EndpointDisabledError(endpoint.id, request, disabled);
+    }
 
     const key = cacheKey(request);
     const cached = await this.#cache.get(key);
@@ -205,8 +226,9 @@ export class HttpClient {
   #disable(error: ResponseValidationError, endpoint: Endpoint<unknown>, request: HttpRequest): void {
     error.endpoint = endpoint.id;
     error.request = request;
-    if (!this.#disabled.has(endpoint.id)) this.#disabled.set(endpoint.id, `invalid rows: ${error.message}`);
-    this.#onEvent({ type: 'validation-error', endpoint: endpoint.id, request, error });
+    const disabling = !this.#disabled.has(endpoint.id);
+    if (disabling) this.#disabled.set(endpoint.id, `invalid rows: ${error.message}`);
+    this.#onEvent({ type: 'validation-error', endpoint: endpoint.id, request, error, disabled: disabling });
   }
 
   #hostScope(request: HttpRequest): HostScope {

@@ -12,7 +12,8 @@
  *   Each r6 response is the full history of the entity and lists the codes and names it had:
  *   those pairs are covered and skipped. Stored responses are read first, so an incremental crawl only sends requests
  *   for pairs no stored history covers. Responses are merged by `id_comune_origine` (graph).
- *   Report 9 is optional in v1 and not crawled.
+ *   Report 9 is crawled only for the ambiguous events: the events of one entity with the same date
+ *   and event code under more than one act (their details tell the acts apart, Step 11).
  *
  * Reports come from the store unless their refresh is mandatory (`mustRefresh`, decided by the
  * orchestrator; `internal-reports.ts`). Anomalies (§8.2):
@@ -28,6 +29,7 @@ import { failureCause, type SnapshotFailureCause } from '../completeness/index.t
 import { canonicalJson, type ClientResult, type RequestOptions } from '../http/index.ts';
 import { buildIdentityGraph, type IdentityGraph, type IdentitySource } from '../identity/identity-graph.ts';
 import { silentLogger, type Logger } from '../logger.ts';
+import { silentProgress, type StageProgress } from '../progress.ts';
 import type { IsoDate } from '../dates/index.ts';
 import { LEVELS, type IstatEventCode, type Level, type RegionType, type UtsType } from '../model/common.ts';
 import {
@@ -38,6 +40,7 @@ import {
   type InternalReportNumber,
   type InternalUtsEvent,
   type MunicipalityEventDetail,
+  type MunicipalityEventQuery,
   type MunicipalityRecordQuery,
   type RegionEventDetail,
   type RegionEventQuery,
@@ -75,7 +78,8 @@ export type CrawlItem =
   | { report: 5; record: UtsRecordQuery }
   | { report: 6; record: MunicipalityRecordQuery }
   | { report: 7; query: RegionEventQuery }
-  | { report: 8; query: UtsEventQuery };
+  | { report: 8; query: UtsEventQuery }
+  | { report: 9; query: MunicipalityEventQuery };
 
 export interface CrawlFailure {
   item: CrawlItem;
@@ -88,7 +92,8 @@ export interface CrawledEvent<E, D> {
   event: E;
   /**
    * Rows of the details report; `null` for events without details (`PV`, `CD`, `RN`), for
-   * municipalities (r9 is not crawled) and when the report could not be obtained.
+   * municipality events that are not ambiguous (r9 is crawled only for those) and when the report
+   * could not be obtained.
    */
   details: D[] | null;
 }
@@ -124,6 +129,8 @@ export interface InternalCrawlOptions {
   mustRefresh?: (item: CrawlItem) => boolean;
   levels?: readonly Level[];
   logger?: Logger;
+  /** Counts every report request (Step 17 progress lines). */
+  progress?: StageProgress;
 }
 
 export async function crawlInternal(options: InternalCrawlOptions): Promise<InternalCrawlResult> {
@@ -145,6 +152,7 @@ class Crawl {
   readonly #anomalies: AnomalyCollector;
   readonly #mustRefresh: (item: CrawlItem) => boolean;
   readonly #logger: Logger;
+  readonly #progress: StageProgress;
   readonly #limit: number;
   #active = 0;
   readonly #waiting: (() => void)[] = [];
@@ -164,6 +172,7 @@ class Crawl {
     this.#anomalies = options.anomalies;
     this.#mustRefresh = options.mustRefresh ?? (() => false);
     this.#logger = options.logger ?? silentLogger;
+    this.#progress = options.progress ?? silentProgress;
     this.#limit = options.concurrency;
   }
 
@@ -274,14 +283,56 @@ class Crawl {
       eventKey: ({ event }) => canonicalJson(event),
       anomalies: this.#anomalies,
     });
+    const ambiguous = await this.#ambiguousDetails(graph);
     this.#logger.info('internal crawl level done', {
-      level: 'municipality',
+      territoryLevel: 'municipality',
       pairs: pairs.length,
       histories: sources.length,
       entities: graph.components.length,
+      ambiguousEvents: ambiguous,
       complete,
     });
     return { level: 'municipality', complete, graph };
+  }
+
+  /**
+   * r9 only for the ambiguous municipality events: the events of one entity with the same date and
+   * event code under more than one act (e.g. Riola Sardo, two `CECS` of 1946-02-07, acts 5831 and
+   * 5841). Their associated territories let the variation builder match each public row to its act
+   * (Step 11). Store-first like every internal report; a details report that cannot be obtained
+   * leaves the event without details (the ambiguity stays a `warning`). Returns the events queried.
+   */
+  async #ambiguousDetails(
+    graph: IdentityGraph<CrawledEvent<InternalMunicipalityEvent, MunicipalityEventDetail>>,
+  ): Promise<number> {
+    const targets: CrawledEvent<InternalMunicipalityEvent, MunicipalityEventDetail>[] = [];
+    for (const component of graph.components) {
+      const acts = new Map<string, Set<number>>();
+      for (const { event } of component.events) {
+        const key = `${event.date}|${event.event}`;
+        acts.set(key, (acts.get(key) ?? new Set()).add(event.actId));
+      }
+      for (const crawled of component.events) {
+        if ((acts.get(`${crawled.event.date}|${crawled.event.event}`)?.size ?? 0) > 1) targets.push(crawled);
+      }
+    }
+    const source = this.#source;
+    await Promise.all(
+      targets.map((crawled) =>
+        this.#slot(async () => {
+          const query: MunicipalityEventQuery = {
+            originId: crawled.event.originId,
+            actId: crawled.event.actId,
+            event: crawled.event.event,
+          };
+          const rows = await this.#rows({ report: 9, query }, reportUrls.municipalityEventDetails(query), (o) =>
+            source.municipalityEventDetails(query, o),
+          );
+          if (rows !== undefined) crawled.details = sortByKey(rows);
+        }),
+      ),
+    );
+    return targets.length;
   }
 
   outcome(): Pick<InternalCrawlResult, 'stale' | 'failures' | 'requests'> {
@@ -383,7 +434,7 @@ class Crawl {
       anomalies: this.#anomalies,
     });
     this.#logger.info('internal crawl level done', {
-      level: spec.level,
+      territoryLevel: spec.level,
       records: list.length,
       events: distinct.size,
       details: details.size,
@@ -407,6 +458,7 @@ class Crawl {
     reportUrl: string,
     fetch: (options: RequestOptions) => Promise<ClientResult<InternalRowByReport[N][]>>,
   ): Promise<ObtainedReport<InternalRowByReport[N]> | undefined> {
+    this.#progress.add(1);
     try {
       const obtained = await obtainInternalReport(this.#store, {
         report: item.report,
@@ -421,12 +473,17 @@ class Crawl {
         this.#stale.push(item);
         this.#logger.warn('internal data stale', describeItem(item));
       }
+      this.#progress.done();
       return obtained;
     } catch (error) {
       const cause = failureCause(error);
       if (cause === undefined) throw error;
+      this.#progress.done(true);
       this.#failures.push({ item, cause, error: error as Error });
-      this.#logger.warn('internal request failed', { ...describeItem(item), cause, error: error as Error });
+      // Schema violations are logged once, when the client disables the endpoint (the requests in
+      // flight then and those refused afterwards are counted, not logged one by one).
+      const log = cause === 'schema-violation' ? this.#logger.debug : this.#logger.warn;
+      log('internal request failed', { ...describeItem(item), cause, error: error as Error });
       return undefined;
     }
   }

@@ -135,6 +135,32 @@ describe('internal crawl (§6.8)', () => {
         reportUrls.municipalityEvents({ code: '041060', name: 'Sassofeltrio' }),
         reportUrls.municipalityEvents({ code: '092128', name: 'Siamanna-Siapiccia' }),
       ]);
+      // No municipality event is ambiguous: no r9.
+      expect(urls(calls, 9)).toEqual([]);
+    });
+  });
+
+  it('asks r9 only for the events of one entity with the same date and code under several acts', async () => {
+    await withTempDir(async (dir) => {
+      const lists = { 3: municipalityPairs([['092092', 'Riola Sardo']]) };
+      const first = await crawl(dir, await internalWorld({ lists }), { levels: ['municipality'] });
+
+      expect(first.anomalies.list()).toEqual([]);
+      // Riola Sardo: two CECS of 1946-02-07, acts 5831 and 5841 (golden-21).
+      expect(urls(first.calls, 9)).toEqual(
+        [5831, 5841].map((actId) => reportUrls.municipalityEventDetails({ originId: 7543, actId, event: 'CECS' })),
+      );
+      const details = (actId: number) =>
+        component(first.result, 'municipality', 7543)
+          .events.find((e) => e.event.actId === actId)
+          ?.details?.map((d) => d.related?.code);
+      expect([details(5831), details(5841)]).toEqual([['092014'], ['092074']]);
+      expect(component(first.result, 'municipality', 7543).events.filter((e) => e.details !== null)).toHaveLength(2);
+
+      // Stored like every internal report: the next run reads them back without requests.
+      const second = await crawl(dir, await internalWorld({ lists, offline: true }), { levels: ['municipality'] });
+      expect(second.calls).toEqual([]);
+      expect(second.result.municipality?.graph.components).toEqual(first.result.municipality?.graph.components);
     });
   });
 

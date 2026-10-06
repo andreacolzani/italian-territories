@@ -1,33 +1,31 @@
 /**
- * Override applier (§6.10): applied after building versions and variations, before derived fields
- * and invariants.
+ * Override applier (§6.10): applied by the version builder (Step 10) to the values of every day,
+ * **before** contiguous pieces with equal fields are merged into versions.
  *
- * An override targets the versions of a level whose ISTAT code is its `istatCode` and which lie
- * **entirely** inside its target period; it replaces their field with its value. Versions are never
- * split, so an override creates no version boundary and no variation, and the version ids already
- * assigned stay valid. A version with that code that overlaps the target period only in part is a
- * `blocking` anomaly (`override-partial-overlap`) and keeps its value.
+ * An override replaces its field on the days of its target period on which the UTS has its target
+ * code. Since the merge comes afterwards, an override can remove version boundaries (a value it
+ * makes equal to the neighbouring days merges with them, e.g. Littoria `LT` in 1934), but it must
+ * never create one: a version boundary that exists only because of an override is `blocking`
+ * (`override-creates-boundary`), checked by the builder against the versions it would build
+ * without overrides.
  *
- * Obsolescence: an override that matches no version, or whose fully covered versions all hold its
- * value already (ISTAT fixed it) without partial overlaps, is a `warning` (`override-obsolete`).
- *
- * The result is not re-collapsed: if an override made two contiguous versions equal, I3 reports it.
+ * Obsolescence: an override that matches no day, or whose matched days all hold its value already
+ * (ISTAT fixed it), is a `warning` (`override-obsolete`).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
-import { covers, overlaps, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
+import { compareDates, overlaps, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
+import type { Dated } from '../model/internal.ts';
 import type { Override } from './loader.ts';
 
 /** Stable anomaly codes of the override applier (§8.2). */
 export const OVERRIDE_ANOMALIES = {
-  /** The override matches nothing, or every version it targets already has its value. */
+  /** The override matches nothing, or every day it targets already has its value. */
   obsolete: 'override-obsolete',
-  /** A version with the target code overlaps the target period without lying inside it. */
-  partialOverlap: 'override-partial-overlap',
+  /** A version boundary that exists only because of an override (overrides may only remove them). */
+  createsBoundary: 'override-creates-boundary',
 } as const;
 
-/** The fields of a UTS version an override may read and replace. */
-export type OverridableProvinceVersion = HalfOpenInterval & { istatCode: string; abbreviation: string | null };
-
+/** The days on which an override replaced a value (contiguous days of one entity, one value before). */
 export interface AppliedOverride {
   key: string;
   entityId: number;
@@ -38,93 +36,102 @@ export interface AppliedOverride {
   after: string;
 }
 
-/**
- * The UTS entities with the overrides applied (unchanged entities are returned as they are), and
- * the list of replaced values sorted by key, entity and date.
- */
-export function applyOverrides<E extends { id: number; versions: readonly OverridableProvinceVersion[] }>(options: {
-  overrides: readonly Override[];
-  provinces: readonly E[];
-  anomalies: AnomalyCollector;
-}): { provinces: E[]; applied: AppliedOverride[] } {
-  const { overrides, anomalies } = options;
-  const replacements = new Map<E, Map<number, string>>();
-  const applied: AppliedOverride[] = [];
+/** The overrides of one build, and what they did. */
+export class OverrideRun {
+  readonly overrides: readonly Override[];
+  readonly #applied: AppliedOverride[] = [];
+  readonly #matched = new Set<string>();
+  readonly #changed = new Set<string>();
 
-  for (const override of overrides) {
-    let matched = 0;
-    let partial = 0;
-    let pending = 0;
-    for (const entity of options.provinces) {
-      entity.versions.forEach((version, index) => {
-        if (version.istatCode !== override.istatCode || !overlaps(version, override.target)) return;
-        matched += 1;
-        if (!covers(override.target, version)) {
-          partial += 1;
-          anomalies.add(partialOverlap(override, entity.id, version));
-          return;
-        }
-        if (version.abbreviation === override.value) return;
-        pending += 1;
-        const byIndex = replacements.get(entity) ?? new Map<number, string>();
-        byIndex.set(index, override.value);
-        replacements.set(entity, byIndex);
-        applied.push({
-          key: override.key,
-          entityId: entity.id,
-          validFrom: version.validFrom,
-          validTo: version.validTo,
-          field: override.field,
-          before: version.abbreviation,
-          after: override.value,
-        });
-      });
-    }
-    if (matched === 0) anomalies.add(obsolete(override, 'no-match'));
-    else if (pending === 0 && partial === 0) anomalies.add(obsolete(override, 'already-applied'));
+  constructor(overrides: readonly Override[]) {
+    this.overrides = overrides;
   }
 
-  const provinces = options.provinces.map((entity) => {
-    const byIndex = replacements.get(entity);
-    if (byIndex === undefined) return entity;
-    const versions = entity.versions.map((version, index) => {
-      const value = byIndex.get(index);
-      return value === undefined ? version : { ...version, abbreviation: value };
+  /**
+   * `range` (days of one UTS with code `istatCode`) cut at the bounds of the abbreviation overrides
+   * of that code: each piece with the override that applies to it, or `null`.
+   */
+  abbreviationOverrides(istatCode: string, range: HalfOpenInterval): Dated<Override | null>[] {
+    const targets = this.overrides
+      .filter((o) => o.istatCode === istatCode && overlaps(o.target, range)) // `abbreviation`: the only field (§6.10)
+      .sort((a, b) => compareDates(a.target.validFrom, b.target.validFrom));
+    const pieces: Dated<Override | null>[] = [];
+    let from = range.validFrom;
+    for (const override of targets) {
+      const start = maxDate(from, override.target.validFrom);
+      const end = minEnd(range.validTo, override.target.validTo);
+      if (compareDates(from, start) < 0) pieces.push({ validFrom: from, validTo: start, value: null });
+      pieces.push({ validFrom: start, validTo: end, value: override });
+      if (end === null) return pieces;
+      from = end;
+    }
+    if (range.validTo === null || compareDates(from, range.validTo) < 0) {
+      pieces.push({ validFrom: from, validTo: range.validTo, value: null });
+    }
+    return pieces;
+  }
+
+  /** Records that `override` set its value on `range` of `entityId`, where the source had `before`. */
+  record(override: Override, entityId: number, range: HalfOpenInterval, before: string | null): void {
+    this.#matched.add(override.key);
+    if (before !== override.value) this.#changed.add(override.key);
+    const last = this.#applied.at(-1);
+    if (
+      last?.key === override.key &&
+      last.entityId === entityId &&
+      last.before === before &&
+      last.validTo === range.validFrom
+    ) {
+      last.validTo = range.validTo;
+      return;
+    }
+    this.#applied.push({
+      key: override.key,
+      entityId,
+      validFrom: range.validFrom,
+      validTo: range.validTo,
+      field: override.field,
+      before,
+      after: override.value,
     });
-    return { ...entity, versions };
-  });
-  applied.sort(
-    (a, b) => compareCodeUnits(a.key, b.key) || a.entityId - b.entityId || compareCodeUnits(a.validFrom, b.validFrom),
-  );
-  return { provinces, applied };
+  }
+
+  /** Reports the obsolete overrides; the replaced values sorted by key, entity and date. */
+  finish(anomalies: AnomalyCollector): AppliedOverride[] {
+    for (const override of this.overrides) {
+      if (!this.#matched.has(override.key)) anomalies.add(obsolete(override, 'no-match'));
+      else if (!this.#changed.has(override.key)) anomalies.add(obsolete(override, 'already-applied'));
+    }
+    return [...this.#applied].sort(
+      (a, b) => compareCodeUnits(a.key, b.key) || a.entityId - b.entityId || compareDates(a.validFrom, b.validFrom),
+    );
+  }
 }
 
-function partialOverlap(override: Override, entityId: number, version: OverridableProvinceVersion) {
+/** One `blocking` anomaly for a version boundary that only an override creates. */
+export function boundaryCreated(
+  entityId: number,
+  istatCode: string,
+  date: IsoDate,
+  overrides: readonly Override[],
+): Parameters<AnomalyCollector['add']>[0] {
+  const keys = overrides
+    .filter((o) => o.target.validFrom === date || o.target.validTo === date)
+    .map((o) => o.key)
+    .sort();
   return {
-    level: 'blocking' as const,
-    code: OVERRIDE_ANOMALIES.partialOverlap,
-    message:
-      `override ${override.key}: ${override.level} entity ${entityId}, version from ${version.validFrom} ` +
-      `(code ${version.istatCode}) is only partly inside the target period, ${override.field} not replaced`,
-    context: {
-      key: override.key,
-      file: override.file,
-      level: override.level,
-      field: override.field,
-      entityId,
-      istatCode: version.istatCode,
-      validFrom: version.validFrom,
-      validTo: version.validTo,
-      target: override.target,
-    },
+    level: 'blocking',
+    code: OVERRIDE_ANOMALIES.createsBoundary,
+    message: `province entity ${entityId} (code ${istatCode}): override ${keys.join(', ')} creates a version boundary on ${date}`,
+    context: { entityId, istatCode, date, keys },
   };
 }
 
 function obsolete(override: Override, reason: 'no-match' | 'already-applied') {
   const why =
     reason === 'no-match'
-      ? `no ${override.level} version has code ${override.istatCode} in the target period`
-      : `every targeted version already has ${override.field} ${JSON.stringify(override.value)}`;
+      ? `no ${override.level} has code ${override.istatCode} in the target period`
+      : `every targeted day already has ${override.field} ${JSON.stringify(override.value)}`;
   return {
     level: 'warning' as const,
     code: OVERRIDE_ANOMALIES.obsolete,
@@ -140,6 +147,17 @@ function obsolete(override: Override, reason: 'no-match' | 'already-applied') {
       value: override.value,
     },
   };
+}
+
+function maxDate(a: IsoDate, b: IsoDate): IsoDate {
+  return compareDates(a, b) >= 0 ? a : b;
+}
+
+/** The earlier of two half-open ends (`null` = open). */
+function minEnd(a: IsoDate | null, b: IsoDate | null): IsoDate | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return compareDates(a, b) <= 0 ? a : b;
 }
 
 function compareCodeUnits(a: string, b: string): number {

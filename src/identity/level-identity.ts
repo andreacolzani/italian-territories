@@ -24,7 +24,9 @@ import {
   subjectSide,
   type TransitionEvent,
   type TransitionResult,
+  type TypeChange,
 } from './transitions.ts';
+import { compareDates } from '../dates/index.ts';
 
 /** Public event lists of one level by `pfun` (the full stored range, §6.3). */
 export type LevelEventLists<L extends Level> = Partial<Record<EventListPfunOf<L>, readonly EventRowByLevel[L][]>>;
@@ -55,18 +57,37 @@ export function resolveLevelIdentity<L extends Level>(options: LevelIdentityOpti
   let aliases: readonly CodeAlias[];
   let events: TransitionEvent[];
   let crossCheck: TransitionEvent[] = [];
+  let changes: TypeChange[] = [];
+  /** The resolver also follows the type changes (§6.6); the matcher links them as `type-change`. */
+  let resolverAliases: readonly CodeAlias[] | null = null;
   if (level === 'municipality') {
     aliases = municipalityAliases(list(105) as readonly MunicipalityEventRow[]);
     events = publicEvents([98, 100, 104, 105]);
   } else {
     const [ending, starting, renaming] = level === 'province' ? [112, 113, 114] : [106, 107, 108];
+    changes = typeChanges(level, index, internal, [...list(ending), ...list(starting)], anomalies);
     aliases = internal?.aliases ?? [];
+    resolverAliases = [
+      ...aliases,
+      ...changes
+        .filter((c) => c.from !== c.to)
+        .map((c) => ({ level, date: c.date, from: c.from, to: c.to, source: 'type-change' })),
+    ];
     events = [...internalTransitionEvents(level, internal), ...publicEvents([renaming])];
     crossCheck = publicEvents([ending, starting]);
   }
 
-  const resolver = new CodeResolver({ [level]: index }, aliases);
-  const transitions = matchTransitions({ level, index, resolver, events, aliases, crossCheck, anomalies });
+  const resolver = new CodeResolver({ [level]: index }, resolverAliases ?? aliases);
+  const transitions = matchTransitions({
+    level,
+    index,
+    resolver,
+    events,
+    aliases,
+    crossCheck,
+    typeChanges: changes,
+    anomalies,
+  });
   const entities = resolveEntities({ transitions, resolver, internal, anomalies });
   return { transitions, entities, resolver };
 }
@@ -94,6 +115,65 @@ export function publicTransitionEvent(row: EventRowByLevel[Level], source: strin
     };
   }
   return null;
+}
+
+/** Stable anomaly codes of the level identity (§8.2). */
+export const LEVEL_IDENTITY_ANOMALIES = {
+  /** A type change found in the internal events that the public lists (106/107, 112/113) do not show. */
+  typeChangeUnconfirmed: 'type-change-unconfirmed',
+} as const;
+
+/**
+ * Type changes of a level (§6.7): within one identity component, a `CSCT` on `d` pairs with the
+ * member whose interval ends on `d`, whatever its own events (`ESCT`, `ES` as for the compartments
+ * of 1948, or none, as for Venezia Tridentina `82` → Trentino-Alto Adige `04`). The members are
+ * the codes of the component's events. A `CSCT` with no such member, or with more than one, pairs
+ * with nothing (the matcher reports what stays unexplained). A pairing documented by an `ESCT` of
+ * the member, or confirmed by the public lists (`ESCT` from → to, or `CSCT` to ← from on `d`), is
+ * silent; otherwise a `warning`.
+ */
+export function typeChanges<L extends Level>(
+  level: L,
+  index: IntervalIndex<L>,
+  internal: InternalIdentity | null,
+  publicRows: readonly EventRowByLevel[L][],
+  anomalies: AnomalyCollector,
+): TypeChange[] {
+  const all = index.all();
+  const changes: TypeChange[] = [];
+  for (const component of internal?.components ?? []) {
+    const members = new Set(component.events.map((e) => e.code));
+    for (const e of component.events.filter((x) => x.event === 'CSCT')) {
+      const closing = [...new Set(all.filter((i) => i.validTo === e.date && members.has(i.code)).map((i) => i.code))];
+      const [from] = closing;
+      if (closing.length !== 1 || from === undefined) continue;
+      if (changes.some((c) => c.date === e.date && c.from === from && c.to === e.code)) continue;
+      const change = { date: e.date, from, to: e.code };
+      changes.push(change);
+      // An `ESCT` of the member is the documented pairing (§6.6); only the inferred ones are checked.
+      const documented = component.events.some((x) => x.event === 'ESCT' && x.date === e.date && x.code === from);
+      const confirmed =
+        documented ||
+        publicRows.some(
+          (row) =>
+            row.date === e.date &&
+            ((row.event === 'ESCT' && row.code === from && row.related?.code === e.code) ||
+              (row.event === 'CSCT' && row.code === e.code && row.related?.code === from)),
+        );
+      if (confirmed) continue;
+      anomalies.add({
+        level: 'warning',
+        code: LEVEL_IDENTITY_ANOMALIES.typeChangeUnconfirmed,
+        message: `${level} type change ${from} → ${e.code} on ${e.date} (component ${component.root}) is not in the public lists`,
+        context: { level, date: e.date, from, to: e.code, root: component.root },
+      });
+    }
+  }
+  return changes.sort((a, b) => compareDates(a.date, b.date) || compareCodes(a.from, b.from));
+}
+
+function compareCodes(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /** Every internal event of the level, identified on the side of its event code. */

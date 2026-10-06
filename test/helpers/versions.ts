@@ -20,6 +20,7 @@ import {
   type LevelIdentity,
 } from '../../src/identity/index.ts';
 import type { Level } from '../../src/model/common.ts';
+import { OverrideRun, type AppliedOverride, type Override } from '../../src/overrides/index.ts';
 import { IntervalIndex } from '../../src/resolve/index.ts';
 import { withTempDir } from './http.ts';
 
@@ -34,6 +35,8 @@ export interface VersionWorld {
   province: LevelWorld<'province'>;
   /** Without municipalities, pre-1948 UTS abbreviations cannot be derived. */
   municipality?: LevelWorld<'municipality'>;
+  /** Overrides applied by the UTS version builder (§6.10). */
+  overrides?: readonly Override[];
 }
 
 export interface BuiltWorld {
@@ -49,8 +52,10 @@ export interface BuiltWorld {
   registry: Registry;
   /** Anomalies of identity resolution (Step 9). */
   identityAnomalies: AnomalyCollector;
-  /** Anomalies of the version builder only. */
+  /** Anomalies of the version builder only (overrides included). */
   anomalies: AnomalyCollector;
+  /** The values the overrides replaced. */
+  appliedOverrides: AppliedOverride[];
 }
 
 export async function buildWorld(world: VersionWorld): Promise<BuiltWorld> {
@@ -79,14 +84,18 @@ export async function buildWorld(world: VersionWorld): Promise<BuiltWorld> {
     const municipalities = world.municipality === undefined ? null : identify('municipality', world.municipality);
     const regionTimeline = EntityTimeline.of('region', regions.entities);
     const provinceTimeline = EntityTimeline.of('province', provinces.entities);
+    const overrides = new OverrideRun(world.overrides ?? []);
+    const provinceDrafts = buildProvinceVersions({
+      entities: provinces.entities,
+      regions: regionTimeline,
+      municipalities: world.municipality?.index ?? new IntervalIndex('municipality', new Map()),
+      overrides,
+      anomalies,
+    });
+    const appliedOverrides = overrides.finish(anomalies);
     return {
       region: buildRegionVersions({ entities: regions.entities, anomalies }),
-      province: buildProvinceVersions({
-        entities: provinces.entities,
-        regions: regionTimeline,
-        municipalities: world.municipality?.index ?? new IntervalIndex('municipality', new Map()),
-        anomalies,
-      }),
+      province: provinceDrafts,
       municipality:
         municipalities === null
           ? []
@@ -114,6 +123,7 @@ export async function buildWorld(world: VersionWorld): Promise<BuiltWorld> {
       },
       identityAnomalies,
       anomalies,
+      appliedOverrides,
     };
   });
 }

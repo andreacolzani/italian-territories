@@ -43,7 +43,7 @@ describe('golden-3: Siamanna', async () => {
   const rows = anpr.rows.filter((r) => r.cadastralCode === 'I719' || r.cadastralCode === 'I718');
   const anomalies = new AnomalyCollector();
   crossCheckAnpr({
-    anpr: { rows, issues: [] },
+    anpr: { rows },
     municipalities,
     provinces: built.entities.province,
     anomalies,
@@ -51,7 +51,7 @@ describe('golden-3: Siamanna', async () => {
   const siamanna = entityAt(built.entities.municipality, '115064', '2026-01-01');
   const [first, , , renumbered] = siamanna.versions;
 
-  it('the SITUAS start (1947-11-28) wins over ANPR (1947-12-13): one warning, never blocking', () => {
+  it('the SITUAS start (1947-11-28) wins over ANPR (1947-12-13): ANPR covers less, info, never blocking', () => {
     expect(siamanna.versions.map((v) => [v.validFrom, v.istatCode, v.cadastralCode])).toEqual([
       ['1947-11-28', '092128', 'I719'],
       ['1974-08-20', '095057', 'I719'],
@@ -59,11 +59,14 @@ describe('golden-3: Siamanna', async () => {
       ['2026-01-01', '115064', 'I718'],
     ]);
     expect(anomalies.has('blocking')).toBe(false);
-    const divergences = anomalies.list().filter((a) => a.code === ANPR_ANOMALIES.dateDivergence);
-    expect(divergences).toHaveLength(1);
-    expect(divergences[0]).toMatchObject({
-      level: 'warning',
-      context: {
+    const missing = anomalies.list().filter((a) => a.code === ANPR_ANOMALIES.missingPeriod);
+    expect(missing).toHaveLength(1);
+    expect(missing[0]).toMatchObject({
+      level: 'info',
+      context: { count: 1 },
+    });
+    expect((missing[0]?.context as { items: unknown[] }).items).toMatchObject([
+      {
         entityId: siamanna.id,
         versionIds: [first?.id],
         matchedBy: ['cadastral'],
@@ -73,7 +76,7 @@ describe('golden-3: Siamanna', async () => {
         edge: 'start',
         anprRows: [{ istatCode: '092128', cadastralCode: 'I719', validFrom: '1947-12-13' }, { istatCode: '095057' }],
       },
-    });
+    ]);
   });
 
   it('ANPR has not applied the 2026 renumbering: the code and province of before are a lag (info)', () => {
@@ -91,7 +94,7 @@ describe('golden-3: Siamanna', async () => {
 
   it('nothing else diverges: names, provinces before 2026, end dates, former Italian flag', () => {
     expect(anomalies.list().map((a) => [a.level, a.code])).toEqual([
-      ['warning', ANPR_ANOMALIES.dateDivergence],
+      ['info', ANPR_ANOMALIES.missingPeriod],
       ['info', ANPR_ANOMALIES.laggingIstatCode],
       ['info', ANPR_ANOMALIES.laggingProvince],
     ]);
@@ -111,7 +114,7 @@ describe('Sardinia 2026: ANPR lags behind the renumbering (golden-4)', async () 
   const anpr = await withSources(async ({ anpr }) => (await anpr.fetchAnpr()).data);
   const anomalies = new AnomalyCollector();
   crossCheckAnpr({
-    anpr: { rows: anpr.rows.filter((r) => overlaps(r, window)), issues: [] },
+    anpr: { rows: anpr.rows.filter((r) => overlaps(r, window)) },
     municipalities,
     provinces: built.entities.province,
     anomalies,

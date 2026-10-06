@@ -64,7 +64,18 @@ export function subjectSide(event: IstatEventCode): ResolutionSide {
   return ENDING_EVENTS.includes(event) ? 'predecessor' : 'successor';
 }
 
-export type TransitionRule = 'code-change' | 'same-code' | 'cadastral';
+export type TransitionRule = 'code-change' | 'type-change' | 'same-code' | 'cadastral';
+
+/**
+ * A type change within one identity component (UTS and regions): on `date` the member coded `from`
+ * disappears and the `CSCT` record coded `to` appears (`from` may equal `to`). Built by
+ * `typeChanges` (level identity) from the internal events and the snapshots.
+ */
+export interface TypeChange {
+  date: IsoDate;
+  from: string;
+  to: string;
+}
 
 /** Continuity between a closed interval and the opened one continuing it, on `date`. */
 export interface IntervalLink {
@@ -101,6 +112,8 @@ export interface MatchTransitionsOptions<L extends Level> {
   aliases: readonly CodeAlias[];
   /** Public establishment and suppression rows checked against the explanations (UTS, regions). */
   crossCheck?: readonly TransitionEvent[];
+  /** Type changes of the level (UTS, regions): links, and explanations of the public rows. */
+  typeChanges?: readonly TypeChange[];
   anomalies: AnomalyCollector;
 }
 
@@ -165,6 +178,17 @@ export function matchTransitions<L extends Level>(options: MatchTransitionsOptio
     linked.add(key);
     links.push({ date: alias.date, from: from.intervalKey, to: to.intervalKey, rule: 'code-change' });
   }
+  // A type change links its two intervals even when the internal events are `ES` and `CSCT`.
+  for (const change of (options.typeChanges ?? []).filter((c) => boundaries.has(c.date))) {
+    const from = resolve(change.from, change.date, 'predecessor');
+    const to = resolve(change.to, change.date, 'successor');
+    if (from === null || to === null) continue;
+    if (from.interval.validTo !== change.date || to.interval.validFrom !== change.date) continue;
+    const key = `${from.intervalKey}|${to.intervalKey}`;
+    if (linked.has(key)) continue;
+    linked.add(key);
+    links.push({ date: change.date, from: from.intervalKey, to: to.intervalKey, rule: 'type-change' });
+  }
   const changedFrom = new Set(links.map((l) => l.from));
   const changedTo = new Set(links.map((l) => l.to));
   for (const [date, closed] of closing) {
@@ -212,11 +236,17 @@ export function matchTransitions<L extends Level>(options: MatchTransitionsOptio
     }
   }
 
+  // A type change (ESCT/CSCT or an inferred pairing) brings the name of the new typed record: it
+  // explains a change of name along its link (§6.7; e.g. Emilia → Emilia-Romagna in 1948).
+  const typeChange = (link: IntervalLink, from: SnapshotInterval<L>, to: SnapshotInterval<L>): boolean =>
+    link.rule === 'type-change' ||
+    (options.typeChanges ?? []).some((c) => c.date === link.date && c.from === from.code && c.to === to.code);
   const renamesWithoutEvent: IntervalLink[] = [];
   for (const link of kept) {
     const from = intervals.get(link.from);
     const to = intervals.get(link.to);
     if (from === undefined || to === undefined || nameOf(from) === nameOf(to) || renamed.has(link.to)) continue;
+    if (typeChange(link, from, to)) continue;
     renamesWithoutEvent.push(link);
     anomalies.add({
       level: 'warning',
@@ -226,9 +256,13 @@ export function matchTransitions<L extends Level>(options: MatchTransitionsOptio
     });
   }
 
+  const typeChanged = (e: TransitionEvent): boolean =>
+    (options.typeChanges ?? []).some(
+      (c) => c.date === e.date && (e.event === 'ESCT' ? c.from === e.code : e.event === 'CSCT' && c.to === e.code),
+    );
   for (const e of options.crossCheck ?? []) {
     const explained = ENDING_EVENTS.includes(e.event) ? ends : STARTING_EVENTS.includes(e.event) ? starts : null;
-    if (explained === null) continue;
+    if (explained === null || typeChanged(e)) continue;
     const resolution = resolve(e.code, e.date, e.side, e.cadastralCode);
     const boundary = explained === ends ? resolution?.interval.validTo : resolution?.interval.validFrom;
     if (resolution !== null && boundary === e.date && explained.get(resolution.intervalKey)?.includes(e.event)) {

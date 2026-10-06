@@ -26,7 +26,7 @@ import {
   type SnapshotSet,
 } from '../../src/invariants/index.ts';
 import { LEVELS, type Level } from '../../src/model/common.ts';
-import { applyOverrides, loadOverrides } from '../../src/overrides/index.ts';
+import { loadOverrides } from '../../src/overrides/index.ts';
 import { withSources } from '../helpers/sources.ts';
 import { municipalityGraph, utsGraph } from '../helpers/identity.ts';
 import { fixtureWorld, type BuiltVariations } from '../helpers/variations.ts';
@@ -81,17 +81,17 @@ async function snapshotSets(
   });
 }
 
-/** The invariant world of a built one: overrides applied, derived fields, existence, accounts. */
+const overrides = await loadOverrides(OVERRIDES_DIR);
+
+/** The invariant world of a built one: derived fields, existence, accounts, applied overrides. */
 async function worldOf(
   built: BuiltVariations,
   options: { start: IsoDate; today: IsoDate; snapshots?: SnapshotSet[]; counts?: InvariantWorld['counts'] },
 ) {
   const anomalies = new AnomalyCollector();
-  const { provinces, applied } = applyOverrides({
-    overrides: await loadOverrides(OVERRIDES_DIR),
-    provinces: built.entities.province,
-    anomalies,
-  });
+  // The overrides were applied by the version builder (`overrides` of `fixtureWorld`).
+  const provinces = built.entities.province;
+  const applied = built.appliedOverrides;
   const { variations } = built;
   const entities: InvariantEntities = {
     region: deriveFields({ level: 'region', entities: built.entities.region, variations, anomalies }),
@@ -123,7 +123,7 @@ describe('full worlds of two consecutive days: every invariant that can run pass
     ['2021-06-16', '2021-06-17'],
   ] as [IsoDate, IsoDate][]) {
     it(dates.join(' → '), async () => {
-      const built = await fixtureWorld(dates);
+      const built = await fixtureWorld(dates, { overrides });
       const { world } = await worldOf(built, {
         start: dates[0],
         today: dates[1],
@@ -140,7 +140,7 @@ describe('full worlds of two consecutive days: every invariant that can run pass
 
 describe('golden-17: the 2026-10-01 world', async () => {
   const date: IsoDate = '2026-10-01';
-  const built = await fixtureWorld([date]);
+  const built = await fixtureWorld([date], { overrides });
   const counts = await withSources(async ({ situasPublic }) => ({
     region: (await situasPublic.fetchCount(68, { date })).data,
     province: (await situasPublic.fetchCount(64, { date })).data,
@@ -177,6 +177,7 @@ describe('golden-17: the 2026-10-01 world', async () => {
 describe('golden-4: Sardinia 2026 (I6, I7)', async () => {
   const dates: IsoDate[] = ['2025-12-31', '2026-01-01'];
   const built = await fixtureWorld(dates, {
+    overrides,
     codes: {
       region: ['20'],
       province: ['090', '091', '092', '095', '111', '292', '113', '114', '115', '116', '117', '119', '312', '318'],
@@ -232,7 +233,7 @@ describe('golden-4: Sardinia 2026 (I6, I7)', async () => {
 
 describe('golden-7: Venezia Giulia 1921 (I6, I7, I8, I12)', async () => {
   const dates: IsoDate[] = ['1921-06-01', '1923-02-07', '1923-02-08'];
-  const built = await fixtureWorld(dates);
+  const built = await fixtureWorld(dates, { overrides });
   const { world, applied } = await worldOf(built, {
     start: '1921-06-01',
     today: '1923-02-08',

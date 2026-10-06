@@ -38,6 +38,7 @@
  * Every event row is accounted for (I14): represented in a variation, or dropped with a reason.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
+import { canonicalJson } from '../http/index.ts';
 import { compareDates, containsDate, previousDay, type IsoDate } from '../dates/index.ts';
 import type { CrawledEvent } from '../enrich/index.ts';
 import {
@@ -69,6 +70,8 @@ export interface InternalVariationEvent {
   root: number;
   event: IstatEventCode;
   date: IsoDate;
+  /** Code of the subject at the time of the event. */
+  code: string;
   actId: number;
   description: string | null;
   /** Associated territories (r7/r8); `null` when not available (municipalities, failed details). */
@@ -136,6 +139,13 @@ export const VARIATION_ANOMALIES = {
   boundaryUnexplained: 'version-boundary-unexplained',
   /** A participant inconsistent with the role table (§4.3). */
   participantInconsistent: 'variation-participant-inconsistent',
+  /**
+   * A UTS version boundary where only the abbreviation changes, without an event: abbreviations are
+   * not ISTAT acts (e.g. Forlì-Cesena `FO` → `FC` on 1999-01-01). `warning`, `inferred` variation.
+   */
+  abbreviationChange: 'abbreviation-change-without-event',
+  /** An establishment whose associated territory is the subject itself (`info`, not a predecessor). */
+  selfReference: 'self-reference-ignored',
 } as const;
 
 const INTERNAL_SOURCES: Readonly<Record<Level, string>> = {
@@ -151,7 +161,7 @@ export function internalVariationEvents(
       components: readonly {
         root: number;
         events: readonly CrawledEvent<
-          { event: IstatEventCode; date: IsoDate; actId: number; description: string | null },
+          { event: IstatEventCode; date: IsoDate; code: string; actId: number; description: string | null },
           { abroad: boolean; related: { code: string | null } | null }
         >[];
       }[];
@@ -164,6 +174,7 @@ export function internalVariationEvents(
       root: component.root,
       event: event.event,
       date: event.date,
+      code: event.code,
       actId: event.actId,
       description: event.description,
       details: details?.map((d) => ({ abroad: d.abroad, code: d.related?.code ?? null })) ?? null,
@@ -184,6 +195,11 @@ interface Fact {
   description: string | null;
   /** Related entities of the same level, by resolved row. */
   related: Set<number>;
+  /**
+   * Codes of the associated territories of the internal event's details (r7/r8, r9 for the
+   * ambiguous municipality events): they tell the acts of an ambiguous public row apart.
+   */
+  associatedCodes: Set<string>;
   abroad: boolean;
   /** The rows of the fact, for the accounting (I14). */
   rows: EventAccount[];
@@ -245,9 +261,18 @@ export function buildVariations(options: BuildVariationsOptions): VariationBuild
 
   const accounts: EventAccount[] = [];
   const missingRules = new Map<string, { level: Level; event: IstatEventCode; count: number; source: string }>();
+  const selfReferences: SelfReference[] = [];
   const facts: Fact[] = [];
   for (const [level, { input, entities }] of levels) {
-    facts.push(...levelFacts(level, input, entities, accounts, missingRules, anomalies));
+    facts.push(...levelFacts(level, input, entities, accounts, missingRules, selfReferences, anomalies));
+  }
+  if (selfReferences.length > 0) {
+    anomalies.add({
+      level: 'info',
+      code: VARIATION_ANOMALIES.selfReference,
+      message: `${selfReferences.length} establishments list the subject itself as associated territory: ignored`,
+      context: { count: selfReferences.length, items: selfReferences },
+    });
   }
   for (const { level, event, count, source } of missingRules.values()) {
     reportMissingRule(level, event, count, source, anomalies);
@@ -284,6 +309,7 @@ function levelFacts(
   entities: LevelEntities,
   accounts: EventAccount[],
   missingRules: Map<string, { level: Level; event: IstatEventCode; count: number; source: string }>,
+  selfReferences: SelfReference[],
   anomalies: AnomalyCollector,
 ): Fact[] {
   const resolver = input.identity.resolver;
@@ -367,12 +393,23 @@ function levelFacts(
       actId: e.actId,
       description: e.description,
       related: new Set(),
+      associatedCodes: new Set((e.details ?? []).flatMap((d) => (d.code === null ? [] : [d.code]))),
       abroad: false,
       rows: [row],
     };
-    for (const detail of e.details ?? []) {
+    // Municipality details (r9) only disambiguate acts: the related territories come from the rows.
+    for (const detail of level === 'municipality' ? [] : (e.details ?? [])) {
       if (detail.abroad) fact.abroad = true;
-      else if (detail.code !== null) {
+      else if (detail.code !== null && rule.effect === 'opening' && detail.code === e.code) {
+        selfReferences.push({
+          level,
+          event: e.event,
+          date: e.date,
+          code: e.code,
+          source: `${source} details`,
+          actId: e.actId,
+        });
+      } else if (detail.code !== null) {
         const related = relatedEntity(rule, detail.code, e.date, null, { source: `${source} details`, actId: e.actId });
         if (related !== null) fact.related.add(related);
       }
@@ -409,8 +446,19 @@ function levelFacts(
         entry.dropped = 'unresolved';
         return;
       }
+      const self = rule.effect === 'opening' && row.related?.code === row.code;
+      if (self) {
+        selfReferences.push({
+          level,
+          event: row.event,
+          date: row.date,
+          code: row.code,
+          source: listSource,
+          actId: null,
+        });
+      }
       const related =
-        row.related?.code == null
+        row.related?.code == null || self
           ? null
           : relatedEntity(rule, row.related.code, row.date, relatedCadastralOf(row), { ...context, side: 'related' });
 
@@ -426,6 +474,7 @@ function levelFacts(
           actId: null,
           description: null,
           related: new Set(),
+          associatedCodes: new Set(),
           abroad: false,
           rows: [],
         };
@@ -440,6 +489,20 @@ function levelFacts(
   return facts;
 }
 
+/**
+ * In an establishment, an associated territory equal to the subject (same code: the same identity
+ * component) is not a predecessor: it is not resolved and produces no link (golden-20, Caserta 1945).
+ * Reported once per build, as one aggregated `info`.
+ */
+interface SelfReference {
+  level: Level;
+  event: IstatEventCode;
+  date: IsoDate;
+  code: string;
+  source: string;
+  actId: number | null;
+}
+
 /** The internal fact a public row belongs to: the only act among the candidates, if any. */
 function matchInternal(
   candidates: readonly Fact[] | undefined,
@@ -451,6 +514,12 @@ function matchInternal(
   if (candidates === undefined) return undefined;
   const acts = [...new Set(candidates.map((f) => f.actId))];
   if (acts.length === 1) return candidates[0];
+  // Several acts: the one whose details list the row's related territory (by code), if only one does.
+  const relatedCode = row.related?.code ?? null;
+  if (relatedCode !== null) {
+    const matching = candidates.filter((f) => f.associatedCodes.has(relatedCode));
+    if (new Set(matching.map((f) => f.actId)).size === 1) return matching[0];
+  }
   anomalies.add({
     level: 'warning',
     code: VARIATION_ANOMALIES.actAmbiguous,
@@ -722,8 +791,26 @@ function coverBoundaries(
               const parents = parentChange(before, version);
               const target =
                 parents.length === 0 ? undefined : sortedOn(date).find((d) => hosts(d, parents, level, entityId));
+              const abbreviationOnly = level === 'province' && onlyAbbreviationChanges(before, version);
+              if (abbreviationOnly) {
+                options.anomalies.add({
+                  level: 'warning',
+                  code: VARIATION_ANOMALIES.abbreviationChange,
+                  message:
+                    `province entity ${entityId}: abbreviation ${String(abbreviationOf(before))} → ` +
+                    `${String(abbreviationOf(version))} on ${date} without an event`,
+                  context: {
+                    level,
+                    entityId,
+                    date,
+                    istatCode: version.istatCode,
+                    from: abbreviationOf(before),
+                    to: abbreviationOf(version),
+                  },
+                });
+              }
               if (target !== undefined) target.participants.push(participant);
-              else if (warned.has(`${entityId}|${date}`) || options.inferredDates.has(date)) {
+              else if (abbreviationOnly || warned.has(`${entityId}|${date}`) || options.inferredDates.has(date)) {
                 const draft: VariationDraft = {
                   key: `inferred:${date}:${level}:${entityId}`,
                   date,
@@ -748,6 +835,18 @@ function coverBoundaries(
       });
     }
   }
+}
+
+/** The abbreviation of a UTS version (`null` for other levels or when undetermined). */
+function abbreviationOf(version: AnyVersion): string | null {
+  return 'abbreviation' in version ? version.abbreviation : null;
+}
+
+/** Two UTS versions that differ in the abbreviation and in no other published field. */
+function onlyAbbreviationChanges(before: AnyVersion, after: AnyVersion): boolean {
+  const rest = (version: AnyVersion) =>
+    canonicalJson({ ...version, id: undefined, validFrom: undefined, validTo: undefined, abbreviation: undefined });
+  return abbreviationOf(before) !== abbreviationOf(after) && rest(before) === rest(after);
 }
 
 /**

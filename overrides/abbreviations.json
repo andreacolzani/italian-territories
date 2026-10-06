@@ -7,5 +7,14 @@
     "reason": "ISTAT reports the full name 'Venezia Giulia'; ANPR uses 'VG' for the provisional province.",
     "source": "ANPR",
     "source_url": "https://www.anagrafenazionale.interno.it/wp-content/uploads/ANPR_archivio_comuni.csv"
+  },
+  {
+    "key": "uts-059-abbreviation",
+    "target": { "level": "province", "istat_code": "059", "date_from": "1934-10-26", "date_to": "1934-11-05" },
+    "field": "abbreviation",
+    "value": "LT",
+    "reason": "colonna SIGLA_UTS assente dalle risposte ISTAT di quel periodo; ISTAT riporta LT per la stessa provincia dal 1934-11-06",
+    "source": "ISTAT",
+    "source_url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=50&pdata=06%2F11%2F1934"
   }
 ]

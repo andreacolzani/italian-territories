@@ -156,6 +156,85 @@ describe('golden-2: Sassofeltrio', async () => {
   });
 });
 
+describe('golden-20: Caserta, suppressed in 1927 and reconstituted in 1945', async () => {
+  const built = await fixtureWorld(['1927-01-11', '1927-01-12', '1945-08-31', '1945-09-01'], {
+    codes: { region: ['13', '15'], province: ['061', '062', '063', '070'], municipality: [] },
+    provinces: {
+      graph: await utsGraph([
+        ['061', 'province', '061_1_caserta.json'],
+        ['062', 'province', '062_1_benevento.json'],
+        ['063', 'province', '063_1_napoli.json'],
+        ['070', 'province', '070_1_campobasso.json'],
+      ]),
+      details: ['35_CS_5390.json', '43_CECS_5390.json', '36_CECS_5390.json', '37_CECS_5390.json'],
+    },
+  });
+  const at = (code: string, date: IsoDate) => entityAt(built.entities.province, code, date);
+  const caserta = at('061', '1945-09-01');
+  const anomalies = [...built.identityAnomalies.list(), ...built.anomalies.list(), ...built.variationAnomalies.list()];
+
+  it('is one entity (origin 35) with an uncovered period, like Sassofeltrio', () => {
+    expect(caserta.istatOriginId).toBe(35);
+    expect(at('061', '1927-01-11').id).toBe(caserta.id);
+    expect(caserta.versions.map((v) => [v.validFrom, v.validTo, v.officialName])).toEqual([
+      ['1927-01-11', '1927-01-12', 'Caserta'],
+      ['1945-09-01', null, 'Caserta'],
+    ]);
+  });
+
+  it('ignores Caserta among the associated territories of its own establishment (act 5390)', () => {
+    expect(anomalies.filter((a) => a.code === 'self-reference-ignored').map((a) => [a.level, a.context])).toEqual([
+      [
+        'info',
+        {
+          count: 1,
+          items: [
+            expect.objectContaining({ level: 'province', event: 'CS', date: '1945-09-01', code: '061', actId: 5390 }),
+          ],
+        },
+      ],
+    ]);
+    expect(anomalies.filter((a) => a.code === 'code-unresolved' && a.context.code === '061')).toEqual([]);
+    const variation = variationOf(built, 'province', caserta.id, '1945-09-01');
+    expect(variation.istatActId).toBe(5390);
+    expect(links(variation).filter(([, to]) => to === caserta.id)).toEqual(
+      ['062', '063', '070']
+        .map((code): [number, number, string] => [at(code, '1945-09-01').id, caserta.id, 'detached_into'])
+        .sort((a, b) => a[0] - b[0]),
+    );
+    expect(links(variation).some(([from, to]) => from === to)).toBe(false);
+  });
+});
+
+describe('golden-21: Riola Sardo, two acts of the same day and event (1946-02-07)', async () => {
+  const dates: IsoDate[] = ['1946-02-06', '1946-02-07'];
+  const world = async (details: string[]) =>
+    fixtureWorld(dates, {
+      codes: { region: false, province: false, municipality: ['092092', '092014', '092074'] },
+      municipalities: await municipalityGraph(['092092_riola-sardo.json']),
+      municipalityDetails: details,
+    });
+  const built = await world(['7543_CECS_5831.json', '7543_CECS_5841.json']);
+  const at = (code: string, date: IsoDate) => entityAt(built.entities.municipality, code, date);
+
+  it('each CECS row of Riola Sardo joins the act whose r9 details list its related territory', () => {
+    const riola = at('092092', '1946-02-06');
+    const ceded = built.variations
+      .filter((v) => v.participants.some((p) => p.entityId === riola.id && p.istatEvents.includes('CECS')))
+      .map((v) => [v.istatActId, links(v)]);
+    expect(ceded).toEqual([
+      [5831, [[riola.id, at('092014', '1946-02-07').id, 'detached_into']]],
+      [5841, [[riola.id, at('092074', '1946-02-07').id, 'detached_into']]],
+    ]);
+    expect(built.variationAnomalies.list().map((a) => a.code)).not.toContain('variation-act-ambiguous');
+  });
+
+  it('without the r9 details the ambiguity stays a warning', async () => {
+    const ambiguous = (await world([])).variationAnomalies.list().filter((a) => a.code === 'variation-act-ambiguous');
+    expect(ambiguous.map((a) => a.level)).toEqual(['warning', 'warning']);
+  });
+});
+
 describe('golden-4: Sardinia 2026', async () => {
   const dates: IsoDate[] = ['2025-12-31', '2026-01-01'];
   const built = await fixtureWorld(dates, {

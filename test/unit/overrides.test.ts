@@ -3,15 +3,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import type { IsoDate } from '../../src/dates/index.ts';
-import type { ProvinceEntity, ProvinceVersion } from '../../src/model/internal.ts';
-import {
-  applyOverrides,
-  loadOverrides,
-  OverrideFileError,
-  parseOverrideFile,
-  type Override,
-} from '../../src/overrides/index.ts';
+import { canonicalJson } from '../../src/http/index.ts';
+import type { Level } from '../../src/model/common.ts';
+import type { SnapshotRowByLevel, UtsSnapshotRow } from '../../src/model/internal.ts';
+import { loadOverrides, OverrideFileError, parseOverrideFile, type Override } from '../../src/overrides/index.ts';
+import { buildIntervalIndex, type IntervalIndex } from '../../src/resolve/index.ts';
 import { withTempDir } from '../helpers/http.ts';
+import { buildWorld, entityAt } from '../helpers/versions.ts';
 
 /** A file entry as written in `overrides/`. */
 function entry(overrides: Record<string, unknown> = {}, target: Record<string, unknown> = {}) {
@@ -40,31 +38,6 @@ function override(istatCode: string, validFrom: IsoDate, validTo: IsoDate | null
     source: 'test',
     sourceUrl: null,
   };
-}
-
-let nextVersionId = 1;
-function version(istatCode: string, validFrom: IsoDate, validTo: IsoDate | null, abbreviation: string | null) {
-  return {
-    id: nextVersionId++,
-    validFrom,
-    validTo,
-    istatCode,
-    officialName: `UTS ${istatCode}`,
-    italianName: `UTS ${istatCode}`,
-    foreignName: null,
-    type: 'province',
-    abbreviation,
-    regionId: 1,
-  } satisfies ProvinceVersion;
-}
-
-function province(id: number, versions: ProvinceVersion[]): ProvinceEntity {
-  return { level: 'province', id, istatOriginId: null, versions, historicalCodes: [] };
-}
-
-function apply(overrides: Override[], provinces: ProvinceEntity[]) {
-  const anomalies = new AnomalyCollector();
-  return { ...applyOverrides({ overrides, provinces, anomalies }), anomalies: anomalies.list() };
 }
 
 describe('override loader (§6.10)', () => {
@@ -162,22 +135,40 @@ describe('override loader (§6.10)', () => {
   });
 });
 
-describe('override applier (§6.10)', () => {
-  it('replaces the field of every version of the code lying inside the target, without splitting', () => {
-    const before = version('801', '1921-01-05', '1923-02-08', 'Venezia Giulia');
-    const other = province(2, [version('802', '1920-10-16', null, 'TN')]);
-    const { provinces, applied, anomalies } = apply(
-      [override('801', '1920-01-01', '1924-01-01', 'VG')],
-      [province(1, [before]), other],
+describe('override applier (§6.10): day by day, before the versions are merged', () => {
+  const D1 = '1950-01-01';
+  const D2 = '1960-01-01';
+  const D3 = '1970-01-01';
+
+  /** UTS rows of each date (post-1948: the abbreviation is the UTS row's own). */
+  async function build(provinces: Record<IsoDate, UtsSnapshotRow[]>, overrides: Override[]) {
+    const dates = Object.keys(provinces);
+    const regions = Object.fromEntries(
+      dates.map((d) => [d, [{ code: '01', name: 'Regione', type: 'region' as const }]]),
     );
-    expect(provinces[0]?.versions).toEqual([{ ...before, abbreviation: 'VG' }]);
-    expect(provinces[1]).toBe(other);
+    const built = await buildWorld({
+      region: { index: await index('region', regions) },
+      province: { index: await index('province', provinces) },
+      overrides,
+    });
+    const versions = (code: string, date: IsoDate) =>
+      entityAt(built.province, code, date).versions.map((v) => [v.validFrom, v.validTo, v.abbreviation]);
+    return { built, versions, anomalies: built.anomalies.list(), applied: built.appliedOverrides };
+  }
+
+  it('replaces the value on the days of the target with the target code (Venezia Giulia → VG)', async () => {
+    const { versions, applied, anomalies } = await build(
+      { [D1]: [uts('801', 'Venezia Giulia'), uts('802', 'TN')], [D2]: [uts('802', 'TN')] },
+      [override('801', '1940-01-01', '1965-01-01', 'VG')],
+    );
+    expect(versions('801', D1)).toEqual([[D1, D2, 'VG']]);
+    expect(versions('802', D1)).toEqual([[D1, null, 'TN']]);
     expect(applied).toEqual([
       {
         key: 'k',
-        entityId: 1,
-        validFrom: '1921-01-05',
-        validTo: '1923-02-08',
+        entityId: expect.any(Number) as number,
+        validFrom: D1,
+        validTo: D2,
         field: 'abbreviation',
         before: 'Venezia Giulia',
         after: 'VG',
@@ -186,89 +177,84 @@ describe('override applier (§6.10)', () => {
     expect(anomalies).toEqual([]);
   });
 
-  it('supplies a missing abbreviation and covers a target equal to the version', () => {
-    const { provinces, anomalies } = apply(
-      [override('120', '2026-01-01', null, 'XY')],
-      [province(1, [version('120', '2026-01-01', null, null)])],
+  it('removes a version boundary: the overridden days merge with the next ones (Littoria LT, 1934)', async () => {
+    const { versions, applied, anomalies } = await build(
+      { [D1]: [uts('059', null)], [D2]: [uts('059', 'LT')], [D3]: [uts('059', 'LT')] },
+      [override('059', D1, D2, 'LT')],
     );
-    expect(provinces[0]?.versions[0]?.abbreviation).toBe('XY');
+    expect(versions('059', D1)).toEqual([[D1, null, 'LT']]);
+    expect(applied.map((a) => [a.validFrom, a.validTo, a.before, a.after])).toEqual([[D1, D2, null, 'LT']]);
     expect(anomalies).toEqual([]);
   });
 
-  it('applies to every entity that used the code inside the target (code reuse) and to nothing outside', () => {
-    const { provinces } = apply(
-      [override('090', '1900-01-01', '2000-01-01', 'QQ')],
-      [
-        province(1, [version('090', '1927-01-12', '1950-01-01', 'AA')]),
-        province(2, [version('090', '1960-01-01', '1970-01-01', 'BB'), version('091', '1970-01-01', null, 'BB')]),
-      ],
+  it('never creates a version boundary (blocking)', async () => {
+    const { anomalies } = await build({ [D1]: [uts('059', 'AA')], [D2]: [uts('059', 'AA')] }, [
+      override('059', D1, '1955-01-01', 'BB'),
+    ]);
+    expect(anomalies.map((a) => [a.level, a.code, a.context.date, a.context.keys])).toEqual([
+      ['blocking', 'override-creates-boundary', '1955-01-01', ['k']],
+    ]);
+  });
+
+  it('applies to every entity with the code in the target (code reuse), and to nothing outside', async () => {
+    const { built, applied } = await build(
+      { [D1]: [uts('090', 'AA')], [D2]: [uts('091', 'BB')], [D3]: [uts('090', 'CC')] },
+      [override('090', '1900-01-01', null, 'QQ')],
     );
-    expect(provinces.map((e) => e.versions.map((v) => [v.istatCode, v.abbreviation]))).toEqual([
+    expect(built.province.map((e) => e.versions.map((v) => [v.istatCode, v.abbreviation]))).toEqual([
       [['090', 'QQ']],
-      [
-        ['090', 'QQ'],
-        ['091', 'BB'],
-      ],
+      [['091', 'BB']],
+      [['090', 'QQ']],
+    ]);
+    expect(applied.map((a) => [a.validFrom, a.before])).toEqual([
+      [D1, 'AA'],
+      [D3, 'CC'],
     ]);
   });
 
-  it('reports a version only partly inside the target as blocking and leaves it unchanged', () => {
-    const partial = version('801', '1921-01-05', null, 'Venezia Giulia');
-    const inside = version('801', '1919-01-01', '1920-01-01', 'Venezia Giulia');
-    const { provinces, applied, anomalies } = apply(
-      [override('801', '1919-01-01', '1924-01-01', 'VG')],
-      [province(1, [inside]), province(2, [partial])],
-    );
-    expect(provinces[1]?.versions).toEqual([partial]);
-    expect(provinces[0]?.versions[0]?.abbreviation).toBe('VG');
-    expect(applied.map((a) => a.entityId)).toEqual([1]);
-    expect(anomalies.map((a) => [a.level, a.code, a.context.entityId, a.context.validFrom])).toEqual([
-      ['blocking', 'override-partial-overlap', 2, '1921-01-05'],
+  it('reports an override matching no day as obsolete', async () => {
+    const { applied, anomalies } = await build({ [D1]: [uts('801', 'Venezia Giulia')] }, [
+      override('801', '1920-01-01', '1924-01-01', 'VG'),
     ]);
-  });
-
-  it('reports an override matching nothing as obsolete', () => {
-    const { provinces, applied, anomalies } = apply(
-      [override('801', '1920-01-01', '1924-01-01', 'VG')],
-      [province(1, [version('801', '1924-01-01', null, 'Venezia Giulia')])],
-    );
-    expect(provinces[0]?.versions[0]?.abbreviation).toBe('Venezia Giulia');
     expect(applied).toEqual([]);
     expect(anomalies.map((a) => [a.level, a.code, a.context.reason, a.context.key])).toEqual([
       ['warning', 'override-obsolete', 'no-match', 'k'],
     ]);
   });
 
-  it('reports an override whose targets already have the value as obsolete (ISTAT fixed it)', () => {
-    const { applied, anomalies } = apply(
-      [override('801', '1920-01-01', '1924-01-01', 'VG')],
-      [province(1, [version('801', '1921-01-05', '1923-02-08', 'VG')])],
-    );
-    expect(applied).toEqual([]);
+  it('reports an override whose days already have the value as obsolete (ISTAT fixed it)', async () => {
+    const { anomalies } = await build({ [D1]: [uts('801', 'VG')] }, [override('801', D1, null, 'VG')]);
     expect(anomalies.map((a) => [a.level, a.code, a.context.reason])).toEqual([
       ['warning', 'override-obsolete', 'already-applied'],
     ]);
   });
 
-  it('is still needed while one targeted version lacks the value', () => {
-    const { applied, anomalies } = apply(
-      [override('801', '1920-01-01', '1924-01-01', 'VG')],
-      [
-        province(1, [
-          version('801', '1921-01-05', '1922-01-01', 'VG'),
-          version('801', '1922-01-01', '1923-02-08', 'V'),
-        ]),
-      ],
-    );
-    expect(applied.map((a) => a.validFrom)).toEqual(['1922-01-01']);
+  it('is still needed while one targeted day lacks the value', async () => {
+    const { applied, anomalies } = await build({ [D1]: [uts('801', 'VG')], [D2]: [uts('801', 'V')] }, [
+      override('801', D1, null, 'VG'),
+    ]);
+    expect(applied.map((a) => [a.validFrom, a.before])).toEqual([
+      [D1, 'VG'],
+      [D2, 'V'],
+    ]);
     expect(anomalies).toEqual([]);
   });
-
-  it('is not obsolete when its only match overlaps partially (the blocking anomaly suffices)', () => {
-    const { anomalies } = apply(
-      [override('801', '1920-01-01', '1924-01-01', 'VG')],
-      [province(1, [version('801', '1923-01-01', '1925-01-01', 'VG')])],
-    );
-    expect(anomalies.map((a) => a.code)).toEqual(['override-partial-overlap']);
-  });
 });
+
+function uts(code: string, abbreviation: string | null): UtsSnapshotRow {
+  return { code, name: `UTS ${code}`, regionCode: '01', type: 'province', abbreviation, historicalCode: code };
+}
+
+async function index<L extends Level>(
+  level: L,
+  snapshots: Record<IsoDate, SnapshotRowByLevel[L][]>,
+): Promise<IntervalIndex<L>> {
+  return buildIntervalIndex({
+    level,
+    snapshots: Object.entries(snapshots).map(([date, rows]) => ({
+      date,
+      rows: rows.map((r) => ({ hash: canonicalJson(r), row: r })),
+    })),
+    anomalies: new AnomalyCollector(),
+  });
+}

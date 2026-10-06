@@ -158,10 +158,8 @@ function diffProvince(
   if (version.regionId !== null) {
     fields.push(['regionCode', row.regionCode, context.regions.at(version.regionId, context.date)?.istatCode ?? null]);
   }
-  // Abbreviations are the only field an override replaces (§6.10).
-  const overridden = context.overrides.find(
-    (o) => o.entityId === placed.entityId && o.validFrom === version.validFrom && o.validTo === version.validTo,
-  );
+  // Abbreviations are the only field an override replaces (§6.10), on the days it covers.
+  const overridden = context.overrides.find((o) => o.entityId === placed.entityId && containsDate(o, context.date));
   if (overridden !== undefined) {
     fields.push(['abbreviation', overridden.after, version.abbreviation]);
   } else if (row.abbreviation !== null || compareDates(context.date, REGIME_1948_START) >= 0) {

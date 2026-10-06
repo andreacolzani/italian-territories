@@ -171,19 +171,22 @@ describe('rebuild', () => {
     expect(summary.anomalies.by_code['anpr-unavailable']).toBeUndefined();
   });
 
-  it('without --refetch never fetches a missing internal report: internal-data-unavailable (warning)', async () => {
+  it('without --refetch never fetches a missing internal report, and never re-keys the entity (exit 1)', async () => {
     const box = await bootstrapped(baseWorld());
-    // Alghero has no variation: its history is not needed by any decision (like an r9 of §6.8).
+    const dist = await files(box.config.paths.dist);
+    const registry = await files(box.config.paths.registry);
     const url = reportUrls.municipalityEvents({ code: '090003', name: 'Alghero' });
     await rm(join(box.config.paths.store, 'internal', 'reports', 'r6', `${internalReportKey(6, url)}.json`));
     const sent = box.world.requests.length;
-    // Without its history Alghero is identified by its natural key: new ids, a retroactive release.
-    expect(await box.run('rebuild')).toBe(2);
+    // Without its history Alghero would get an nk: key and a new id: blocking instead (§5.3).
+    expect(await box.run('rebuild')).toBe(1);
     expect(box.world.requests.length).toBe(sent);
     const summary = await box.summary();
-    expect(summary.anomalies.blocking).toBe(0);
     expect(summary.anomalies.by_code['internal-data-unavailable']).toMatchObject({ level: 'warning', anomalies: 1 });
+    expect(summary.anomalies.by_code['internal-data-required']).toMatchObject({ level: 'blocking', anomalies: 1 });
     expect(box.err).toContain('run update or rebuild --refetch');
+    expect(await files(box.config.paths.dist)).toEqual(dist);
+    expect(await files(box.config.paths.registry)).toEqual(registry);
   });
 
   it('without --refetch never fetches a missing snapshot: snapshot-unavailable (exit 3)', async () => {

@@ -34,7 +34,7 @@ import { compareDates, overlaps, type HalfOpenInterval, type IsoDate } from '../
 import type { Level } from '../model/common.ts';
 import { isoDateSchema } from '../model/public.ts';
 import { readTextIfExists, toJsonDocument, writeFileAtomic } from '../store/fs.ts';
-import { ENTITY_ANOMALIES } from './entities.ts';
+import { ENTITY_ANOMALIES, type InternalDataCause } from './entities.ts';
 
 export const REGISTRY_KINDS = [
   'region',
@@ -122,6 +122,8 @@ export interface AssignOptions {
   /** Date of the run (`dates.today`), recorded in `remaps.json`. */
   recordedOn: IsoDate;
   anomalies: AnomalyCollector;
+  /** Why the level's internal data is incomplete, for `internal-data-required` (default `absent`). */
+  internalCause?: InternalDataCause;
 }
 
 /** An entity to register (a resolved entity, §6.7). */
@@ -259,7 +261,7 @@ export class Registry {
       if (match === undefined) run.create(e.key, { members });
       else run.move(match[0], e.key, { members }, 'root-changed', true, { candidates: previous.map(([k]) => k) });
     }
-    this.#reportLostHistories(level, file.entries, entities, run, options.anomalies);
+    this.#reportLostHistories(level, file.entries, entities, run, options);
     return run.result();
   }
 
@@ -269,7 +271,7 @@ export class Registry {
     entries: ReadonlyMap<string, Entry>,
     entities: readonly EntityKeyInput[],
     run: { claimed: (key: string) => boolean },
-    anomalies: AnomalyCollector,
+    { anomalies, internalCause = 'absent' }: AssignOptions,
   ): void {
     const produced = new Set(entities.map((e) => e.key));
     const members = new Set(entities.flatMap((e) => e.members));
@@ -291,7 +293,7 @@ export class Registry {
           .map((l) => `${l.key} id ${l.id}`)
           .join(', ')}${lost.length > 5 ? ', …' : ''}): ` +
         'their ids cannot be kept without it',
-      context: { level, count: lost.length, entities: lost },
+      context: { level, cause: internalCause, count: lost.length, entities: lost },
     });
   }
 

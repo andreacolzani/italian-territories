@@ -144,7 +144,12 @@ describe('id registry (§5.3)', () => {
         [
           'blocking',
           'internal-data-required',
-          { level: 'municipality', count: 1, entities: [{ key: 'istat:2610', id: 2, members: [2610] }] },
+          {
+            level: 'municipality',
+            cause: 'absent',
+            count: 1,
+            entities: [{ key: 'istat:2610', id: 2, members: [2610] }],
+          },
         ],
       ]);
     });

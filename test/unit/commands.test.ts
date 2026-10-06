@@ -40,6 +40,18 @@ describe('exit codes (Step 17)', () => {
     expect(exitCodeOf([blocking('snapshot-unavailable'), blocking('snapshot-schema-violation')], false)).toBe(1);
     expect(exitCodeOf([blocking('completeness-unverified')], false)).toBe(1);
   });
+
+  it('internal-data-required follows its cause: unavailable is 3, absent is 1', () => {
+    const required = (cause: string) => ({
+      level: 'blocking' as const,
+      code: 'internal-data-required',
+      context: { cause },
+    });
+    expect(exitCodeOf([required('unavailable')], false)).toBe(3);
+    expect(exitCodeOf([required('unavailable'), blocking('internal-list-unavailable')], false)).toBe(3);
+    expect(exitCodeOf([required('absent')], false)).toBe(1);
+    expect(exitCodeOf([required('unavailable'), blocking('invariant-i9')], false)).toBe(1);
+  });
 });
 
 describe('offline run context (rebuild without --refetch)', () => {

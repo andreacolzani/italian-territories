@@ -32,6 +32,16 @@ import {
 import type { IdentityGraph } from './identity-graph.ts';
 import { keyOf, subjectSide, type TransitionResult } from './transitions.ts';
 
+/**
+ * Why internal data a decision needs is missing (`internal-data-required`, `context.cause`):
+ * `unavailable` when a request of the level could not be obtained because the source was
+ * unavailable (network, exhausted retries, open circuit, or a report missing from the store in an
+ * offline `rebuild`); `absent` when every request succeeded (or failed otherwise, with its own
+ * blocking anomaly) and the data is not there. With `unavailable` the anomaly counts among the
+ * unavailabilities (exit 3, Step 17); with `absent` it is exit 1.
+ */
+export type InternalDataCause = 'unavailable' | 'absent';
+
 /** An internal event as identity resolution needs it. */
 export type IdentityEvent = InternalAliasEvent;
 
@@ -84,6 +94,8 @@ export interface ResolveEntitiesOptions<L extends Level> {
   resolver: CodeResolver;
   /** `null` when the level was not crawled or its list could not be obtained. */
   internal: InternalIdentity | null;
+  /** Why the level's internal data is incomplete (default `absent`). */
+  internalCause?: InternalDataCause;
   anomalies: AnomalyCollector;
 }
 
@@ -176,7 +188,7 @@ export function resolveEntities<L extends Level>(options: ResolveEntitiesOptions
       members: [],
       intervals: piece.intervals,
     });
-    reportRootless(level, piece, internal, firstDate, transitions, anomalies);
+    reportRootless(level, piece, internal, options.internalCause ?? 'absent', firstDate, transitions, anomalies);
   }
   return entities.sort((a, b) => compareIntervals(firstOf(a), firstOf(b)) || compareStrings(a.key, b.key));
 }
@@ -276,6 +288,7 @@ function reportRootless<L extends Level>(
   level: Level,
   piece: Piece<L>,
   internal: InternalIdentity | null,
+  cause: InternalDataCause,
   firstDate: IsoDate | undefined,
   transitions: TransitionResult<L>,
   anomalies: AnomalyCollector,
@@ -296,7 +309,7 @@ function reportRootless<L extends Level>(
       level: 'blocking',
       code: ENTITY_ANOMALIES.internalDataRequired,
       message: `${level} ${start.code} from ${start.validFrom}: its identity needs internal data that could not be obtained`,
-      context,
+      context: { ...context, cause },
     });
   }
 }

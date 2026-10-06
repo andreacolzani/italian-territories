@@ -11,6 +11,7 @@ import { loadPublishedDataset, type PublishedDataset } from '../../src/emit/inde
 import { INVARIANT_IDS } from '../../src/invariants/index.ts';
 import { reportUrls } from '../../src/sources/situas-internal/index.ts';
 import { internalReportKey } from '../../src/store/index.ts';
+import { reportOf } from '../helpers/internal.ts';
 import { sandbox, type Sandbox } from '../helpers/commands.ts';
 import { publishedSchemaViolations } from '../helpers/json-schema.ts';
 import { baseWorld, withSettevilleFusion, withSilentCadastralChange } from '../helpers/world.ts';
@@ -156,6 +157,30 @@ describe('update', () => {
   });
 });
 
+describe('lost internal history', () => {
+  it('every request succeeded but the history of a registered entity is absent: exit 1, no id change', async () => {
+    const box = await bootstrapped(baseWorld());
+    const dist = await files(box.config.paths.dist);
+    const registry = await files(box.config.paths.registry);
+    // ISTAT no longer lists Alghero in r3, and no stored history covers it.
+    const url = reportUrls.municipalityEvents({ code: '090003', name: 'Alghero' });
+    await rm(join(box.config.paths.store, 'internal', 'reports', 'r6', `${internalReportKey(6, url)}.json`));
+    box.world.patch = (response, request) => {
+      if (reportOf(request) !== 3 || !response.body.includes('Alghero')) return response;
+      const { items } = JSON.parse(JSON.parse(response.body) as string) as { items: { comune: string }[] };
+      const kept = items.filter((i) => i.comune !== 'Alghero');
+      return { ...response, body: JSON.stringify(JSON.stringify({ items: kept })) };
+    };
+    expect(await box.run('update', '--today', '2026-10-02')).toBe(1);
+    const summary = await box.summary();
+    expect(summary.anomalies.by_code['internal-data-required']).toMatchObject({ level: 'blocking', anomalies: 1 });
+    expect(summary.anomalies.by_code['internal-data-unavailable']).toBeUndefined();
+    expect(box.err).toMatch(/"code":"internal-data-required","cause":"absent"/);
+    expect(await files(box.config.paths.dist)).toEqual(dist);
+    expect(await files(box.config.paths.registry)).toEqual(registry);
+  });
+});
+
 describe('rebuild', () => {
   it('without --refetch is offline: same data from the store, I13 and ANPR included (exit 0)', async () => {
     const box = await bootstrapped(baseWorld());
@@ -171,15 +196,17 @@ describe('rebuild', () => {
     expect(summary.anomalies.by_code['anpr-unavailable']).toBeUndefined();
   });
 
-  it('without --refetch never fetches a missing internal report, and never re-keys the entity (exit 1)', async () => {
+  it('without --refetch never fetches a missing internal report, and never re-keys the entity (exit 3)', async () => {
     const box = await bootstrapped(baseWorld());
     const dist = await files(box.config.paths.dist);
     const registry = await files(box.config.paths.registry);
     const url = reportUrls.municipalityEvents({ code: '090003', name: 'Alghero' });
     await rm(join(box.config.paths.store, 'internal', 'reports', 'r6', `${internalReportKey(6, url)}.json`));
     const sent = box.world.requests.length;
-    // Without its history Alghero would get an nk: key and a new id: blocking instead (§5.3).
-    expect(await box.run('rebuild')).toBe(1);
+    // Without its history Alghero would get an nk: key and a new id: blocking instead (§5.3), and
+    // the history is missing because the report could not be obtained: an unavailability.
+    expect(await box.run('rebuild')).toBe(3);
+    expect(box.err).toMatch(/"code":"internal-data-required","cause":"unavailable"/);
     expect(box.world.requests.length).toBe(sent);
     const summary = await box.summary();
     expect(summary.anomalies.by_code['internal-data-unavailable']).toMatchObject({ level: 'warning', anomalies: 1 });

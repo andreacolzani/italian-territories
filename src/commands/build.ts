@@ -30,6 +30,7 @@ import {
   internalIdentity,
   Registry,
   resolveLevelIdentity,
+  type InternalDataCause,
   type InternalIdentity,
   type LevelIdentity,
 } from '../identity/index.ts';
@@ -46,6 +47,7 @@ import type { EntityByLevel, Variation } from '../model/internal.ts';
 import { loadOverrides, OverrideRun, type AppliedOverride } from '../overrides/index.ts';
 import { loadIntervalIndex, type IntervalIndex } from '../resolve/index.ts';
 import type { AnprRecord } from '../sources/anpr/index.ts';
+import type { InternalReportNumber } from '../sources/situas-internal/index.ts';
 import type { EventListsByLevel } from './acquire.ts';
 import { silentProgress, type StageProgress } from '../progress.ts';
 import type { RunContext } from './context.ts';
@@ -86,6 +88,10 @@ export async function buildDataset(
     municipality: await loadIntervalIndex(store, 'municipality', dates, anomalies),
   };
   const internal = internalIdentities(input.internal);
+  const internalCause = (level: Level): InternalDataCause =>
+    input.internal.failures.some((f) => REPORT_LEVELS[f.item.report] === level && f.cause === 'unavailable')
+      ? 'unavailable'
+      : 'absent';
 
   const identify = <L extends Level>(level: L, index: IntervalIndex<L>) => {
     progress.step(`identity: ${level}`);
@@ -93,10 +99,14 @@ export async function buildDataset(
       level,
       index,
       internal: internal[level],
+      internalCause: internalCause(level),
       eventLists: input.eventLists[level],
       anomalies,
     });
-    const { ids } = registry.assignEntities(level, identity.entities, assign);
+    const { ids } = registry.assignEntities(level, identity.entities, {
+      ...assign,
+      internalCause: internalCause(level),
+    });
     const entities: IdentifiedEntity<L>[] = identity.entities.map((e) => {
       const id = ids.get(e.key);
       if (id === undefined) throw new Error(`no registry id for ${level} ${e.key}`);
@@ -225,6 +235,19 @@ export async function buildDataset(
     retroactiveRemaps: registry.retroactive,
   };
 }
+
+/** The level of each internal report (lists, events, details). */
+const REPORT_LEVELS: Record<InternalReportNumber, Level> = {
+  1: 'region',
+  2: 'province',
+  3: 'municipality',
+  4: 'region',
+  5: 'province',
+  6: 'municipality',
+  7: 'region',
+  8: 'province',
+  9: 'municipality',
+};
 
 /** The internal identity of each crawled level (the crawl's events, by their typed record). */
 function internalIdentities(crawl: InternalCrawlResult): Record<Level, InternalIdentity | null> {

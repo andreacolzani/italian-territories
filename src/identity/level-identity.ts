@@ -15,7 +15,7 @@ import type { AnomalyCollector } from '../anomalies.ts';
 import type { Level } from '../model/common.ts';
 import { CodeResolver, municipalityAliases, type CodeAlias, type IntervalIndex } from '../resolve/index.ts';
 import type { EventListPfunOf, EventRowByLevel, MunicipalityEventRow } from '../sources/situas-public/index.ts';
-import { resolveEntities, type InternalIdentity, type ResolvedEntity } from './entities.ts';
+import { resolveEntities, type InternalDataCause, type InternalIdentity, type ResolvedEntity } from './entities.ts';
 import {
   ENDING_EVENTS,
   matchTransitions,
@@ -36,6 +36,8 @@ export interface LevelIdentityOptions<L extends Level> {
   index: IntervalIndex<L>;
   /** `null` when the level was not crawled or its list could not be obtained (Step 7). */
   internal: InternalIdentity | null;
+  /** Why the level's internal data is incomplete (`internal-data-required`, default `absent`). */
+  internalCause?: InternalDataCause;
   eventLists: LevelEventLists<L>;
   anomalies: AnomalyCollector;
 }
@@ -88,7 +90,13 @@ export function resolveLevelIdentity<L extends Level>(options: LevelIdentityOpti
     typeChanges: changes,
     anomalies,
   });
-  const entities = resolveEntities({ transitions, resolver, internal, anomalies });
+  const entities = resolveEntities({
+    transitions,
+    resolver,
+    internal,
+    ...(options.internalCause === undefined ? {} : { internalCause: options.internalCause }),
+    anomalies,
+  });
   return { transitions, entities, resolver };
 }
 

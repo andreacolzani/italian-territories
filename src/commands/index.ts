@@ -105,7 +105,11 @@ async function finish(
   });
   await writeRunSummary(options.config.paths.runSummary, summary);
   const blocking = ctx.anomalies.list('blocking');
-  for (const anomaly of blocking.slice(0, MAX_LOGGED_BLOCKING)) logger.error(anomaly.message, { code: anomaly.code });
+  for (const anomaly of blocking.slice(0, MAX_LOGGED_BLOCKING)) {
+    // The cause decides the exit code of some codes (`internal-data-required`): logged with it.
+    const { cause } = anomaly.context;
+    logger.error(anomaly.message, { code: anomaly.code, ...(typeof cause === 'string' ? { cause } : {}) });
+  }
   if (blocking.length > MAX_LOGGED_BLOCKING) {
     logger.error(`${blocking.length - MAX_LOGGED_BLOCKING} more blocking anomalies (see the run summary)`);
   }

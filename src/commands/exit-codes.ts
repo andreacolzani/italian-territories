@@ -4,9 +4,12 @@
  * unavailable (timeouts, connection errors, 5xx or 429 after exhausted retries, open circuit).
  *
  * A run whose only blocking anomalies are unavailabilities (and the completeness checks they left
- * unverified) exits with 3; any other blocking anomaly makes it 1.
+ * unverified) exits with 3; any other blocking anomaly makes it 1. `internal-data-required` is an
+ * unavailability when its `context.cause` is `unavailable` (a request failed), not when it is
+ * `absent` (every request succeeded and the data is not there).
  */
 import { SNAPSHOT_ANOMALIES, type SnapshotFailureCause } from '../completeness/index.ts';
+import { ENTITY_ANOMALIES } from '../identity/index.ts';
 import type { Anomaly } from '../model/internal.ts';
 
 export const EXIT_CODES = { success: 0, blocking: 1, retroactive: 2, unavailable: 3 } as const;
@@ -40,12 +43,20 @@ export const UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
 /** Blocking codes that follow from an unavailability and do not decide the exit code. */
 const CONSEQUENCE_CODES: ReadonlySet<string> = new Set([SNAPSHOT_ANOMALIES.unverified]);
 
-export function exitCodeOf(anomalies: readonly Pick<Anomaly, 'level' | 'code'>[], retroactive: boolean): ExitCode {
+type ExitAnomaly = Pick<Anomaly, 'level' | 'code'> & { context?: Readonly<Record<string, unknown>> };
+
+/** A blocking anomaly that means "unavailable" (by code, or by the cause of `internal-data-required`). */
+function isUnavailability(anomaly: ExitAnomaly): boolean {
+  if (UNAVAILABLE_CODES.has(anomaly.code)) return true;
+  return anomaly.code === ENTITY_ANOMALIES.internalDataRequired && anomaly.context?.cause === 'unavailable';
+}
+
+export function exitCodeOf(anomalies: readonly ExitAnomaly[], retroactive: boolean): ExitCode {
   const blocking = anomalies.filter((a) => a.level === 'blocking');
-  if (blocking.some((a) => !UNAVAILABLE_CODES.has(a.code) && !CONSEQUENCE_CODES.has(a.code))) {
+  if (blocking.some((a) => !isUnavailability(a) && !CONSEQUENCE_CODES.has(a.code))) {
     return EXIT_CODES.blocking;
   }
-  if (blocking.some((a) => UNAVAILABLE_CODES.has(a.code))) return EXIT_CODES.unavailable;
+  if (blocking.some(isUnavailability)) return EXIT_CODES.unavailable;
   // `completeness-unverified` alone cannot happen without a failure; treat it as blocking.
   if (blocking.length > 0) return EXIT_CODES.blocking;
   return retroactive ? EXIT_CODES.retroactive : EXIT_CODES.success;

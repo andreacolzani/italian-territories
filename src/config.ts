@@ -52,6 +52,13 @@ const httpSchema = z
       .prefault({}),
     /** Consecutive failed attempts on a family before its circuit opens (§6.1). */
     circuitBreakerThreshold: z.int().min(1).default(10),
+    /** ...and for at least this long: a blip of a few seconds never opens it. */
+    circuitBreakerMinFailureMs: z.int().min(0).default(60_000),
+    /** Wait before the first probe of an open circuit; doubled at every reopening. */
+    circuitBreakerCooldownMs: z.int().min(0).default(60_000),
+    circuitBreakerMaxCooldownMs: z.int().min(0).default(600_000),
+    /** Total open time after which the family is given up for the run (exit 3). */
+    circuitBreakerMaxOpenMs: z.int().min(0).default(900_000),
     userAgent: z
       .string()
       .min(1)

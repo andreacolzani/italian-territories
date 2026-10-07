@@ -7,7 +7,7 @@ import { runSummarySchema, type RunProcess, type RunSummary } from '../../src/co
 import type { RunProcessEvent } from '../../src/commands/context.ts';
 import type { Scheduler } from '../../src/progress.ts';
 import { resolveConfig, type Config, type ConfigInput } from '../../src/config.ts';
-import { fakeClock } from './http.ts';
+import { fakeClock, type FakeClock } from './http.ts';
 import { worldTransport, type World, type WorldTransport } from './world.ts';
 
 /** The process of a sandboxed run: signals and fatal errors are emitted by the test. */
@@ -62,6 +62,8 @@ export interface Sandbox {
   dir: string;
   config: Config;
   world: WorldTransport;
+  /** Virtual clock of the HTTP client: its date stamps the cached responses. */
+  clock: FakeClock;
   process: FakeProcess;
   scheduler: FakeScheduler;
   /** Lines of stderr written so far by the current run. */
@@ -87,7 +89,8 @@ export const TEST_OVERRIDES = [
   },
 ];
 
-export async function sandbox(world: World, input: Pick<ConfigInput, 'update'> = {}): Promise<Sandbox> {
+/** `http` overrides the sandbox's fast HTTP settings. */
+export async function sandbox(world: World, input: Pick<ConfigInput, 'update' | 'http'> = {}): Promise<Sandbox> {
   const dir = await mkdtemp(join(tmpdir(), 'it-commands-'));
   const overrides = join(dir, 'overrides');
   await mkdir(overrides, { recursive: true });
@@ -102,6 +105,7 @@ export async function sandbox(world: World, input: Pick<ConfigInput, 'update'> =
       backoffMaxMs: 10,
       maxAttempts: 2,
       circuitBreakerThreshold: 1000,
+      ...input.http,
     },
   });
   const transport = worldTransport(world);
@@ -111,6 +115,7 @@ export async function sandbox(world: World, input: Pick<ConfigInput, 'update'> =
     dir,
     config,
     world: transport,
+    clock,
     process: fakeProcess(),
     scheduler: fakeScheduler(),
     live: [],

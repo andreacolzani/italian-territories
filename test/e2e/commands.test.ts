@@ -16,6 +16,8 @@ import { sandbox, type Sandbox } from '../helpers/commands.ts';
 import { publishedSchemaViolations } from '../helpers/json-schema.ts';
 import { baseWorld, withSettevilleFusion, withSilentCadastralChange } from '../helpers/world.ts';
 
+const DAY = 86_400_000;
+
 let boxes: Sandbox[] = [];
 afterEach(async () => {
   await Promise.all(boxes.map((b) => b.dispose()));
@@ -248,7 +250,9 @@ describe('rebuild', () => {
     expect((await loadCalendar(box.config.paths.store))?.dates.get('2015-05-01')).toEqual(['inferred']);
 
     box.world.world = baseWorld();
-    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-01')).toBe(2);
+    // A refetch accepts what was downloaded from its today on: the next day, everything is fetched.
+    box.clock.advance(DAY);
+    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-02')).toBe(2);
     expect((await box.summary()).anomalies.by_code['inferred-breakpoint-removed']).toMatchObject({ level: 'info' });
     expect((await loadCalendar(box.config.paths.store))?.dates.has('2015-05-01')).toBe(false);
     const padova = municipality(await published(box), '028060');
@@ -272,12 +276,53 @@ describe('rebuild', () => {
       peak = Math.max(peak, ++active);
       return new Promise<void>((resolve) => setImmediate(resolve)).finally(() => active--);
     };
-    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-01')).toBe(0);
+    box.clock.advance(DAY);
+    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-02')).toBe(0);
     expect(refreshRequests).toBeGreaterThan(box.config.http.maxConcurrency);
     // Above one: the stage no longer waits for each snapshot; the HTTP client's AIMD limit caps it.
     expect(peak).toBeGreaterThan(1);
     expect(peak).toBeLessThanOrEqual(box.config.http.maxConcurrency);
     expect((await box.summary()).refreshed_snapshots).toBe(refreshRequests);
+  });
+
+  it('an outage of 45 s during a refetch loses no request (exit 0)', async () => {
+    // Plan timings for the circuit breaker (threshold 10, 60 s); retries cycle every 10 s.
+    const box = await bootstrapped(baseWorld(), {
+      http: { circuitBreakerThreshold: 10, backoffBaseMs: 100, backoffMaxMs: 10_000 },
+    });
+    box.clock.advance(DAY);
+    // Every request fails for 45 s from the first snapshot request (e.g. DNS down).
+    let start: number | undefined;
+    box.world.failing = (request) => {
+      const now = box.clock.clock.now();
+      if (start === undefined && request.url.includes('/reportspooljson?pfun=')) start = now;
+      return start !== undefined && now - start < 45_000;
+    };
+    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-02')).toBe(0);
+    expect(box.err).toContain('"msg":"http request held"');
+    expect(box.err).not.toContain('circuit');
+    expect((await box.summary()).anomalies.blocking).toBe(0);
+  });
+
+  it('--refetch interrupted and run again the same day sends no request twice', async () => {
+    const box = await bootstrapped(baseWorld());
+    box.clock.advance(DAY);
+    const served: string[] = [];
+    box.world.patch = (response, request) => {
+      served.push(`${request.method} ${request.url} ${JSON.stringify(request.body ?? null)}`);
+      return response;
+    };
+    // The snapshots stop answering midway: the first run ends unavailable (exit 3).
+    let snapshots = 0;
+    box.world.failing = (request) => request.url.includes('/reportspooljson?') && ++snapshots > 10;
+    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-02')).toBe(3);
+    const first = served.length;
+    expect(first).toBeGreaterThan(0);
+
+    box.world.failing = null;
+    expect(await box.run('rebuild', '--refetch', '--today', '2026-10-02')).toBe(0);
+    expect(served.length).toBeGreaterThan(first);
+    expect(served.filter((r, i) => served.indexOf(r) !== i)).toEqual([]);
   });
 });
 

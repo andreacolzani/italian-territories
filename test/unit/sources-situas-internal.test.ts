@@ -63,8 +63,12 @@ describe('internal lists (r1–r3)', () => {
   it('treats an empty list as transient (impossible for r1–r3)', async () => {
     await withSources(
       async ({ situasInternal, calls }) => {
-        await expect(situasInternal.regionList()).rejects.toBeInstanceOf(RetriesExhaustedError);
-        expect(calls).toHaveLength(3);
+        const error = await situasInternal.regionList().catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(RetriesExhaustedError);
+        expect(error).toMatchObject({ attempts: 3 });
+        // 1 + 2 transient retries; then, alone in its family, it keeps trying until its failures
+        // reach the circuit threshold (10) and gives up without opening the circuit (§6.1, D38).
+        expect(calls).toHaveLength(10);
       },
       { transport: constant(plain([], 'text/plain')) },
     );

@@ -65,7 +65,16 @@ describe('logger', () => {
       delayMs: 800,
     });
     onEvent({ type: 'concurrency', host: 'situas-servizi.istat.it', limit: 2 });
-    onEvent({ type: 'circuit-open', family: 'situas-internal', reason: '10 consecutive failures' });
+    onEvent({
+      type: 'circuit-open',
+      family: 'situas-internal',
+      reason: '10 consecutive failures',
+      retryInMs: 60_000,
+      reopened: false,
+    });
+    onEvent({ type: 'circuit-closed', family: 'situas-internal', openMs: 60_000 });
+    onEvent({ type: 'request-held', endpoint: 'snapshot:pfun-61', request: REQUEST, attempts: 6, reason: 'HTTP 503' });
+    onEvent({ type: 'circuit-lost', family: 'situas-internal', reason: 'open for 900000 ms', openMs: 900_000 });
     onEvent({
       type: 'validation-error',
       endpoint: 'snapshot:pfun-61',
@@ -103,16 +112,22 @@ describe('logger', () => {
     expect(lines.map((l) => [l.event, l.level])).toEqual([
       ['retry', 'info'],
       ['concurrency', 'debug'],
-      ['circuit-open', 'error'],
+      ['circuit-open', 'warn'],
+      ['circuit-closed', 'info'],
+      ['request-held', 'info'],
+      ['circuit-lost', 'error'],
       ['validation-error', 'error'],
       ['validation-error', 'debug'],
       ['changed', 'warn'],
       ['degraded', 'warn'],
     ]);
     expect(lines[0]).toMatchObject({ url: REQUEST.url, attempt: 2, delay_ms: 800 });
-    expect(lines[3]).toMatchObject({ error: 'bad rows', issues: [{ index: 3, message: 'COD_UTS missing' }] });
-    expect(lines[3]).toMatchObject({ msg: 'http endpoint disabled' });
-    expect(lines[6]).toMatchObject({ body: { url: 'var_get_ua_uts_lov_rs?&uts=Sassari' }, fetched_at: '2026-09-30' });
+    expect(lines[2]).toMatchObject({ msg: 'http circuit open', retry_in_ms: 60_000 });
+    expect(lines[4]).toMatchObject({ msg: 'http request held', url: REQUEST.url, attempts: 6 });
+    expect(lines[5]).toMatchObject({ msg: 'http circuit lost', open_ms: 900_000 });
+    expect(lines[6]).toMatchObject({ error: 'bad rows', issues: [{ index: 3, message: 'COD_UTS missing' }] });
+    expect(lines[6]).toMatchObject({ msg: 'http endpoint disabled' });
+    expect(lines[9]).toMatchObject({ body: { url: 'var_get_ua_uts_lov_rs?&uts=Sassari' }, fetched_at: '2026-09-30' });
   });
 });
 

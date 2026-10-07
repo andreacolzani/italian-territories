@@ -13,7 +13,7 @@ import { ANPR_ANOMALIES, loadAnpr, reportDroppedRows } from '../crosscheck/index
 import { compareDates, maxDate, subtractDays, type IsoDate } from '../dates/index.ts';
 import { checkEventRules } from '../build/index.ts';
 import { crawlInternal, saveEventCodeSummary, type CrawlItem, type InternalCrawlResult } from '../enrich/index.ts';
-import { canonicalJson } from '../http/index.ts';
+import { canonicalJson, type CachePolicy } from '../http/index.ts';
 import type { LevelEventLists } from '../identity/index.ts';
 import { LEVELS, type Level } from '../model/common.ts';
 import { anprRecord, type AnprIssue, type AnprRecord } from '../sources/anpr/index.ts';
@@ -27,6 +27,15 @@ export type RunMode = 'bootstrap' | 'update' | 'rebuild' | 'rebuild-refetch';
 
 export function isOffline(mode: RunMode): boolean {
   return mode === 'rebuild';
+}
+
+/**
+ * HTTP cache policy of the mandatory refreshes (§6.1): `rebuild --refetch` accepts what was
+ * downloaded from `today` on, so an interrupted refetch run again the same day resumes where it
+ * stopped; every other mode always goes to the network.
+ */
+export function refreshPolicy(mode: RunMode, today: IsoDate): CachePolicy {
+  return mode === 'rebuild-refetch' ? { fetchedSince: today } : 'refresh';
 }
 
 /** `adapter_stats` key of the stored ANPR manifest: the issues of the dropped rows (canonical JSON). */
@@ -65,7 +74,7 @@ export async function acquireEventLists(
       const level = EVENT_LISTS[pfun].level;
       try {
         const { data, fetchedAt } = await ctx.sources.situasPublic.fetchEventList(level, pfun, from, today, {
-          cache: 'refresh',
+          cache: refreshPolicy(mode, today),
         });
         const put = await store.putEventList(pfun, from, today, { fetchedAt, rows: data });
         progress.done();
@@ -149,6 +158,7 @@ export async function acquireInternal(
     anomalies: ctx.anomalies,
     concurrency: ctx.config.http.maxConcurrency,
     mustRefresh,
+    refreshPolicy: refreshPolicy(mode, ctx.today),
     logger: ctx.logger,
     progress,
   });
@@ -180,7 +190,11 @@ export async function acquireInternal(
 export async function acquireAnpr(ctx: RunContext, mode: RunMode): Promise<AnprRecord[] | null> {
   const { store, anomalies } = ctx;
   if (!isOffline(mode)) {
-    const data = await loadAnpr({ source: ctx.sources.anpr, anomalies, request: { cache: 'refresh' } });
+    const data = await loadAnpr({
+      source: ctx.sources.anpr,
+      anomalies,
+      request: { cache: refreshPolicy(mode, ctx.today) },
+    });
     if (data === null) return null;
     await store.putAnpr({
       fetchedAt: data.fetchedAt,
@@ -222,7 +236,7 @@ export async function acquireCounts(ctx: RunContext, mode: RunMode): Promise<Rec
         const { data, fetchedAt } = await ctx.sources.situasPublic.fetchCount(
           pfun,
           { date: today },
-          { cache: 'refresh' },
+          { cache: refreshPolicy(mode, today) },
         );
         await store.putCount(pfun, today, { fetchedAt, rows: [{ count: data }] });
       } catch (error) {

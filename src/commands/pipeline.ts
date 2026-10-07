@@ -26,7 +26,7 @@ import type { InternalCrawlResult } from '../enrich/index.ts';
 import type { Level } from '../model/common.ts';
 import type { AnprRecord } from '../sources/anpr/index.ts';
 import { EVENT_LISTS, type EventListPfun } from '../sources/situas-public/index.ts';
-import { acquireSources, isOffline, type EventListsByLevel, type RunMode } from './acquire.ts';
+import { acquireSources, isOffline, refreshPolicy, type EventListsByLevel, type RunMode } from './acquire.ts';
 import { RefreshBudget, runAudit, type AuditResult } from './audit.ts';
 import { buildDataset } from './build.ts';
 import { refreshStoredSnapshots } from './refresh.ts';
@@ -95,7 +95,11 @@ export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitC
   if (mode === 'rebuild-refetch') {
     const unbounded = new RefreshBudget(Number.POSITIVE_INFINITY);
     ctx.summary.refreshedSnapshots = await timed(ctx, 'refresh', (progress) =>
-      refreshStoredSnapshots(ctx, config.dates.start, today, unbounded, { refreshed, progress }),
+      refreshStoredSnapshots(ctx, config.dates.start, today, unbounded, {
+        refreshed,
+        progress,
+        policy: refreshPolicy(mode, today),
+      }),
     );
   }
 
@@ -110,6 +114,7 @@ export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitC
         mustRefresh: (level, date) =>
           (refreshAll && !refreshed.has(`${level}|${date}`)) || (!isOffline(mode) && date === today),
         offline: isOffline(mode),
+        refreshPolicy: refreshPolicy(mode, today),
       }),
       anomalies,
       concurrency: config.http.maxConcurrency,

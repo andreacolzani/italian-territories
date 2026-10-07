@@ -7,16 +7,17 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
-import { daysBetween, type IsoDate } from '../dates/index.ts';
+import { compareDates, daysBetween, type IsoDate } from '../dates/index.ts';
 import { isoDateSchema } from '../model/public.ts';
 import { isReportBody } from './encode.ts';
 import type { HttpRequest } from './transport.ts';
 
 /**
  * `prefer`: use the entry if present; `refresh`: always refetch; `maxAgeDays`: use the entry
- * only if it was fetched at most that many days ago.
+ * only if it was fetched at most that many days ago; `fetchedSince`: use the entry only if it was
+ * fetched on that date or later (`rebuild --refetch`: an interrupted run resumes, §6.1).
  */
-export type CachePolicy = 'prefer' | 'refresh' | { maxAgeDays: number };
+export type CachePolicy = 'prefer' | 'refresh' | { maxAgeDays: number } | { fetchedSince: IsoDate };
 
 const cacheEntrySchema = z.strictObject({
   version: z.literal(1),
@@ -87,6 +88,7 @@ export function cacheKey(request: HttpRequest): string {
 export function isFresh(entry: CacheEntry, policy: CachePolicy, today: IsoDate): boolean {
   if (policy === 'prefer') return true;
   if (policy === 'refresh') return false;
+  if ('fetchedSince' in policy) return compareDates(entry.fetched_at, policy.fetchedSince) >= 0;
   return daysBetween(entry.fetched_at, today) <= policy.maxAgeDays;
 }
 

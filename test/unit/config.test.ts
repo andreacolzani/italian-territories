@@ -13,6 +13,10 @@ describe('config', () => {
     expect(config.http.aimdIncreaseAfter).toBe(20);
     expect(config.http.requestsPerSecond).toBe(5);
     expect(config.http.circuitBreakerThreshold).toBe(10);
+    expect(config.http.circuitBreakerMinFailureMs).toBe(60_000);
+    expect(config.http.circuitBreakerCooldownMs).toBe(60_000);
+    expect(config.http.circuitBreakerMaxCooldownMs).toBe(600_000);
+    expect(config.http.circuitBreakerMaxOpenMs).toBe(900_000);
     expect(config.http.timeouts).toEqual({ snapshotMs: 120_000, defaultMs: 30_000 });
     expect(config.dates.start).toBe('1861-03-17');
     expect(config.update.lookbackDays).toBe(365);

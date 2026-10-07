@@ -172,7 +172,8 @@ describe('fetch transport against a local server', () => {
       const error = await c.request(publicEndpoint(), { method: 'GET', url: `${base}/hang` }).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(RetriesExhaustedError);
       expect(error).toMatchObject({ attempts: 2, lastFailure: 'timeout after 100 ms' });
-      expect(received).toHaveLength(2);
+      // Alone in its family, it keeps trying up to the circuit threshold (10), then gives up (D38).
+      expect(received).toHaveLength(10);
     }));
 
   it('reports connection resets as network errors and retries them', () =>

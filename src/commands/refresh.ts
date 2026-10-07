@@ -17,6 +17,7 @@ import {
   type SnapshotFailureCause,
 } from '../completeness/index.ts';
 import { isBetweenInclusive, type IsoDate } from '../dates/index.ts';
+import type { CachePolicy } from '../http/index.ts';
 import { LEVELS, type Level } from '../model/common.ts';
 import { silentProgress, type StageProgress } from '../progress.ts';
 import type { RefreshBudget } from './audit.ts';
@@ -32,12 +33,14 @@ export async function refreshStoredSnapshots(
   to: IsoDate,
   budget: RefreshBudget,
   options: {
+    /** HTTP cache policy of the refreshes (default `refresh`; `rebuild --refetch`: `fetchedSince`). */
+    policy?: CachePolicy;
     /** Receives `<level>|<date>` of every snapshot refreshed. */
     refreshed?: Set<string>;
     progress?: StageProgress;
   } = {},
 ): Promise<number> {
-  const { refreshed, progress = silentProgress } = options;
+  const { refreshed, progress = silentProgress, policy = 'refresh' } = options;
   const { store, anomalies } = ctx;
   const targets: { level: Level; date: IsoDate }[] = [];
   for (const level of LEVELS) {
@@ -47,7 +50,12 @@ export async function refreshStoredSnapshots(
   }
   if (!budget.consume(ctx, targets.length)) return 0;
   progress.add(targets.length);
-  const provider = storeSnapshotProvider({ store, source: ctx.sources.situasPublic, mustRefresh: () => true });
+  const provider = storeSnapshotProvider({
+    store,
+    source: ctx.sources.situasPublic,
+    mustRefresh: () => true,
+    refreshPolicy: policy,
+  });
 
   // Bounded concurrency, as the snapshot stage: the workers share one queue; outcomes are reported
   // afterwards in target order, so counts and anomalies do not depend on completion order.

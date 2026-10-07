@@ -26,7 +26,7 @@
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { failureCause, type SnapshotFailureCause } from '../completeness/index.ts';
-import { canonicalJson, type ClientResult, type RequestOptions } from '../http/index.ts';
+import { canonicalJson, type CachePolicy, type ClientResult, type RequestOptions } from '../http/index.ts';
 import { buildIdentityGraph, type IdentityGraph, type IdentitySource } from '../identity/identity-graph.ts';
 import { silentLogger, type Logger } from '../logger.ts';
 import { silentProgress, type StageProgress } from '../progress.ts';
@@ -127,6 +127,8 @@ export interface InternalCrawlOptions {
   concurrency: number;
   /** Requests whose refresh is mandatory (default: none). */
   mustRefresh?: (item: CrawlItem) => boolean;
+  /** HTTP cache policy of the mandatory refreshes (default `refresh`). */
+  refreshPolicy?: CachePolicy;
   /**
    * Offline run (`rebuild` without `--refetch`): only the store is read; a missing report is
    * unavailable (`internal-data-unavailable`, or `internal-list-unavailable` for r1–r3), never fetched.
@@ -156,6 +158,7 @@ class Crawl {
   readonly #store: Store;
   readonly #anomalies: AnomalyCollector;
   readonly #mustRefresh: (item: CrawlItem) => boolean;
+  readonly #refreshPolicy: CachePolicy;
   readonly #offline: boolean;
   readonly #logger: Logger;
   readonly #progress: StageProgress;
@@ -177,6 +180,7 @@ class Crawl {
     this.#store = options.store;
     this.#anomalies = options.anomalies;
     this.#mustRefresh = options.mustRefresh ?? (() => false);
+    this.#refreshPolicy = options.refreshPolicy ?? 'refresh';
     this.#offline = options.offline ?? false;
     this.#logger = options.logger ?? silentLogger;
     this.#progress = options.progress ?? silentProgress;
@@ -471,6 +475,7 @@ class Crawl {
         report: item.report,
         reportUrl,
         refresh: this.#mustRefresh(item),
+        refreshPolicy: this.#refreshPolicy,
         offline: this.#offline,
         fetch: (options) => {
           this.#requests[item.report]++;

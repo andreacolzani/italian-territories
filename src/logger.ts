@@ -78,7 +78,24 @@ export function logHttpEvents(logger: Logger): (event: HttpClientEvent) => void 
         logger.debug('http concurrency', { event: event.type, host: event.host, limit: event.limit });
         return;
       case 'circuit-open':
-        logger.error('http circuit open', { event: event.type, family: event.family, reason: event.reason });
+        // Recoverable: requests of the family wait for a probe (§6.1).
+        logger.warn(event.reopened ? 'http circuit reopened' : 'http circuit open', {
+          event: event.type,
+          family: event.family,
+          reason: event.reason,
+          retry_in_ms: event.retryInMs,
+        });
+        return;
+      case 'circuit-closed':
+        logger.info('http circuit closed', { event: event.type, family: event.family, open_ms: event.openMs });
+        return;
+      case 'circuit-lost':
+        logger.error('http circuit lost', {
+          event: event.type,
+          family: event.family,
+          reason: event.reason,
+          open_ms: event.openMs,
+        });
         return;
       case 'validation-error':
         // One line when the endpoint is disabled; later requests are refused silently (counted).
@@ -100,6 +117,16 @@ export function logHttpEvents(logger: Logger): (event: HttpClientEvent) => void 
           ...requestFields(event.request),
           previous_content_hash: event.previousContentHash,
           content_hash: event.contentHash,
+        });
+        return;
+      case 'request-held':
+        // Out of attempts while its family is failing: it waits for the family's verdict (§6.1).
+        logger.info('http request held', {
+          event: event.type,
+          endpoint: event.endpoint,
+          ...requestFields(event.request),
+          attempts: event.attempts,
+          reason: event.reason,
         });
         return;
       case 'degraded':

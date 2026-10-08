@@ -12,13 +12,6 @@ yarn-error.log*
 # Build output (dist/ holds the published dataset)
 /lib
 
-# Not committed until the first release (plan, Step 17 note): no release, no reports, no registry yet
-/dist/*
-!/dist/.gitkeep
-/reports/*
-!/reports/.gitkeep
-/registry/*
-!/registry/.gitkeep
 /coverage
 
 # Local HTTP response cache and data-cache worktree

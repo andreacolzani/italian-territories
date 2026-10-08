@@ -1,0 +1,4250 @@
+[
+  {
+    "id": "prv-08A1MY",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2014-12-31",
+        "istat_code": "015",
+        "official_name": "Milano",
+        "italian_name": "Milano",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MI",
+        "region_id": "reg-9X12C3"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "215",
+        "official_name": "Milano",
+        "italian_name": "Milano",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "MI",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-0DHYQS",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "043",
+        "official_name": "Macerata",
+        "italian_name": "Macerata",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MC",
+        "region_id": "reg-KM2Y1Y"
+      }
+    ]
+  },
+  {
+    "id": "prv-0Y9J5V",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-KTNDFG",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      },
+      {
+        "id": "prv-MDESKM",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "097",
+        "official_name": "Lecco",
+        "italian_name": "Lecco",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LC",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-16AXF3",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-FW6CBZ",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "055",
+        "official_name": "Terni",
+        "italian_name": "Terni",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TR",
+        "region_id": "reg-15XBF3"
+      }
+    ]
+  },
+  {
+    "id": "prv-19ST5G",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-4AX98C",
+        "kind": "split_into",
+        "date": "2016-04-28"
+      },
+      {
+        "id": "prv-4M2T0N",
+        "kind": "detached_into",
+        "date": "2016-04-28"
+      },
+      {
+        "id": "prv-5028FY",
+        "kind": "merged_into",
+        "date": "2016-04-28"
+      },
+      {
+        "id": "prv-KFWWV0",
+        "kind": "detached_into",
+        "date": "2016-04-28"
+      },
+      {
+        "id": "prv-MSFE16",
+        "kind": "merged_into",
+        "date": "2016-04-28"
+      }
+    ],
+    "successors": [
+      {
+        "id": "prv-87NW8Q",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      },
+      {
+        "id": "prv-AFJQBV",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      },
+      {
+        "id": "prv-GYJQSY",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      },
+      {
+        "id": "prv-KFWWV0",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      },
+      {
+        "id": "prv-X4WPF1",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      }
+    ],
+    "current_successors": [
+      "prv-87NW8Q",
+      "prv-AFJQBV",
+      "prv-GYJQSY",
+      "prv-KFWWV0",
+      "prv-X4WPF1"
+    ],
+    "versions": [
+      {
+        "valid_from": "2016-04-28",
+        "valid_until": "2025-12-31",
+        "istat_code": "111",
+        "official_name": "Sud Sardegna",
+        "italian_name": "Sud Sardegna",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SU",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-1DANW3",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-BE1KS8",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-VFRAVK",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": "1927-11-30",
+        "istat_code": "086",
+        "official_name": "Castrogiovanni",
+        "italian_name": "Castrogiovanni",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "EN",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "1927-12-01",
+        "valid_until": "2016-06-05",
+        "istat_code": "086",
+        "official_name": "Enna",
+        "italian_name": "Enna",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "EN",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "086",
+        "official_name": "Enna",
+        "italian_name": "Enna",
+        "foreign_name": null,
+        "type": "free_municipal_consortium",
+        "abbreviation": "EN",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-1W76NM",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "003",
+        "official_name": "Novara",
+        "italian_name": "Novara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "NO",
+        "region_id": "reg-5WKQVA"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "003",
+        "official_name": "Novara",
+        "italian_name": "Novara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "NO",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-26Z7B6",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "018",
+        "official_name": "Pavia",
+        "italian_name": "Pavia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PV",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-29HBDK",
+    "status": "suppressed",
+    "is_former_italian": true,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-CSFCR4",
+        "kind": "split_into",
+        "date": "1923-02-08"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1923-02-08",
+        "valid_until": "1947-09-15",
+        "istat_code": "702",
+        "official_name": "Istria (Pola)",
+        "italian_name": "Istria (Pola)",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PL",
+        "region_id": "reg-GWC1MY"
+      }
+    ]
+  },
+  {
+    "id": "prv-2WEQNB",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "065",
+        "official_name": "Principato Citeriore",
+        "italian_name": "Principato Citeriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SA",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "065",
+        "official_name": "Principato Citeriore",
+        "italian_name": "Principato Citeriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SA",
+        "region_id": "reg-KMKKHH"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "065",
+        "official_name": "Salerno",
+        "italian_name": "Salerno",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SA",
+        "region_id": "reg-KMKKHH"
+      }
+    ]
+  },
+  {
+    "id": "prv-3MDJPE",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-72V020",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "056",
+        "official_name": "Viterbo",
+        "italian_name": "Viterbo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VT",
+        "region_id": "reg-8XV2MT"
+      }
+    ]
+  },
+  {
+    "id": "prv-3Q1T8E",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "079",
+        "official_name": "Calabria Ulteriore II",
+        "italian_name": "Calabria Ulteriore II",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CZ",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "079",
+        "official_name": "Calabria Ulteriore II",
+        "italian_name": "Calabria Ulteriore II",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CZ",
+        "region_id": "reg-8Y96MW"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "079",
+        "official_name": "Catanzaro",
+        "italian_name": "Catanzaro",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CZ",
+        "region_id": "reg-8Y96MW"
+      }
+    ]
+  },
+  {
+    "id": "prv-3W937P",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "008",
+        "official_name": "Porto Maurizio",
+        "italian_name": "Porto Maurizio",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "IM",
+        "region_id": "reg-5WKQVA"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1923-12-13",
+        "istat_code": "008",
+        "official_name": "Porto Maurizio",
+        "italian_name": "Porto Maurizio",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "IM",
+        "region_id": "reg-NKXHR4"
+      },
+      {
+        "valid_from": "1923-12-14",
+        "valid_until": null,
+        "istat_code": "008",
+        "official_name": "Imperia",
+        "italian_name": "Imperia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "IM",
+        "region_id": "reg-NKXHR4"
+      }
+    ]
+  },
+  {
+    "id": "prv-43KD7D",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "040",
+        "official_name": "Forli",
+        "italian_name": "Forli",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FO",
+        "region_id": "reg-VW2J7K"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1994-12-31",
+        "istat_code": "040",
+        "official_name": "Forli",
+        "italian_name": "Forli",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FO",
+        "region_id": "reg-HRHWED"
+      },
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": "1998-12-31",
+        "istat_code": "040",
+        "official_name": "Forlì-Cesena",
+        "italian_name": "Forlì-Cesena",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FO",
+        "region_id": "reg-HRHWED"
+      },
+      {
+        "valid_from": "1999-01-01",
+        "valid_until": null,
+        "istat_code": "040",
+        "official_name": "Forlì-Cesena",
+        "italian_name": "Forlì-Cesena",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FC",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-4AX98C",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-AFJQBV",
+        "kind": "detached_into",
+        "date": "2006-01-01"
+      }
+    ],
+    "successors": [
+      {
+        "id": "prv-19ST5G",
+        "kind": "split_into",
+        "date": "2016-04-28"
+      },
+      {
+        "id": "prv-AFJQBV",
+        "kind": "split_into",
+        "date": "2016-04-28"
+      }
+    ],
+    "current_successors": [
+      "prv-87NW8Q",
+      "prv-AFJQBV",
+      "prv-GYJQSY",
+      "prv-KFWWV0",
+      "prv-X4WPF1"
+    ],
+    "versions": [
+      {
+        "valid_from": "2006-01-01",
+        "valid_until": "2016-04-27",
+        "istat_code": "105",
+        "official_name": "Ogliastra",
+        "italian_name": "Ogliastra",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "OG",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-4EAXBQ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "006",
+        "official_name": "Alessandria",
+        "italian_name": "Alessandria",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AL",
+        "region_id": "reg-5WKQVA"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "006",
+        "official_name": "Alessandria",
+        "italian_name": "Alessandria",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AL",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-4FVZS3",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": null,
+        "istat_code": "020",
+        "official_name": "Mantova",
+        "italian_name": "Mantova",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MN",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-4GDARN",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-3Q1T8E",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "102",
+        "official_name": "Vibo Valentia",
+        "italian_name": "Vibo Valentia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VV",
+        "region_id": "reg-8Y96MW"
+      }
+    ]
+  },
+  {
+    "id": "prv-4GQV49",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "064",
+        "official_name": "Principato Ulteriore",
+        "italian_name": "Principato Ulteriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AV",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "064",
+        "official_name": "Principato Ulteriore",
+        "italian_name": "Principato Ulteriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AV",
+        "region_id": "reg-KMKKHH"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "064",
+        "official_name": "Avellino",
+        "italian_name": "Avellino",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AV",
+        "region_id": "reg-KMKKHH"
+      }
+    ]
+  },
+  {
+    "id": "prv-4JZHRN",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-3Q1T8E",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "101",
+        "official_name": "Crotone",
+        "italian_name": "Crotone",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "KR",
+        "region_id": "reg-8Y96MW"
+      }
+    ]
+  },
+  {
+    "id": "prv-4M2T0N",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-AFJQBV",
+        "kind": "detached_into",
+        "date": "1974-08-20"
+      },
+      {
+        "id": "prv-KFWWV0",
+        "kind": "detached_into",
+        "date": "1974-08-20"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1974-08-20",
+        "valid_until": "2025-12-31",
+        "istat_code": "095",
+        "official_name": "Oristano",
+        "italian_name": "Oristano",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "OR",
+        "region_id": "reg-MYRFEY"
+      },
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "115",
+        "official_name": "Oristano",
+        "italian_name": "Oristano",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "OR",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-4VRF9B",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "052",
+        "official_name": "Siena",
+        "italian_name": "Siena",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SI",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-4XRD8G",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "062",
+        "official_name": "Benevento",
+        "italian_name": "Benevento",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BN",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "062",
+        "official_name": "Benevento",
+        "italian_name": "Benevento",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BN",
+        "region_id": "reg-KMKKHH"
+      }
+    ]
+  },
+  {
+    "id": "prv-5028FY",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-KFWWV0",
+        "kind": "detached_into",
+        "date": "2006-01-01"
+      }
+    ],
+    "successors": [
+      {
+        "id": "prv-19ST5G",
+        "kind": "merged_into",
+        "date": "2016-04-28"
+      }
+    ],
+    "current_successors": [
+      "prv-87NW8Q",
+      "prv-AFJQBV",
+      "prv-GYJQSY",
+      "prv-KFWWV0",
+      "prv-X4WPF1"
+    ],
+    "versions": [
+      {
+        "valid_from": "2006-01-01",
+        "valid_until": "2016-04-27",
+        "istat_code": "107",
+        "official_name": "Carbonia-Iglesias",
+        "italian_name": "Carbonia-Iglesias",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CI",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-54GZ1S",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": null,
+        "istat_code": "026",
+        "official_name": "Treviso",
+        "italian_name": "Treviso",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TV",
+        "region_id": "reg-C0WBQT"
+      }
+    ]
+  },
+  {
+    "id": "prv-566N8Y",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-QN8ZX2",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "100",
+        "official_name": "Prato",
+        "italian_name": "Prato",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PO",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-6G5KX3",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2016-06-05",
+        "istat_code": "081",
+        "official_name": "Trapani",
+        "italian_name": "Trapani",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TP",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "081",
+        "official_name": "Trapani",
+        "italian_name": "Trapani",
+        "foreign_name": null,
+        "type": "free_municipal_consortium",
+        "abbreviation": "TP",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-6G6807",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-DQN8PJ",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-VXYV2C",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-XXRX19",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "068",
+        "official_name": "Pescara",
+        "italian_name": "Pescara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PE",
+        "region_id": "reg-AJG85Q"
+      }
+    ]
+  },
+  {
+    "id": "prv-6N38K9",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-72V020",
+        "kind": "detached_into",
+        "date": "1934-10-26"
+      },
+      {
+        "id": "prv-GARMRJ",
+        "kind": "detached_into",
+        "date": "1934-10-26"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1934-10-26",
+        "valid_until": "1945-06-21",
+        "istat_code": "059",
+        "official_name": "Littoria",
+        "italian_name": "Littoria",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LT",
+        "region_id": "reg-8XV2MT"
+      },
+      {
+        "valid_from": "1945-06-22",
+        "valid_until": null,
+        "istat_code": "059",
+        "official_name": "Latina",
+        "italian_name": "Latina",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LT",
+        "region_id": "reg-8XV2MT"
+      }
+    ]
+  },
+  {
+    "id": "prv-72V020",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1871-01-15",
+        "valid_until": "2014-12-31",
+        "istat_code": "058",
+        "official_name": "Roma",
+        "italian_name": "Roma",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RM",
+        "region_id": "reg-8XV2MT"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "258",
+        "official_name": "Roma",
+        "italian_name": "Roma",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "RM",
+        "region_id": "reg-8XV2MT"
+      }
+    ]
+  },
+  {
+    "id": "prv-7AQ0MF",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "038",
+        "official_name": "Ferrara",
+        "italian_name": "Ferrara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FE",
+        "region_id": "reg-VW2J7K"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "038",
+        "official_name": "Ferrara",
+        "italian_name": "Ferrara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FE",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-7BDBJT",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-SF9KWS",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "009",
+        "official_name": "Savona",
+        "italian_name": "Savona",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SV",
+        "region_id": "reg-NKXHR4"
+      }
+    ]
+  },
+  {
+    "id": "prv-7NQD42",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "051",
+        "official_name": "Arezzo",
+        "italian_name": "Arezzo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AR",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-87NW8Q",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-19ST5G",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "119",
+        "official_name": "Sulcis Iglesiente",
+        "italian_name": "Sulcis Iglesiente",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SU",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-8QKGKX",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-RG7ERK",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-SC8TY1",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "074",
+        "official_name": "Brindisi",
+        "italian_name": "Brindisi",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BR",
+        "region_id": "reg-50HQ5N"
+      }
+    ]
+  },
+  {
+    "id": "prv-8SCADW",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-08A1MY",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "098",
+        "official_name": "Lodi",
+        "italian_name": "Lodi",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LO",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-983JY9",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "039",
+        "official_name": "Ravenna",
+        "italian_name": "Ravenna",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RA",
+        "region_id": "reg-VW2J7K"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "039",
+        "official_name": "Ravenna",
+        "italian_name": "Ravenna",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RA",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-9V5T1K",
+    "status": "suppressed",
+    "is_former_italian": true,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-29HBDK",
+        "kind": "detached_into",
+        "date": "1924-02-23"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1924-02-23",
+        "valid_until": "1947-09-15",
+        "istat_code": "701",
+        "official_name": "Fiume",
+        "italian_name": "Fiume",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FU",
+        "region_id": "reg-GWC1MY"
+      }
+    ]
+  },
+  {
+    "id": "prv-9WAKGT",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-E37VNZ",
+        "kind": "detached_into",
+        "date": "2026-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "113",
+        "official_name": "Gallura Nord-Est Sardegna",
+        "italian_name": "Gallura Nord-Est Sardegna",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "OT",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-AEAAEX",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": null,
+        "istat_code": "025",
+        "official_name": "Belluno",
+        "italian_name": "Belluno",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BL",
+        "region_id": "reg-C0WBQT"
+      }
+    ]
+  },
+  {
+    "id": "prv-AFJQBV",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-E37VNZ",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-KFWWV0",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": "2025-12-31",
+        "istat_code": "091",
+        "official_name": "Nuoro",
+        "italian_name": "Nuoro",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "NU",
+        "region_id": "reg-MYRFEY"
+      },
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "114",
+        "official_name": "Nuoro",
+        "italian_name": "Nuoro",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "NU",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-AKBK3P",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-1W76NM",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "002",
+        "official_name": "Vercelli",
+        "italian_name": "Vercelli",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VC",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-ATJ2FD",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "045",
+        "official_name": "Massa e Carrara",
+        "italian_name": "Massa e Carrara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MS",
+        "region_id": "reg-5EKDNJ"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1938-12-17",
+        "istat_code": "045",
+        "official_name": "Massa e Carrara",
+        "italian_name": "Massa e Carrara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MS",
+        "region_id": "reg-6SJM89"
+      },
+      {
+        "valid_from": "1938-12-18",
+        "valid_until": "1946-03-03",
+        "istat_code": "045",
+        "official_name": "Apuania",
+        "italian_name": "Apuania",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MS",
+        "region_id": "reg-6SJM89"
+      },
+      {
+        "valid_from": "1946-03-04",
+        "valid_until": null,
+        "istat_code": "045",
+        "official_name": "Massa-Carrara",
+        "italian_name": "Massa-Carrara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MS",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-BE1KS8",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2016-06-05",
+        "istat_code": "087",
+        "official_name": "Catania",
+        "italian_name": "Catania",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CT",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "287",
+        "official_name": "Catania",
+        "italian_name": "Catania",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "CT",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-CD9MZE",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-WVM43S",
+        "kind": "detached_into",
+        "date": "2009-07-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "2009-07-12",
+        "valid_until": null,
+        "istat_code": "109",
+        "official_name": "Fermo",
+        "italian_name": "Fermo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FM",
+        "region_id": "reg-KM2Y1Y"
+      }
+    ]
+  },
+  {
+    "id": "prv-CSFCR4",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "partially_ceded": true,
+    "predecessors": [],
+    "successors": [
+      {
+        "id": "prv-29HBDK",
+        "kind": "split_into",
+        "date": "1923-02-08"
+      },
+      {
+        "id": "prv-DPJ4HZ",
+        "kind": "split_into",
+        "date": "1923-02-08"
+      },
+      {
+        "id": "prv-P2BEKK",
+        "kind": "split_into",
+        "date": "1923-02-08"
+      },
+      {
+        "id": "prv-XJ01RB",
+        "kind": "split_into",
+        "date": "1923-02-08"
+      }
+    ],
+    "current_successors": [
+      "prv-DPJ4HZ",
+      "prv-P2BEKK"
+    ],
+    "versions": [
+      {
+        "valid_from": "1921-01-05",
+        "valid_until": "1923-02-07",
+        "istat_code": "801",
+        "official_name": "Venezia Giulia",
+        "italian_name": "Venezia Giulia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VG",
+        "region_id": "reg-GWC1MY"
+      }
+    ]
+  },
+  {
+    "id": "prv-D637X7",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-72V020",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-DQN8PJ",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "057",
+        "official_name": "Rieti",
+        "italian_name": "Rieti",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RI",
+        "region_id": "reg-8XV2MT"
+      }
+    ]
+  },
+  {
+    "id": "prv-DPJ4HZ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": "1923-02-07",
+        "istat_code": "030",
+        "official_name": "Udine",
+        "italian_name": "Udine",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "UD",
+        "region_id": "reg-C0WBQT"
+      },
+      {
+        "valid_from": "1923-02-08",
+        "valid_until": "1940-10-03",
+        "istat_code": "030",
+        "official_name": "Friuli",
+        "italian_name": "Friuli",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "UD",
+        "region_id": "reg-C0WBQT"
+      },
+      {
+        "valid_from": "1940-10-04",
+        "valid_until": "1947-12-31",
+        "istat_code": "030",
+        "official_name": "Udine",
+        "italian_name": "Udine",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "UD",
+        "region_id": "reg-C0WBQT"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": "2018-04-21",
+        "istat_code": "030",
+        "official_name": "Udine",
+        "italian_name": "Udine",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "UD",
+        "region_id": "reg-HM3T63"
+      },
+      {
+        "valid_from": "2018-04-22",
+        "valid_until": null,
+        "istat_code": "030",
+        "official_name": "Udine",
+        "italian_name": "Udine",
+        "foreign_name": null,
+        "type": "non_administrative_unit",
+        "abbreviation": "UD",
+        "region_id": "reg-HM3T63"
+      }
+    ]
+  },
+  {
+    "id": "prv-DQ8ECQ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "061",
+        "official_name": "Terra del Lavoro",
+        "italian_name": "Terra del Lavoro",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CE",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "061",
+        "official_name": "Terra del Lavoro",
+        "italian_name": "Terra del Lavoro",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CE",
+        "region_id": "reg-KMKKHH"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": "1927-01-11",
+        "istat_code": "061",
+        "official_name": "Caserta",
+        "italian_name": "Caserta",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CE",
+        "region_id": "reg-KMKKHH"
+      },
+      {
+        "valid_from": "1945-09-01",
+        "valid_until": null,
+        "istat_code": "061",
+        "official_name": "Caserta",
+        "italian_name": "Caserta",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CE",
+        "region_id": "reg-KMKKHH"
+      }
+    ]
+  },
+  {
+    "id": "prv-DQN8PJ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1863-06-20",
+        "istat_code": "066",
+        "official_name": "Abruzzo Ulteriore II",
+        "italian_name": "Abruzzo Ulteriore II",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AQ",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1863-06-21",
+        "valid_until": "1871-12-30",
+        "istat_code": "066",
+        "official_name": "Aquila degli Abruzzi",
+        "italian_name": "Aquila degli Abruzzi",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AQ",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1940-01-10",
+        "istat_code": "066",
+        "official_name": "Aquila degli Abruzzi",
+        "italian_name": "Aquila degli Abruzzi",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AQ",
+        "region_id": "reg-AJG85Q"
+      },
+      {
+        "valid_from": "1940-01-11",
+        "valid_until": null,
+        "istat_code": "066",
+        "official_name": "L'Aquila",
+        "italian_name": "L'Aquila",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AQ",
+        "region_id": "reg-AJG85Q"
+      }
+    ]
+  },
+  {
+    "id": "prv-DQPDX9",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "049",
+        "official_name": "Livorno",
+        "italian_name": "Livorno",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LI",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-E276ZJ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-SC8TY1",
+        "kind": "detached_into",
+        "date": "2009-07-27"
+      },
+      {
+        "id": "prv-YDM3R9",
+        "kind": "detached_into",
+        "date": "2009-07-27"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "2009-07-27",
+        "valid_until": null,
+        "istat_code": "110",
+        "official_name": "Barletta-Andria-Trani",
+        "italian_name": "Barletta-Andria-Trani",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BT",
+        "region_id": "reg-50HQ5N"
+      }
+    ]
+  },
+  {
+    "id": "prv-E37VNZ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2025-12-31",
+        "istat_code": "090",
+        "official_name": "Sassari",
+        "italian_name": "Sassari",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SS",
+        "region_id": "reg-MYRFEY"
+      },
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "312",
+        "official_name": "Sassari",
+        "italian_name": "Sassari",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "SS",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-EEQB5R",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": "2014-12-31",
+        "istat_code": "027",
+        "official_name": "Venezia",
+        "italian_name": "Venezia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VE",
+        "region_id": "reg-C0WBQT"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "227",
+        "official_name": "Venezia",
+        "italian_name": "Venezia",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "VE",
+        "region_id": "reg-C0WBQT"
+      }
+    ]
+  },
+  {
+    "id": "prv-EH6DJX",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-08A1MY",
+        "kind": "detached_into",
+        "date": "2009-06-30"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "2009-06-30",
+        "valid_until": null,
+        "istat_code": "108",
+        "official_name": "Monza e della Brianza",
+        "italian_name": "Monza e della Brianza",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MB",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-EJAN1M",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-DPJ4HZ",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": "1947-12-31",
+        "istat_code": "031",
+        "official_name": "Gorizia",
+        "italian_name": "Gorizia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "GO",
+        "region_id": "reg-GWC1MY"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": "2017-09-29",
+        "istat_code": "031",
+        "official_name": "Gorizia",
+        "italian_name": "Gorizia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "GO",
+        "region_id": "reg-HM3T63"
+      },
+      {
+        "valid_from": "2017-09-30",
+        "valid_until": null,
+        "istat_code": "031",
+        "official_name": "Gorizia",
+        "italian_name": "Gorizia",
+        "foreign_name": null,
+        "type": "non_administrative_unit",
+        "abbreviation": "GO",
+        "region_id": "reg-HM3T63"
+      }
+    ]
+  },
+  {
+    "id": "prv-F9DED7",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2016-06-05",
+        "istat_code": "083",
+        "official_name": "Messina",
+        "italian_name": "Messina",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "ME",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "283",
+        "official_name": "Messina",
+        "italian_name": "Messina",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "ME",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-FG6WXQ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "070",
+        "official_name": "Molise",
+        "italian_name": "Molise",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CB",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "070",
+        "official_name": "Molise",
+        "italian_name": "Molise",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CB",
+        "region_id": "reg-AJG85Q"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": "1964-01-18",
+        "istat_code": "070",
+        "official_name": "Campobasso",
+        "italian_name": "Campobasso",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CB",
+        "region_id": "reg-AJG85Q"
+      },
+      {
+        "valid_from": "1964-01-19",
+        "valid_until": null,
+        "istat_code": "070",
+        "official_name": "Campobasso",
+        "italian_name": "Campobasso",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CB",
+        "region_id": "reg-BQ6E9H"
+      }
+    ]
+  },
+  {
+    "id": "prv-FW6CBZ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1881-12-30",
+        "istat_code": "054",
+        "official_name": "Umbria",
+        "italian_name": "Umbria",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PG",
+        "region_id": "reg-15XBF3"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "054",
+        "official_name": "Perugia",
+        "italian_name": "Perugia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PG",
+        "region_id": "reg-15XBF3"
+      }
+    ]
+  },
+  {
+    "id": "prv-G3AR1R",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-Y12Q6N",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": "1945-10-04",
+        "istat_code": "007",
+        "official_name": "Aosta",
+        "italian_name": "Aosta",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AO",
+        "region_id": "reg-XJVQ9D"
+      },
+      {
+        "valid_from": "1945-10-05",
+        "valid_until": "1947-12-31",
+        "istat_code": "007",
+        "official_name": "Valle d'Aosta",
+        "italian_name": "Valle d'Aosta",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AO",
+        "region_id": "reg-XJVQ9D"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": "2003-07-05",
+        "istat_code": "007",
+        "official_name": "Valle d'Aosta",
+        "italian_name": "Valle d'Aosta",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AO",
+        "region_id": "reg-1VWR6N"
+      },
+      {
+        "valid_from": "2003-07-06",
+        "valid_until": null,
+        "istat_code": "007",
+        "official_name": "Valle d'Aosta/Vallée d'Aoste",
+        "italian_name": "Valle d'Aosta",
+        "foreign_name": "Vallée d'Aoste",
+        "type": "province",
+        "abbreviation": "AO",
+        "region_id": "reg-1VWR6N"
+      }
+    ]
+  },
+  {
+    "id": "prv-GARMRJ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "063",
+        "official_name": "Napoli",
+        "italian_name": "Napoli",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "NA",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "2014-12-31",
+        "istat_code": "063",
+        "official_name": "Napoli",
+        "italian_name": "Napoli",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "NA",
+        "region_id": "reg-KMKKHH"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "263",
+        "official_name": "Napoli",
+        "italian_name": "Napoli",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "NA",
+        "region_id": "reg-KMKKHH"
+      }
+    ]
+  },
+  {
+    "id": "prv-GYJQSY",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-19ST5G",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "117",
+        "official_name": "Medio Campidano",
+        "italian_name": "Medio Campidano",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VS",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-H3KYZ5",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "034",
+        "official_name": "Parma",
+        "italian_name": "Parma",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PR",
+        "region_id": "reg-X0RQAP"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "034",
+        "official_name": "Parma",
+        "italian_name": "Parma",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PR",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-H9FQ5M",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-AFJQBV",
+        "kind": "detached_into",
+        "date": "2006-01-01"
+      },
+      {
+        "id": "prv-E37VNZ",
+        "kind": "detached_into",
+        "date": "2006-01-01"
+      }
+    ],
+    "successors": [
+      {
+        "id": "prv-E37VNZ",
+        "kind": "merged_into",
+        "date": "2016-04-28"
+      }
+    ],
+    "current_successors": [
+      "prv-E37VNZ"
+    ],
+    "versions": [
+      {
+        "valid_from": "2006-01-01",
+        "valid_until": "2016-04-27",
+        "istat_code": "104",
+        "official_name": "Olbia-Tempio",
+        "italian_name": "Olbia-Tempio",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "OT",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-H9MNND",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "042",
+        "official_name": "Ancona",
+        "italian_name": "Ancona",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AN",
+        "region_id": "reg-KM2Y1Y"
+      }
+    ]
+  },
+  {
+    "id": "prv-HAXQ1K",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-ATJ2FD",
+        "kind": "detached_into",
+        "date": "1923-12-22"
+      },
+      {
+        "id": "prv-SF9KWS",
+        "kind": "detached_into",
+        "date": "1923-12-22"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1923-12-22",
+        "valid_until": "1930-11-17",
+        "istat_code": "011",
+        "official_name": "Spezia",
+        "italian_name": "Spezia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SP",
+        "region_id": "reg-NKXHR4"
+      },
+      {
+        "valid_from": "1930-11-18",
+        "valid_until": null,
+        "istat_code": "011",
+        "official_name": "La Spezia",
+        "italian_name": "La Spezia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SP",
+        "region_id": "reg-NKXHR4"
+      }
+    ]
+  },
+  {
+    "id": "prv-HE865C",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "017",
+        "official_name": "Brescia",
+        "italian_name": "Brescia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BS",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-HTPMP2",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "033",
+        "official_name": "Piacenza",
+        "italian_name": "Piacenza",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PC",
+        "region_id": "reg-X0RQAP"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "033",
+        "official_name": "Piacenza",
+        "italian_name": "Piacenza",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PC",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-JQYW61",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-FG6WXQ",
+        "kind": "detached_into",
+        "date": "1970-03-03"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1970-03-03",
+        "valid_until": null,
+        "istat_code": "094",
+        "official_name": "Isernia",
+        "italian_name": "Isernia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "IS",
+        "region_id": "reg-BQ6E9H"
+      }
+    ]
+  },
+  {
+    "id": "prv-KDV1KY",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1865-06-30",
+        "istat_code": "089",
+        "official_name": "Noto",
+        "italian_name": "Noto",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SR",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "1865-07-01",
+        "valid_until": "2016-06-05",
+        "istat_code": "089",
+        "official_name": "Siracusa",
+        "italian_name": "Siracusa",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SR",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "089",
+        "official_name": "Siracusa",
+        "italian_name": "Siracusa",
+        "foreign_name": null,
+        "type": "free_municipal_consortium",
+        "abbreviation": "SR",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-KFWWV0",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2016-04-27",
+        "istat_code": "092",
+        "official_name": "Cagliari",
+        "italian_name": "Cagliari",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CA",
+        "region_id": "reg-MYRFEY"
+      },
+      {
+        "valid_from": "2016-04-28",
+        "valid_until": "2025-12-31",
+        "istat_code": "292",
+        "official_name": "Cagliari",
+        "italian_name": "Cagliari",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "CA",
+        "region_id": "reg-MYRFEY"
+      },
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "318",
+        "official_name": "Cagliari",
+        "italian_name": "Cagliari",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "CA",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-KM6104",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": null,
+        "istat_code": "024",
+        "official_name": "Vicenza",
+        "italian_name": "Vicenza",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VI",
+        "region_id": "reg-C0WBQT"
+      }
+    ]
+  },
+  {
+    "id": "prv-KPJ2Y8",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-VGA0KS",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "077",
+        "official_name": "Matera",
+        "italian_name": "Matera",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MT",
+        "region_id": "reg-2N7C5Z"
+      }
+    ]
+  },
+  {
+    "id": "prv-KTNDFG",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "016",
+        "official_name": "Bergamo",
+        "italian_name": "Bergamo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BG",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-KZ76SE",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "078",
+        "official_name": "Calabria Citeriore",
+        "italian_name": "Calabria Citeriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CS",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "078",
+        "official_name": "Calabria Citeriore",
+        "italian_name": "Calabria Citeriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CS",
+        "region_id": "reg-8Y96MW"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "078",
+        "official_name": "Cosenza",
+        "italian_name": "Cosenza",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CS",
+        "region_id": "reg-8Y96MW"
+      }
+    ]
+  },
+  {
+    "id": "prv-M7DAYF",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "035",
+        "official_name": "Reggio nell'Emilia",
+        "italian_name": "Reggio nell'Emilia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RE",
+        "region_id": "reg-5EKDNJ"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "035",
+        "official_name": "Reggio nell'Emilia",
+        "italian_name": "Reggio nell'Emilia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RE",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-MA2FYG",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "053",
+        "official_name": "Grosseto",
+        "italian_name": "Grosseto",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "GR",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-MDESKM",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "013",
+        "official_name": "Como",
+        "italian_name": "Como",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CO",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-MRPWFS",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-43KD7D",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "099",
+        "official_name": "Rimini",
+        "italian_name": "Rimini",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RN",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-MSFE16",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-KFWWV0",
+        "kind": "detached_into",
+        "date": "2006-01-01"
+      }
+    ],
+    "successors": [
+      {
+        "id": "prv-19ST5G",
+        "kind": "merged_into",
+        "date": "2016-04-28"
+      }
+    ],
+    "current_successors": [
+      "prv-87NW8Q",
+      "prv-AFJQBV",
+      "prv-GYJQSY",
+      "prv-KFWWV0",
+      "prv-X4WPF1"
+    ],
+    "versions": [
+      {
+        "valid_from": "2006-01-01",
+        "valid_until": "2016-04-27",
+        "istat_code": "106",
+        "official_name": "Medio Campidano",
+        "italian_name": "Medio Campidano",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VS",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-N7NWHB",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-Y6A467",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": "1972-12-04",
+        "istat_code": "021",
+        "official_name": "Bolzano/Bozen",
+        "italian_name": "Bolzano",
+        "foreign_name": "Bozen",
+        "type": "province",
+        "abbreviation": "BZ",
+        "region_id": "reg-S1ZEBW"
+      },
+      {
+        "valid_from": "1972-12-05",
+        "valid_until": null,
+        "istat_code": "021",
+        "official_name": "Bolzano/Bozen",
+        "italian_name": "Bolzano",
+        "foreign_name": "Bozen",
+        "type": "autonomous_province",
+        "abbreviation": "BZ",
+        "region_id": "reg-S1ZEBW"
+      }
+    ]
+  },
+  {
+    "id": "prv-NDEM81",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": null,
+        "istat_code": "023",
+        "official_name": "Verona",
+        "italian_name": "Verona",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VR",
+        "region_id": "reg-C0WBQT"
+      }
+    ]
+  },
+  {
+    "id": "prv-P2BEKK",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-CSFCR4",
+        "kind": "split_into",
+        "date": "1923-02-08"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1923-02-08",
+        "valid_until": "1947-12-31",
+        "istat_code": "032",
+        "official_name": "Trieste",
+        "italian_name": "Trieste",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TS",
+        "region_id": "reg-GWC1MY"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": "2017-09-29",
+        "istat_code": "032",
+        "official_name": "Trieste",
+        "italian_name": "Trieste",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TS",
+        "region_id": "reg-HM3T63"
+      },
+      {
+        "valid_from": "2017-09-30",
+        "valid_until": null,
+        "istat_code": "032",
+        "official_name": "Trieste",
+        "italian_name": "Trieste",
+        "foreign_name": null,
+        "type": "non_administrative_unit",
+        "abbreviation": "TS",
+        "region_id": "reg-HM3T63"
+      }
+    ]
+  },
+  {
+    "id": "prv-Q4A5GQ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "036",
+        "official_name": "Modena",
+        "italian_name": "Modena",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MO",
+        "region_id": "reg-5EKDNJ"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "036",
+        "official_name": "Modena",
+        "italian_name": "Modena",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "MO",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-QB6F4V",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "046",
+        "official_name": "Lucca",
+        "italian_name": "Lucca",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LU",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-QN8ZX2",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2014-12-31",
+        "istat_code": "048",
+        "official_name": "Firenze",
+        "italian_name": "Firenze",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FI",
+        "region_id": "reg-6SJM89"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "248",
+        "official_name": "Firenze",
+        "italian_name": "Firenze",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "FI",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-QRVJZQ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-KDV1KY",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": "2016-06-05",
+        "istat_code": "088",
+        "official_name": "Ragusa",
+        "italian_name": "Ragusa",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RG",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "088",
+        "official_name": "Ragusa",
+        "italian_name": "Ragusa",
+        "foreign_name": null,
+        "type": "free_municipal_consortium",
+        "abbreviation": "RG",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-R1CCZG",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-AKBK3P",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "096",
+        "official_name": "Biella",
+        "italian_name": "Biella",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BI",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-RCAQFJ",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [
+      {
+        "id": "prv-AEAAEX",
+        "kind": "split_into",
+        "date": "1923-02-14"
+      },
+      {
+        "id": "prv-Y6A467",
+        "kind": "split_into",
+        "date": "1923-02-14"
+      }
+    ],
+    "current_successors": [
+      "prv-AEAAEX",
+      "prv-Y6A467"
+    ],
+    "versions": [
+      {
+        "valid_from": "1920-10-16",
+        "valid_until": "1923-02-13",
+        "istat_code": "802",
+        "official_name": "Venezia Tridentina",
+        "italian_name": "Venezia Tridentina",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TN",
+        "region_id": "reg-S1ZEBW"
+      }
+    ]
+  },
+  {
+    "id": "prv-RG7ERK",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "075",
+        "official_name": "Terra d'Otranto",
+        "italian_name": "Terra d'Otranto",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LE",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "075",
+        "official_name": "Terra d'Otranto",
+        "italian_name": "Terra d'Otranto",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LE",
+        "region_id": "reg-50HQ5N"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "075",
+        "official_name": "Lecce",
+        "italian_name": "Lecce",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "LE",
+        "region_id": "reg-50HQ5N"
+      }
+    ]
+  },
+  {
+    "id": "prv-RJZ3FV",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-RG7ERK",
+        "kind": "detached_into",
+        "date": "1923-12-22"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1923-12-22",
+        "valid_until": "1951-08-02",
+        "istat_code": "073",
+        "official_name": "Jonio",
+        "italian_name": "Jonio",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TA",
+        "region_id": "reg-50HQ5N"
+      },
+      {
+        "valid_from": "1951-08-03",
+        "valid_until": null,
+        "istat_code": "073",
+        "official_name": "Taranto",
+        "italian_name": "Taranto",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TA",
+        "region_id": "reg-50HQ5N"
+      }
+    ]
+  },
+  {
+    "id": "prv-RXKMA4",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": null,
+        "istat_code": "028",
+        "official_name": "Padova",
+        "italian_name": "Padova",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PD",
+        "region_id": "reg-C0WBQT"
+      }
+    ]
+  },
+  {
+    "id": "prv-S4WEMZ",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1998-12-31",
+        "istat_code": "041",
+        "official_name": "Pesaro e Urbino",
+        "italian_name": "Pesaro e Urbino",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PS",
+        "region_id": "reg-KM2Y1Y"
+      },
+      {
+        "valid_from": "1999-01-01",
+        "valid_until": null,
+        "istat_code": "041",
+        "official_name": "Pesaro e Urbino",
+        "italian_name": "Pesaro e Urbino",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PU",
+        "region_id": "reg-KM2Y1Y"
+      }
+    ]
+  },
+  {
+    "id": "prv-SC8TY1",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "072",
+        "official_name": "Terra di Bari",
+        "italian_name": "Terra di Bari",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BA",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "072",
+        "official_name": "Terra di Bari",
+        "italian_name": "Terra di Bari",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BA",
+        "region_id": "reg-50HQ5N"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": "1931-05-16",
+        "istat_code": "072",
+        "official_name": "Bari delle Puglie",
+        "italian_name": "Bari delle Puglie",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BA",
+        "region_id": "reg-50HQ5N"
+      },
+      {
+        "valid_from": "1931-05-17",
+        "valid_until": "2014-12-31",
+        "istat_code": "072",
+        "official_name": "Bari",
+        "italian_name": "Bari",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BA",
+        "region_id": "reg-50HQ5N"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "272",
+        "official_name": "Bari",
+        "italian_name": "Bari",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "BA",
+        "region_id": "reg-50HQ5N"
+      }
+    ]
+  },
+  {
+    "id": "prv-SF9KWS",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "010",
+        "official_name": "Genova",
+        "italian_name": "Genova",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "GE",
+        "region_id": "reg-5WKQVA"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "2014-12-31",
+        "istat_code": "010",
+        "official_name": "Genova",
+        "italian_name": "Genova",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "GE",
+        "region_id": "reg-NKXHR4"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "210",
+        "official_name": "Genova",
+        "italian_name": "Genova",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "GE",
+        "region_id": "reg-NKXHR4"
+      }
+    ]
+  },
+  {
+    "id": "prv-SR91FX",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "050",
+        "official_name": "Pisa",
+        "italian_name": "Pisa",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PI",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-SVEKHS",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "037",
+        "official_name": "Bologna",
+        "italian_name": "Bologna",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BO",
+        "region_id": "reg-VW2J7K"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "2014-12-31",
+        "istat_code": "037",
+        "official_name": "Bologna",
+        "italian_name": "Bologna",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "BO",
+        "region_id": "reg-HRHWED"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "237",
+        "official_name": "Bologna",
+        "italian_name": "Bologna",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "BO",
+        "region_id": "reg-HRHWED"
+      }
+    ]
+  },
+  {
+    "id": "prv-TK0E72",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-08A1MY",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-MDESKM",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "012",
+        "official_name": "Varese",
+        "italian_name": "Varese",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VA",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-TWQC52",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-QN8ZX2",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "047",
+        "official_name": "Pistoia",
+        "italian_name": "Pistoia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PT",
+        "region_id": "reg-6SJM89"
+      }
+    ]
+  },
+  {
+    "id": "prv-VA706N",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-1W76NM",
+        "kind": "detached_into",
+        "date": "1995-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1995-01-01",
+        "valid_until": null,
+        "istat_code": "103",
+        "official_name": "Verbano-Cusio-Ossola",
+        "italian_name": "Verbano-Cusio-Ossola",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "VB",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-VFRAVK",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2016-06-05",
+        "istat_code": "085",
+        "official_name": "Caltanissetta",
+        "italian_name": "Caltanissetta",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CL",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "085",
+        "official_name": "Caltanissetta",
+        "italian_name": "Caltanissetta",
+        "foreign_name": null,
+        "type": "free_municipal_consortium",
+        "abbreviation": "CL",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-VGA0KS",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "076",
+        "official_name": "Basilicata",
+        "italian_name": "Basilicata",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PZ",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "076",
+        "official_name": "Basilicata",
+        "italian_name": "Basilicata",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PZ",
+        "region_id": "reg-2N7C5Z"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "076",
+        "official_name": "Potenza",
+        "italian_name": "Potenza",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PZ",
+        "region_id": "reg-2N7C5Z"
+      }
+    ]
+  },
+  {
+    "id": "prv-VXYV2C",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "069",
+        "official_name": "Abruzzo Citeriore",
+        "italian_name": "Abruzzo Citeriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CH",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "069",
+        "official_name": "Abruzzo Citeriore",
+        "italian_name": "Abruzzo Citeriore",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CH",
+        "region_id": "reg-AJG85Q"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "069",
+        "official_name": "Chieti",
+        "italian_name": "Chieti",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CH",
+        "region_id": "reg-AJG85Q"
+      }
+    ]
+  },
+  {
+    "id": "prv-W5TX6P",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "014",
+        "official_name": "Sondrio",
+        "italian_name": "Sondrio",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "SO",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-W8XQCH",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "019",
+        "official_name": "Cremona",
+        "italian_name": "Cremona",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CR",
+        "region_id": "reg-9X12C3"
+      }
+    ]
+  },
+  {
+    "id": "prv-WVM43S",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": null,
+        "istat_code": "044",
+        "official_name": "Ascoli Piceno",
+        "italian_name": "Ascoli Piceno",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AP",
+        "region_id": "reg-KM2Y1Y"
+      }
+    ]
+  },
+  {
+    "id": "prv-X0Y835",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1927-07-26",
+        "istat_code": "084",
+        "official_name": "Girgenti",
+        "italian_name": "Girgenti",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AG",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "1927-07-27",
+        "valid_until": "2016-06-05",
+        "istat_code": "084",
+        "official_name": "Agrigento",
+        "italian_name": "Agrigento",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AG",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "084",
+        "official_name": "Agrigento",
+        "italian_name": "Agrigento",
+        "foreign_name": null,
+        "type": "free_municipal_consortium",
+        "abbreviation": "AG",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-X4WPF1",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-19ST5G",
+        "kind": "split_into",
+        "date": "2026-01-01"
+      },
+      {
+        "id": "prv-AFJQBV",
+        "kind": "detached_into",
+        "date": "2026-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "2026-01-01",
+        "valid_until": null,
+        "istat_code": "116",
+        "official_name": "Ogliastra",
+        "italian_name": "Ogliastra",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "OG",
+        "region_id": "reg-MYRFEY"
+      }
+    ]
+  },
+  {
+    "id": "prv-XJ01RB",
+    "status": "suppressed",
+    "is_former_italian": true,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-CSFCR4",
+        "kind": "split_into",
+        "date": "1923-02-08"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1923-02-08",
+        "valid_until": "1947-09-15",
+        "istat_code": "703",
+        "official_name": "Zara",
+        "italian_name": "Zara",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "ZA",
+        "region_id": "reg-GWC1MY"
+      }
+    ]
+  },
+  {
+    "id": "prv-XXRX19",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "067",
+        "official_name": "Abruzzo Ulteriore I",
+        "italian_name": "Abruzzo Ulteriore I",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TE",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "067",
+        "official_name": "Abruzzo Ulteriore I",
+        "italian_name": "Abruzzo Ulteriore I",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TE",
+        "region_id": "reg-AJG85Q"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "067",
+        "official_name": "Teramo",
+        "italian_name": "Teramo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TE",
+        "region_id": "reg-AJG85Q"
+      }
+    ]
+  },
+  {
+    "id": "prv-XYQ324",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "004",
+        "official_name": "Cuneo",
+        "italian_name": "Cuneo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CN",
+        "region_id": "reg-5WKQVA"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": null,
+        "istat_code": "004",
+        "official_name": "Cuneo",
+        "italian_name": "Cuneo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "CN",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-Y12Q6N",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "001",
+        "official_name": "Torino",
+        "italian_name": "Torino",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TO",
+        "region_id": "reg-5WKQVA"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "2014-12-31",
+        "istat_code": "001",
+        "official_name": "Torino",
+        "italian_name": "Torino",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TO",
+        "region_id": "reg-XJVQ9D"
+      },
+      {
+        "valid_from": "2015-01-01",
+        "valid_until": null,
+        "istat_code": "201",
+        "official_name": "Torino",
+        "italian_name": "Torino",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "TO",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-Y6A467",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-RCAQFJ",
+        "kind": "split_into",
+        "date": "1923-02-14"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1923-02-14",
+        "valid_until": "1972-12-04",
+        "istat_code": "022",
+        "official_name": "Trento",
+        "italian_name": "Trento",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "TN",
+        "region_id": "reg-S1ZEBW"
+      },
+      {
+        "valid_from": "1972-12-05",
+        "valid_until": null,
+        "istat_code": "022",
+        "official_name": "Trento",
+        "italian_name": "Trento",
+        "foreign_name": null,
+        "type": "autonomous_province",
+        "abbreviation": "TN",
+        "region_id": "reg-S1ZEBW"
+      }
+    ]
+  },
+  {
+    "id": "prv-YDM3R9",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "071",
+        "official_name": "Capitanata",
+        "italian_name": "Capitanata",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FG",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "071",
+        "official_name": "Capitanata",
+        "italian_name": "Capitanata",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FG",
+        "region_id": "reg-50HQ5N"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": null,
+        "istat_code": "071",
+        "official_name": "Foggia",
+        "italian_name": "Foggia",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FG",
+        "region_id": "reg-50HQ5N"
+      }
+    ]
+  },
+  {
+    "id": "prv-Z2HJ43",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-4EAXBQ",
+        "kind": "detached_into",
+        "date": "1935-04-15"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1935-04-15",
+        "valid_until": null,
+        "istat_code": "005",
+        "official_name": "Asti",
+        "italian_name": "Asti",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "AT",
+        "region_id": "reg-XJVQ9D"
+      }
+    ]
+  },
+  {
+    "id": "prv-ZEAEM5",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "2016-06-05",
+        "istat_code": "082",
+        "official_name": "Palermo",
+        "italian_name": "Palermo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PA",
+        "region_id": "reg-XZFCF6"
+      },
+      {
+        "valid_from": "2016-06-06",
+        "valid_until": null,
+        "istat_code": "282",
+        "official_name": "Palermo",
+        "italian_name": "Palermo",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "PA",
+        "region_id": "reg-XZFCF6"
+      }
+    ]
+  },
+  {
+    "id": "prv-ZK960W",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-DPJ4HZ",
+        "kind": "detached_into",
+        "date": "1968-04-06"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1968-04-06",
+        "valid_until": "2017-09-29",
+        "istat_code": "093",
+        "official_name": "Pordenone",
+        "italian_name": "Pordenone",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "PN",
+        "region_id": "reg-HM3T63"
+      },
+      {
+        "valid_from": "2017-09-30",
+        "valid_until": null,
+        "istat_code": "093",
+        "official_name": "Pordenone",
+        "italian_name": "Pordenone",
+        "foreign_name": null,
+        "type": "non_administrative_unit",
+        "abbreviation": "PN",
+        "region_id": "reg-HM3T63"
+      }
+    ]
+  },
+  {
+    "id": "prv-ZM8ZB4",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1866-11-20",
+        "valid_until": null,
+        "istat_code": "029",
+        "official_name": "Rovigo",
+        "italian_name": "Rovigo",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RO",
+        "region_id": "reg-C0WBQT"
+      }
+    ]
+  },
+  {
+    "id": "prv-ZR5N2H",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "080",
+        "official_name": "Calabria Ulteriore I",
+        "italian_name": "Calabria Ulteriore I",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RC",
+        "region_id": "reg-8CMNEX"
+      },
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1881-12-30",
+        "istat_code": "080",
+        "official_name": "Calabria Ulteriore I",
+        "italian_name": "Calabria Ulteriore I",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RC",
+        "region_id": "reg-8Y96MW"
+      },
+      {
+        "valid_from": "1881-12-31",
+        "valid_until": "2016-12-28",
+        "istat_code": "080",
+        "official_name": "Reggio di Calabria",
+        "italian_name": "Reggio di Calabria",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "RC",
+        "region_id": "reg-8Y96MW"
+      },
+      {
+        "valid_from": "2016-12-29",
+        "valid_until": null,
+        "istat_code": "280",
+        "official_name": "Reggio Calabria",
+        "italian_name": "Reggio Calabria",
+        "foreign_name": null,
+        "type": "metropolitan_city",
+        "abbreviation": "RC",
+        "region_id": "reg-8Y96MW"
+      }
+    ]
+  },
+  {
+    "id": "prv-ZTW4DE",
+    "status": "active",
+    "is_former_italian": false,
+    "partially_ceded": false,
+    "predecessors": [
+      {
+        "id": "prv-72V020",
+        "kind": "detached_into",
+        "date": "1927-01-12"
+      },
+      {
+        "id": "prv-DQ8ECQ",
+        "kind": "split_into",
+        "date": "1927-01-12"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1927-01-12",
+        "valid_until": null,
+        "istat_code": "060",
+        "official_name": "Frosinone",
+        "italian_name": "Frosinone",
+        "foreign_name": null,
+        "type": "province",
+        "abbreviation": "FR",
+        "region_id": "reg-8XV2MT"
+      }
+    ]
+  }
+]

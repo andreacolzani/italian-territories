@@ -1,0 +1,751 @@
+{
+  "kind": "province",
+  "entries": {
+    "istat:1": {
+      "id": "prv-Y12Q6N",
+      "members": [
+        1,
+        117
+      ]
+    },
+    "istat:10": {
+      "id": "prv-KTNDFG",
+      "members": [
+        10
+      ]
+    },
+    "istat:100": {
+      "id": "prv-JQYW61",
+      "members": [
+        100
+      ]
+    },
+    "istat:101": {
+      "id": "prv-4M2T0N",
+      "members": [
+        101
+      ]
+    },
+    "istat:102": {
+      "id": "prv-566N8Y",
+      "members": [
+        102
+      ]
+    },
+    "istat:103": {
+      "id": "prv-R1CCZG",
+      "members": [
+        103
+      ]
+    },
+    "istat:104": {
+      "id": "prv-8SCADW",
+      "members": [
+        104
+      ]
+    },
+    "istat:105": {
+      "id": "prv-4JZHRN",
+      "members": [
+        105
+      ]
+    },
+    "istat:106": {
+      "id": "prv-MRPWFS",
+      "members": [
+        106
+      ]
+    },
+    "istat:107": {
+      "id": "prv-VA706N",
+      "members": [
+        107
+      ]
+    },
+    "istat:108": {
+      "id": "prv-0Y9J5V",
+      "members": [
+        108
+      ]
+    },
+    "istat:109": {
+      "id": "prv-4GDARN",
+      "members": [
+        109
+      ]
+    },
+    "istat:11": {
+      "id": "prv-HE865C",
+      "members": [
+        11
+      ]
+    },
+    "istat:110": {
+      "id": "prv-H9FQ5M",
+      "members": [
+        110
+      ]
+    },
+    "istat:111": {
+      "id": "prv-4AX98C",
+      "members": [
+        111
+      ]
+    },
+    "istat:112": {
+      "id": "prv-MSFE16",
+      "members": [
+        112
+      ]
+    },
+    "istat:113": {
+      "id": "prv-5028FY",
+      "members": [
+        113
+      ]
+    },
+    "istat:114": {
+      "id": "prv-EH6DJX",
+      "members": [
+        114
+      ]
+    },
+    "istat:115": {
+      "id": "prv-CD9MZE",
+      "members": [
+        115
+      ]
+    },
+    "istat:116": {
+      "id": "prv-E276ZJ",
+      "members": [
+        116
+      ]
+    },
+    "istat:12": {
+      "id": "prv-26Z7B6",
+      "members": [
+        12
+      ]
+    },
+    "istat:126": {
+      "id": "prv-19ST5G",
+      "members": [
+        126
+      ]
+    },
+    "istat:13": {
+      "id": "prv-W8XQCH",
+      "members": [
+        13
+      ]
+    },
+    "istat:14": {
+      "id": "prv-HTPMP2",
+      "members": [
+        14
+      ]
+    },
+    "istat:142": {
+      "id": "prv-9WAKGT",
+      "members": [
+        142
+      ]
+    },
+    "istat:144": {
+      "id": "prv-GYJQSY",
+      "members": [
+        144
+      ]
+    },
+    "istat:145": {
+      "id": "prv-87NW8Q",
+      "members": [
+        145
+      ]
+    },
+    "istat:146": {
+      "id": "prv-X4WPF1",
+      "members": [
+        146
+      ]
+    },
+    "istat:15": {
+      "id": "prv-H3KYZ5",
+      "members": [
+        15
+      ]
+    },
+    "istat:16": {
+      "id": "prv-M7DAYF",
+      "members": [
+        16
+      ]
+    },
+    "istat:17": {
+      "id": "prv-Q4A5GQ",
+      "members": [
+        17
+      ]
+    },
+    "istat:18": {
+      "id": "prv-SVEKHS",
+      "members": [
+        18,
+        121
+      ]
+    },
+    "istat:19": {
+      "id": "prv-7AQ0MF",
+      "members": [
+        19
+      ]
+    },
+    "istat:2": {
+      "id": "prv-1W76NM",
+      "members": [
+        2
+      ]
+    },
+    "istat:20": {
+      "id": "prv-983JY9",
+      "members": [
+        20
+      ]
+    },
+    "istat:21": {
+      "id": "prv-43KD7D",
+      "members": [
+        21
+      ]
+    },
+    "istat:22": {
+      "id": "prv-S4WEMZ",
+      "members": [
+        22
+      ]
+    },
+    "istat:23": {
+      "id": "prv-H9MNND",
+      "members": [
+        23
+      ]
+    },
+    "istat:24": {
+      "id": "prv-0DHYQS",
+      "members": [
+        24
+      ]
+    },
+    "istat:25": {
+      "id": "prv-WVM43S",
+      "members": [
+        25
+      ]
+    },
+    "istat:26": {
+      "id": "prv-ATJ2FD",
+      "members": [
+        26
+      ]
+    },
+    "istat:27": {
+      "id": "prv-QB6F4V",
+      "members": [
+        27
+      ]
+    },
+    "istat:28": {
+      "id": "prv-QN8ZX2",
+      "members": [
+        28,
+        122
+      ]
+    },
+    "istat:29": {
+      "id": "prv-DQPDX9",
+      "members": [
+        29
+      ]
+    },
+    "istat:3": {
+      "id": "prv-XYQ324",
+      "members": [
+        3
+      ]
+    },
+    "istat:30": {
+      "id": "prv-SR91FX",
+      "members": [
+        30
+      ]
+    },
+    "istat:31": {
+      "id": "prv-7NQD42",
+      "members": [
+        31
+      ]
+    },
+    "istat:32": {
+      "id": "prv-4VRF9B",
+      "members": [
+        32
+      ]
+    },
+    "istat:33": {
+      "id": "prv-MA2FYG",
+      "members": [
+        33
+      ]
+    },
+    "istat:34": {
+      "id": "prv-FW6CBZ",
+      "members": [
+        34
+      ]
+    },
+    "istat:35": {
+      "id": "prv-DQ8ECQ",
+      "members": [
+        35,
+        98
+      ]
+    },
+    "istat:36": {
+      "id": "prv-4XRD8G",
+      "members": [
+        36
+      ]
+    },
+    "istat:37": {
+      "id": "prv-GARMRJ",
+      "members": [
+        37,
+        124
+      ]
+    },
+    "istat:38": {
+      "id": "prv-4GQV49",
+      "members": [
+        38
+      ]
+    },
+    "istat:39": {
+      "id": "prv-2WEQNB",
+      "members": [
+        39
+      ]
+    },
+    "istat:4": {
+      "id": "prv-4EAXBQ",
+      "members": [
+        4
+      ]
+    },
+    "istat:40": {
+      "id": "prv-DQN8PJ",
+      "members": [
+        40
+      ]
+    },
+    "istat:41": {
+      "id": "prv-XXRX19",
+      "members": [
+        41
+      ]
+    },
+    "istat:42": {
+      "id": "prv-VXYV2C",
+      "members": [
+        42
+      ]
+    },
+    "istat:43": {
+      "id": "prv-FG6WXQ",
+      "members": [
+        43
+      ]
+    },
+    "istat:44": {
+      "id": "prv-YDM3R9",
+      "members": [
+        44
+      ]
+    },
+    "istat:45": {
+      "id": "prv-SC8TY1",
+      "members": [
+        45,
+        125
+      ]
+    },
+    "istat:46": {
+      "id": "prv-RG7ERK",
+      "members": [
+        46
+      ]
+    },
+    "istat:47": {
+      "id": "prv-VGA0KS",
+      "members": [
+        47
+      ]
+    },
+    "istat:48": {
+      "id": "prv-KZ76SE",
+      "members": [
+        48
+      ]
+    },
+    "istat:49": {
+      "id": "prv-3Q1T8E",
+      "members": [
+        49
+      ]
+    },
+    "istat:5": {
+      "id": "prv-3W937P",
+      "members": [
+        5
+      ]
+    },
+    "istat:50": {
+      "id": "prv-ZR5N2H",
+      "members": [
+        50,
+        137
+      ]
+    },
+    "istat:51": {
+      "id": "prv-6G5KX3",
+      "members": [
+        51,
+        128
+      ]
+    },
+    "istat:52": {
+      "id": "prv-ZEAEM5",
+      "members": [
+        52,
+        134
+      ]
+    },
+    "istat:53": {
+      "id": "prv-F9DED7",
+      "members": [
+        53,
+        135
+      ]
+    },
+    "istat:54": {
+      "id": "prv-X0Y835",
+      "members": [
+        54,
+        129
+      ]
+    },
+    "istat:55": {
+      "id": "prv-VFRAVK",
+      "members": [
+        55,
+        130
+      ]
+    },
+    "istat:56": {
+      "id": "prv-BE1KS8",
+      "members": [
+        56,
+        136
+      ]
+    },
+    "istat:57": {
+      "id": "prv-KDV1KY",
+      "members": [
+        57,
+        133
+      ]
+    },
+    "istat:58": {
+      "id": "prv-E37VNZ",
+      "members": [
+        58,
+        143
+      ]
+    },
+    "istat:59": {
+      "id": "prv-KFWWV0",
+      "members": [
+        59,
+        127
+      ]
+    },
+    "istat:6": {
+      "id": "prv-SF9KWS",
+      "members": [
+        6,
+        118
+      ]
+    },
+    "istat:60": {
+      "id": "prv-4FVZS3",
+      "members": [
+        60
+      ]
+    },
+    "istat:61": {
+      "id": "prv-NDEM81",
+      "members": [
+        61
+      ]
+    },
+    "istat:62": {
+      "id": "prv-KM6104",
+      "members": [
+        62
+      ]
+    },
+    "istat:63": {
+      "id": "prv-AEAAEX",
+      "members": [
+        63
+      ]
+    },
+    "istat:64": {
+      "id": "prv-54GZ1S",
+      "members": [
+        64
+      ]
+    },
+    "istat:65": {
+      "id": "prv-EEQB5R",
+      "members": [
+        65,
+        120
+      ]
+    },
+    "istat:66": {
+      "id": "prv-RXKMA4",
+      "members": [
+        66
+      ]
+    },
+    "istat:67": {
+      "id": "prv-ZM8ZB4",
+      "members": [
+        67
+      ]
+    },
+    "istat:68": {
+      "id": "prv-DPJ4HZ",
+      "members": [
+        68,
+        141
+      ]
+    },
+    "istat:69": {
+      "id": "prv-72V020",
+      "members": [
+        69,
+        123
+      ]
+    },
+    "istat:7": {
+      "id": "prv-MDESKM",
+      "members": [
+        7
+      ]
+    },
+    "istat:70": {
+      "id": "prv-RCAQFJ",
+      "members": [
+        70
+      ]
+    },
+    "istat:71": {
+      "id": "prv-CSFCR4",
+      "members": [
+        71
+      ]
+    },
+    "istat:72": {
+      "id": "prv-P2BEKK",
+      "members": [
+        72,
+        139
+      ]
+    },
+    "istat:73": {
+      "id": "prv-29HBDK",
+      "members": [
+        73
+      ]
+    },
+    "istat:74": {
+      "id": "prv-XJ01RB",
+      "members": [
+        74
+      ]
+    },
+    "istat:75": {
+      "id": "prv-Y6A467",
+      "members": [
+        75
+      ]
+    },
+    "istat:76": {
+      "id": "prv-HAXQ1K",
+      "members": [
+        76
+      ]
+    },
+    "istat:77": {
+      "id": "prv-RJZ3FV",
+      "members": [
+        77
+      ]
+    },
+    "istat:78": {
+      "id": "prv-9V5T1K",
+      "members": [
+        78
+      ]
+    },
+    "istat:79": {
+      "id": "prv-AKBK3P",
+      "members": [
+        79
+      ]
+    },
+    "istat:8": {
+      "id": "prv-W5TX6P",
+      "members": [
+        8
+      ]
+    },
+    "istat:80": {
+      "id": "prv-G3AR1R",
+      "members": [
+        80
+      ]
+    },
+    "istat:81": {
+      "id": "prv-7BDBJT",
+      "members": [
+        81
+      ]
+    },
+    "istat:82": {
+      "id": "prv-TK0E72",
+      "members": [
+        82
+      ]
+    },
+    "istat:83": {
+      "id": "prv-N7NWHB",
+      "members": [
+        83
+      ]
+    },
+    "istat:84": {
+      "id": "prv-EJAN1M",
+      "members": [
+        84,
+        138
+      ]
+    },
+    "istat:85": {
+      "id": "prv-TWQC52",
+      "members": [
+        85
+      ]
+    },
+    "istat:86": {
+      "id": "prv-16AXF3",
+      "members": [
+        86
+      ]
+    },
+    "istat:87": {
+      "id": "prv-3MDJPE",
+      "members": [
+        87
+      ]
+    },
+    "istat:88": {
+      "id": "prv-D637X7",
+      "members": [
+        88
+      ]
+    },
+    "istat:89": {
+      "id": "prv-ZTW4DE",
+      "members": [
+        89
+      ]
+    },
+    "istat:9": {
+      "id": "prv-08A1MY",
+      "members": [
+        9,
+        119
+      ]
+    },
+    "istat:90": {
+      "id": "prv-6G6807",
+      "members": [
+        90
+      ]
+    },
+    "istat:91": {
+      "id": "prv-8QKGKX",
+      "members": [
+        91
+      ]
+    },
+    "istat:92": {
+      "id": "prv-KPJ2Y8",
+      "members": [
+        92
+      ]
+    },
+    "istat:93": {
+      "id": "prv-1DANW3",
+      "members": [
+        93,
+        131
+      ]
+    },
+    "istat:94": {
+      "id": "prv-QRVJZQ",
+      "members": [
+        94,
+        132
+      ]
+    },
+    "istat:95": {
+      "id": "prv-AFJQBV",
+      "members": [
+        95
+      ]
+    },
+    "istat:96": {
+      "id": "prv-6N38K9",
+      "members": [
+        96
+      ]
+    },
+    "istat:97": {
+      "id": "prv-Z2HJ43",
+      "members": [
+        97
+      ]
+    },
+    "istat:99": {
+      "id": "prv-ZK960W",
+      "members": [
+        99,
+        140
+      ]
+    }
+  }
+}

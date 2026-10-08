@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0.0",
+  "data_version": "2026.10.07",
+  "generated_at": "2026-10-08T14:04:33Z",
+  "sources": {
+    "situas-public-snapshots": {
+      "fetched_at": "2026-10-07",
+      "content_hash": "26d9ad973c1183feb2166027c592ffd0fa8a310d413b024e16f671ba6c4903dd",
+      "manifests": 17012
+    },
+    "situas-public-reports": {
+      "fetched_at": "2026-10-07",
+      "content_hash": "053852afd6ad532a5dc25462bf3651a63b2affb274bf2c018376afdeccc9199e",
+      "manifests": 42
+    },
+    "situas-internal": {
+      "fetched_at": "2026-10-07",
+      "content_hash": "ee1b4d616e0b8a544154b486fe5cf68d9f496a48a0ca37be53f2db0b709018ca",
+      "manifests": 13315
+    },
+    "anpr": {
+      "fetched_at": "2026-10-05",
+      "content_hash": "32b30e3b75a6f7b2b4d0b55344a64eeb0e5352b4ebe1e669160981d862aa0846",
+      "manifests": 1
+    }
+  },
+  "counts": {
+    "regions": {
+      "entities": 26,
+      "active": 20,
+      "versions": 45
+    },
+    "provinces": {
+      "entities": 120,
+      "active": 110,
+      "versions": 220
+    },
+    "municipalities": {
+      "entities": 10343,
+      "active": 7894,
+      "versions": 23237
+    },
+    "variations": 4253
+  },
+  "anomalies": {
+    "warning": 27,
+    "info": 246
+  }
+}

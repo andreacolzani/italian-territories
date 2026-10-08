@@ -5,8 +5,8 @@
  * the acquisition stages, so `rebuild` reproduces it offline.
  *
  * The order follows §6: identity per level (regions, UTS, municipalities) with registry ids, versions
- * (parents resolved through the timelines of the higher levels) with registry ids, variations,
- * overrides, derived fields, ANPR cross-check, invariants.
+ * (parents resolved through the timelines of the higher levels; versions have no id, D40),
+ * variations with registry ids, overrides, derived fields, ANPR cross-check, invariants.
  */
 import { AnomalyCollector } from '../anomalies.ts';
 import {
@@ -17,7 +17,6 @@ import {
   EntityTimeline,
   internalVariationEvents,
   registerVariations,
-  registerVersions,
   type EventAccount,
   type IdentifiedEntity,
   type VariationLevelInput,
@@ -124,7 +123,7 @@ export async function buildDataset(
   const overrideRun = new OverrideRun(await loadOverrides(ctx.config.paths.overrides));
   const regionTimeline = EntityTimeline.of('region', regions.entities);
   const provinceTimeline = EntityTimeline.of('province', provinces.entities);
-  const drafts = {
+  const versions = {
     region: buildRegionVersions({ entities: regions.entities, anomalies }),
     province: buildProvinceVersions({
       entities: provinces.entities,
@@ -139,11 +138,6 @@ export async function buildDataset(
       regions: regionTimeline,
       anomalies,
     }),
-  };
-  const versions = {
-    region: registerVersions(registry, 'region', drafts.region, assign).entities,
-    province: registerVersions(registry, 'province', drafts.province, assign).entities,
-    municipality: registerVersions(registry, 'municipality', drafts.municipality, assign).entities,
   };
 
   const identities = { region: regions, province: provinces, municipality: municipalities };
@@ -186,6 +180,14 @@ export async function buildDataset(
     municipality: deriveFields({ level: 'municipality', entities: versions.municipality, variations, anomalies }),
   };
 
+  for (const level of ['region', 'province', 'municipality'] as const) {
+    const list = entities[level] as readonly { partiallyCeded: boolean; successors: { kind: string }[] }[];
+    ctx.summary.derived[level] = {
+      partially_ceded: list.filter((e) => e.partiallyCeded).length,
+      split_into: list.reduce((n, e) => n + e.successors.filter((l) => l.kind === 'split_into').length, 0),
+    };
+  }
+
   if (input.anpr !== null) {
     progress.step('ANPR cross-check');
     crossCheckAnpr({
@@ -214,7 +216,7 @@ export async function buildDataset(
       overrides: overridden.applied,
       ...(input.counts === undefined ? {} : { counts: input.counts }),
       accounts: built.accounts,
-      variationIdOf: (key) => registry.get('variation', key),
+      variationIdOf: (key) => registry.variationId(key),
     },
     anomalies,
     { now: ctx.runtime.now },
@@ -285,7 +287,7 @@ function internalIdentities(crawl: InternalCrawlResult): Record<Level, InternalI
 /** Golden-14 (§11.3): municipalities absent from ANPR, and how many of them are suppressed. */
 function recordGolden14(
   ctx: RunContext,
-  municipalities: readonly { id: number; status: string }[],
+  municipalities: readonly { id: string; status: string }[],
   anomalies: AnomalyCollector,
 ): void {
   const missing = anomalies.list('info').find((a) => a.code === ANPR_ANOMALIES.missingEntity);
@@ -295,6 +297,6 @@ function recordGolden14(
   const suppressed = new Set(municipalities.filter((m) => m.status === 'suppressed').map((m) => m.id));
   ctx.summary.golden14 = {
     anpr_missing_entity: items.length,
-    anpr_missing_suppressed: items.filter((id) => typeof id === 'number' && suppressed.has(id)).length,
+    anpr_missing_suppressed: items.filter((id) => typeof id === 'string' && suppressed.has(id)).length,
   };
 }

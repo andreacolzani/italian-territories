@@ -10,7 +10,7 @@
  */
 import type { EventAccount } from '../build/index.ts';
 import type { HalfOpenInterval, IsoDate } from '../dates/index.ts';
-import type { Level } from '../model/common.ts';
+import type { EntityId, Level } from '../model/common.ts';
 import type { Dated, DerivedFields, Entity, Variation } from '../model/internal.ts';
 import type { AppliedOverride } from '../overrides/index.ts';
 import type { SnapshotSet } from './i12-reconstruction.ts';
@@ -25,10 +25,10 @@ export interface InvariantEntities {
 }
 
 /** The unpublished `COD_PROV_STORICO` timeline of each UTS entity id (§5.5). */
-export type HistoricalCodes = ReadonlyMap<number, readonly Dated<string>[]>;
+export type HistoricalCodes = ReadonlyMap<EntityId, readonly Dated<string>[]>;
 
 /** The periods in which each entity id exists in the snapshots, per level (the identity stage). */
-export type Existence = Record<Level, ReadonlyMap<number, readonly HalfOpenInterval[]>>;
+export type Existence = Record<Level, ReadonlyMap<EntityId, readonly HalfOpenInterval[]>>;
 
 export interface InvariantWorld {
   /** First calendar date: the versions starting on it open no variation (`PV`, I9). */
@@ -56,16 +56,16 @@ export interface InvariantWorld {
 
 /** The `COD_PROV_STORICO` timeline of every UTS entity of `provinces`. */
 export function historicalCodesOf(
-  provinces: readonly { id: number; historicalCodes: readonly Dated<string>[] }[],
+  provinces: readonly { id: EntityId; historicalCodes: readonly Dated<string>[] }[],
 ): HistoricalCodes {
   return new Map(provinces.map((p) => [p.id, p.historicalCodes]));
 }
 
 /** The existence intervals of identified entities (the `intervals` of Step 9). */
 export function existenceOf(
-  identified: Record<Level, readonly { id: number; intervals: readonly HalfOpenInterval[] }[]>,
+  identified: Record<Level, readonly { id: EntityId; intervals: readonly HalfOpenInterval[] }[]>,
 ): Existence {
-  const of = (entities: readonly { id: number; intervals: readonly HalfOpenInterval[] }[]) =>
+  const of = (entities: readonly { id: EntityId; intervals: readonly HalfOpenInterval[] }[]) =>
     new Map(entities.map((e) => [e.id, e.intervals]));
   return {
     region: of(identified.region),

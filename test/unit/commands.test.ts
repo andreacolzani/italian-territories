@@ -9,7 +9,7 @@ import {
 import { resolveConfig } from '../../src/config.ts';
 import type { Transport } from '../../src/http/index.ts';
 import { silentLogger } from '../../src/logger.ts';
-import { toInternalData, toPublicData } from '../../src/emit/index.ts';
+import { toInternalData, toPublicData, toReportVariations } from '../../src/emit/index.ts';
 import { checkInvariants } from '../../src/invariants/index.ts';
 import { baseline } from '../helpers/invariants.ts';
 
@@ -104,12 +104,15 @@ describe('audit samples', () => {
   });
 });
 
-describe('public → internal model (validate)', () => {
-  it('round-trips the published files', () => {
+describe('release → internal model (validate)', () => {
+  it('round-trips the published files and the variation report', () => {
     const world = baseline();
-    const data = toPublicData(world);
+    const data = { ...toPublicData(world), variations: toReportVariations(world.variations) };
     const internal = toInternalData(data);
-    expect(toPublicData({ entities: internal.entities, variations: internal.variations })).toEqual(data);
+    expect({
+      ...toPublicData({ entities: internal.entities }),
+      variations: toReportVariations(internal.variations),
+    }).toEqual(data);
     // Half-open ends come back from the inclusive ones.
     expect(internal.entities.municipality[0]?.versions[0]).toMatchObject({
       validFrom: '1861-03-17',
@@ -119,7 +122,10 @@ describe('public → internal model (validate)', () => {
 
   it('passes the invariants that need no unpublished data, and skips the others', async () => {
     const world = baseline();
-    const { entities, variations } = toInternalData(toPublicData(world));
+    const { entities, variations } = toInternalData({
+      ...toPublicData(world),
+      variations: toReportVariations(world.variations),
+    });
     const report = await checkInvariants({ start: world.start, today: world.today, entities, variations });
     expect(report.results.filter((r) => r.status === 'skipped').map((r) => r.id)).toEqual([
       'I2',

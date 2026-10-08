@@ -1,5 +1,5 @@
 /**
- * `meta.json` (§9): versions, generation time, a summary per source family (§6.1), counts per
+ * `reports/meta.json` (§9, internal): versions, generation time, a summary per source family (§6.1), counts per
  * level and anomaly counts.
  *
  * A source family is summarised from the store manifests of the current projection version (§6.3)
@@ -11,7 +11,7 @@
 import { type IsoDate, maxDate } from '../dates/index.ts';
 import { canonicalJson, sha256 } from '../http/index.ts';
 import { LEVELS } from '../model/common.ts';
-import type { Anomaly, Meta, SourceFamily, SourceSummary } from '../model/public.ts';
+import type { Anomaly, Meta, SourceFamily, SourceSummary, Variation } from '../model/reports.ts';
 import { INTERNAL_REPORTS, type InternalReportNumber } from '../sources/situas-internal/index.ts';
 import { EVENT_LISTS, type EventListPfun } from '../sources/situas-public/index.ts';
 import type { Store } from '../store/index.ts';
@@ -69,6 +69,7 @@ export async function sourceSummaries(store: Store): Promise<SourceSummaries> {
 
 export function buildMeta(options: {
   data: PublicData;
+  variations: readonly Variation[];
   anomalies: readonly Anomaly[];
   generatedAt: string;
   today: IsoDate;
@@ -94,7 +95,7 @@ export function buildMeta(options: {
       regions: counts(data.regions),
       provinces: counts(data.provinces),
       municipalities: counts(data.municipalities),
-      variations: data.variations.length,
+      variations: options.variations.length,
     },
     anomalies: {
       warning: anomalies.filter((a) => a.level === 'warning').length,

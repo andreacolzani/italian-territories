@@ -124,6 +124,18 @@ export async function piemonteIdentity(): Promise<InternalIdentity> {
 export async function regionIdentity(
   records: readonly [string, InternalRegionEvent['type'], string][],
 ): Promise<InternalIdentity> {
+  return internalIdentity(
+    await regionGraph(records),
+    false,
+    (e) => ({ ...e, recordId: e.originId }),
+    'r4:region-events',
+  );
+}
+
+/** The region identity graph of r4 fixtures, as `[code, type, fixture file]`. */
+export async function regionGraph(
+  records: readonly [string, InternalRegionEvent['type'], string][],
+): Promise<IdentityGraph<InternalRegionEvent>> {
   const regionList = await decodedRows('regionList', 'r1-region-list/all.json');
   const sources: IdentitySource<InternalRegionEvent>[] = [];
   for (const [code, type, file] of records) {
@@ -131,7 +143,7 @@ export async function regionIdentity(
     if (listed === undefined) throw new Error(`region ${code} (${type}) not listed by r1`);
     sources.push({ listed, events: await decodedRows('regionEvents', `r4-region-events/${file}`) });
   }
-  const graph = buildIdentityGraph<InternalRegionEvent>({
+  return buildIdentityGraph<InternalRegionEvent>({
     level: 'region',
     sources,
     pointer: (e) => ({ id: e.originId, originId: e.originId }),
@@ -140,5 +152,4 @@ export async function regionIdentity(
     eventKey: canonicalJson,
     anomalies: new AnomalyCollector(),
   });
-  return internalIdentity(graph, false, (e) => ({ ...e, recordId: e.originId }), 'r4:region-events');
 }

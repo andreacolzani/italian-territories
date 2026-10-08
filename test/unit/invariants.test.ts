@@ -34,9 +34,12 @@ import {
   baseline,
   at,
   entityOf,
+  M,
   municipalityVersion,
   mut,
+  P,
   participant,
+  R,
   rowsOf,
   snapshotSet,
   START,
@@ -75,39 +78,43 @@ describe('I1: versions are sorted and do not overlap', () => {
   it('rejects unsorted versions', () => {
     const world = baseline();
     mut(entityOf(world, 'municipality', 1).versions).reverse();
-    expect(contexts(checkI1(world.entities))).toMatchObject([{ invariant: 'I1', entityId: 1, problem: 'unsorted' }]);
+    expect(contexts(checkI1(world.entities))).toMatchObject([{ invariant: 'I1', entityId: M(1), problem: 'unsorted' }]);
   });
 
   it('rejects overlapping versions, an open version followed by another, and an inverted interval', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 1, 1).validTo = '1960-01-01';
-    expect(contexts(checkI1(world.entities))).toMatchObject([{ entityId: 1, versionId: 2, problem: 'overlap' }]);
+    versionOf(world, 'municipality', 1, START).validTo = '1960-01-01';
+    expect(contexts(checkI1(world.entities))).toMatchObject([
+      { entityId: M(1), versionFrom: '1950-01-01', problem: 'overlap' },
+    ]);
 
     const open = baseline();
-    versionOf(open, 'municipality', 1, 1).validTo = null;
-    expect(contexts(checkI1(open.entities))).toMatchObject([{ entityId: 1, problem: 'overlap' }]);
+    versionOf(open, 'municipality', 1, START).validTo = null;
+    expect(contexts(checkI1(open.entities))).toMatchObject([{ entityId: M(1), problem: 'overlap' }]);
 
     const inverted = baseline();
-    versionOf(inverted, 'municipality', 2, 3).validTo = '1800-01-01';
-    expect(contexts(checkI1(inverted.entities))).toMatchObject([{ entityId: 2, versionId: 3, validTo: '1800-01-01' }]);
+    versionOf(inverted, 'municipality', 2, START).validTo = '1800-01-01';
+    expect(contexts(checkI1(inverted.entities))).toMatchObject([
+      { entityId: M(2), versionFrom: START, validTo: '1800-01-01' },
+    ]);
   });
 
   it('rejects an entity without versions', () => {
     const world = baseline();
     mut(entityOf(world, 'region', 1)).versions = [];
-    expect(checkI1(world.entities).map((a) => a.message)).toEqual(['I1: region entity 1 has no versions']);
+    expect(checkI1(world.entities).map((a) => a.message)).toEqual([`I1: region entity ${R(1)} has no versions`]);
   });
 });
 
 describe('I2: a gap between versions needs an entity absent from the snapshots', () => {
   it('rejects a gap while the entity exists, passes when it does not', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 1, 2).validFrom = '1951-01-01';
+    versionOf(world, 'municipality', 1, '1950-01-01').validFrom = '1951-01-01';
     expect(contexts(checkI2(world.entities, world.existence))).toMatchObject([
-      { invariant: 'I2', entityId: 1, gap: { validFrom: '1950-01-01', validTo: '1951-01-01' } },
+      { invariant: 'I2', entityId: M(1), gap: { validFrom: '1950-01-01', validTo: '1951-01-01' } },
     ]);
 
-    world.existence.municipality = new Map(world.existence.municipality).set(1, [
+    world.existence.municipality = new Map(world.existence.municipality).set(M(1), [
       { validFrom: START, validTo: '1950-01-01' },
       { validFrom: '1951-01-01', validTo: null },
     ]);
@@ -116,8 +123,8 @@ describe('I2: a gap between versions needs an entity absent from the snapshots',
 
   it('rejects a gap of an entity the snapshots know nothing about', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 1, 2).validFrom = '1951-01-01';
-    world.existence.municipality = new Map([...world.existence.municipality].filter(([id]) => id !== 1));
+    versionOf(world, 'municipality', 1, '1950-01-01').validFrom = '1951-01-01';
+    world.existence.municipality = new Map([...world.existence.municipality].filter(([id]) => id !== M(1)));
     expect(checkI2(world.entities, world.existence).map((a) => a.message)).toEqual([
       expect.stringContaining('cannot be checked'),
     ]);
@@ -127,25 +134,25 @@ describe('I2: a gap between versions needs an entity absent from the snapshots',
 describe('I3: contiguous versions differ in a published field', () => {
   it('rejects contiguous versions with equal fields', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 1, 2).officialName = 'Alfa';
-    versionOf(world, 'municipality', 1, 2).italianName = 'Alfa';
+    versionOf(world, 'municipality', 1, '1950-01-01').officialName = 'Alfa';
+    versionOf(world, 'municipality', 1, '1950-01-01').italianName = 'Alfa';
     expect(contexts(checkI3(world.entities))).toMatchObject([
-      { invariant: 'I3', entityId: 1, previousVersionId: 1, versionId: 2, date: '1950-01-01' },
+      { invariant: 'I3', entityId: M(1), previousVersionFrom: START, versionFrom: '1950-01-01', date: '1950-01-01' },
     ]);
   });
 
   it('accepts equal versions separated by a gap, and a change of any single field', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 1, 2).officialName = 'Alfa';
-    versionOf(world, 'municipality', 1, 2).italianName = 'Alfa';
-    versionOf(world, 'municipality', 1, 2).validFrom = '1951-01-01';
+    versionOf(world, 'municipality', 1, '1950-01-01').officialName = 'Alfa';
+    versionOf(world, 'municipality', 1, '1950-01-01').italianName = 'Alfa';
+    versionOf(world, 'municipality', 1, '1950-01-01').validFrom = '1951-01-01';
     expect(checkI3(world.entities)).toEqual([]);
 
     for (const change of [
       (v: ReturnType<typeof municipalityV>) => (v.cadastralCode = 'A999'),
       (v: ReturnType<typeof municipalityV>) => (v.foreignName = 'Alpha'),
-      (v: ReturnType<typeof municipalityV>) => (v.provinceId = 2),
-      (v: ReturnType<typeof municipalityV>) => (v.regionId = 2),
+      (v: ReturnType<typeof municipalityV>) => (v.provinceId = P(2)),
+      (v: ReturnType<typeof municipalityV>) => (v.regionId = R(2)),
       (v: ReturnType<typeof municipalityV>) => (v.istatCode = '001999'),
     ]) {
       const changed = baseline();
@@ -159,19 +166,19 @@ describe('I3: contiguous versions differ in a published field', () => {
 });
 
 function municipalityV(world: Baseline) {
-  return versionOf(world, 'municipality', 1, 2);
+  return versionOf(world, 'municipality', 1, '1950-01-01');
 }
 
 describe('I4: parents cover the interval of the referencing version', () => {
   it('rejects a reference to no entity, a null reference and an uncovered interval', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).provinceId = 99;
-    versionOf(world, 'municipality', 3, 4).regionId = null;
-    versionOf(world, 'province', 1, 1).regionId = 99;
+    versionOf(world, 'municipality', 3, START).provinceId = P(99);
+    versionOf(world, 'municipality', 3, START).regionId = null;
+    versionOf(world, 'province', 1, START).regionId = R(99);
     expect(contexts(checkI4(world.entities))).toMatchObject([
-      { entityId: 1, field: 'regionId', target: 99, level: 'province' },
-      { entityId: 3, field: 'provinceId', target: 99 },
-      { entityId: 3, field: 'regionId', target: null },
+      { entityId: P(1), field: 'regionId', target: R(99), level: 'province' },
+      { entityId: M(3), field: 'provinceId', target: P(99) },
+      { entityId: M(3), field: 'regionId', target: null },
     ]);
     expect(checkI4(world.entities).map((a) => a.message)).toEqual([
       expect.stringContaining('references no region entity'),
@@ -182,13 +189,13 @@ describe('I4: parents cover the interval of the referencing version', () => {
 
   it('rejects a parent whose versions leave part of the interval uncovered', () => {
     const world = baseline();
-    versionOf(world, 'province', 2, 2).validFrom = '1900-01-01';
+    versionOf(world, 'province', 2, START).validFrom = '1900-01-01';
     expect(contexts(checkI4(world.entities))).toMatchObject([
-      { entityId: 3, field: 'provinceId', uncovered: [{ validFrom: START, validTo: '1900-01-01' }] },
+      { entityId: M(3), field: 'provinceId', uncovered: [{ validFrom: START, validTo: '1900-01-01' }] },
     ]);
 
     const closed = baseline();
-    versionOf(closed, 'region', 1, 1).validTo = '2000-01-01';
+    versionOf(closed, 'region', 1, START).validTo = '2000-01-01';
     expect(checkI4(closed.entities).length).toBeGreaterThan(0);
     expect(checkI4(closed.entities).every((a) => a.context.parentLevel === 'region')).toBe(true);
   });
@@ -198,7 +205,7 @@ describe('I4: parents cover the interval of the referencing version', () => {
     const province = entityOf(world, 'province', 2);
     province.versions = [
       { ...at(province.versions), validTo: '1950-01-01' },
-      { ...at(province.versions), id: 20, validFrom: '1950-01-01', officialName: 'Nuova' },
+      { ...at(province.versions), validFrom: '1950-01-01', officialName: 'Nuova' },
     ];
     expect(checkI4(world.entities)).toEqual([]);
   });
@@ -207,13 +214,13 @@ describe('I4: parents cover the interval of the referencing version', () => {
 describe('I5: a municipality has the region of its province', () => {
   it('rejects a different region over the whole interval or only part of it', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).regionId = 2;
+    versionOf(world, 'municipality', 3, START).regionId = R(2);
     expect(contexts(checkI5(world.entities))).toMatchObject([
       {
         invariant: 'I5',
-        entityId: 3,
-        regionId: 2,
-        conflicts: [{ validFrom: START, validTo: null, provinceRegionId: 1 }],
+        entityId: M(3),
+        regionId: R(2),
+        conflicts: [{ validFrom: START, validTo: null, provinceRegionId: R(1) }],
       },
     ]);
 
@@ -221,18 +228,18 @@ describe('I5: a municipality has the region of its province', () => {
     const province = entityOf(partial, 'province', 2);
     province.versions = [
       { ...at(province.versions), validTo: '1950-01-01' },
-      { ...at(province.versions), id: 20, validFrom: '1950-01-01', regionId: 2 },
+      { ...at(province.versions), validFrom: '1950-01-01', regionId: R(2) },
     ];
     expect(contexts(checkI5(partial.entities))).toMatchObject([
-      { entityId: 3, conflicts: [{ validFrom: '1950-01-01', validTo: null, provinceVersionId: 20 }] },
+      { entityId: M(3), conflicts: [{ validFrom: '1950-01-01', validTo: null, provinceVersionFrom: '1950-01-01' }] },
     ]);
   });
 
   it('skips versions whose province or region is undetermined', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).regionId = null;
-    versionOf(world, 'municipality', 1, 2).provinceId = null;
-    versionOf(world, 'municipality', 1, 2).regionId = 2;
+    versionOf(world, 'municipality', 3, START).regionId = null;
+    versionOf(world, 'municipality', 1, '1950-01-01').provinceId = null;
+    versionOf(world, 'municipality', 1, '1950-01-01').regionId = R(2);
     expect(checkI5(world.entities)).toEqual([]);
   });
 });
@@ -240,9 +247,9 @@ describe('I5: a municipality has the region of its province', () => {
 describe('I6: per-date uniqueness', () => {
   it('rejects a code, a cadastral code and an abbreviation held by two entities at once', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).istatCode = '001001';
-    versionOf(world, 'municipality', 3, 4).cadastralCode = 'A001';
-    versionOf(world, 'province', 2, 2).abbreviation = 'AA';
+    versionOf(world, 'municipality', 3, START).istatCode = '001001';
+    versionOf(world, 'municipality', 3, START).cadastralCode = 'A001';
+    versionOf(world, 'province', 2, START).abbreviation = 'AA';
     expect(contexts(checkI6(world.entities))).toMatchObject([
       { level: 'province', field: 'abbreviation', value: 'AA' },
       {
@@ -266,11 +273,12 @@ describe('I6: per-date uniqueness', () => {
     const world = baseline();
     const reused = {
       level: 'municipality' as const,
-      id: 9,
+      id: M(9),
       istatOriginId: 9,
-      versions: [municipalityVersion(90, ['1900-01-01', null], '001002', null, 'Riuso')],
+      versions: [municipalityVersion(['1900-01-01', null], '001002', null, 'Riuso')],
       status: 'active' as const,
       isFormerItalian: false,
+      partiallyCeded: false,
       predecessors: [],
       successors: [],
       currentSuccessors: [],
@@ -278,7 +286,7 @@ describe('I6: per-date uniqueness', () => {
     const entities: InvariantEntities = { ...world.entities, municipality: [...world.entities.municipality, reused] };
     expect(checkI6(entities)).toEqual([]);
 
-    const nulls = { ...reused, id: 10, versions: [municipalityVersion(91, [START, null], '001003', null, 'Altro')] };
+    const nulls = { ...reused, id: M(10), versions: [municipalityVersion([START, null], '001003', null, 'Altro')] };
     expect(checkI6({ ...entities, municipality: [...entities.municipality, nulls] })).toEqual([]);
   });
 });
@@ -286,9 +294,9 @@ describe('I6: per-date uniqueness', () => {
 describe('I7: the code prefix is the historical code of the UTS', () => {
   it('rejects a prefix that differs at any date (suffix < 800)', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).istatCode = '009001';
+    versionOf(world, 'municipality', 3, START).istatCode = '009001';
     expect(contexts(checkI7(world.entities, world.historicalCodes))).toMatchObject([
-      { invariant: 'I7', entityId: 3, istatCode: '009001', prefix: '009', different: [{ historicalCode: '002' }] },
+      { invariant: 'I7', entityId: M(3), istatCode: '009001', prefix: '009', different: [{ historicalCode: '002' }] },
     ]);
   });
 
@@ -297,27 +305,27 @@ describe('I7: the code prefix is the historical code of the UTS', () => {
     // The fallback gave the UTS code of 2026 where the municipalities still carry the historical prefix.
     at(mut(at(world.provinceEntities, 1)).versions).istatCode = '318';
     mut(at(world.provinceEntities, 1)).historicalCodes = [{ validFrom: START, validTo: null, value: '318' }];
-    const historicalCodes = new Map(world.historicalCodes).set(2, at(world.provinceEntities, 1).historicalCodes);
+    const historicalCodes = new Map(world.historicalCodes).set(P(2), at(world.provinceEntities, 1).historicalCodes);
     const found = checkI7(world.entities, historicalCodes);
     expect(codes(found)).toEqual(['invariant-i7']);
-    expect(found[0]?.message).toMatch(/historical code of its UTS 2/);
+    expect(found[0]?.message).toContain(`historical code of its UTS ${P(2)}`);
   });
 
   it('classifies 8xx codes: prefix of another UTS is info, of no UTS blocking, a mismatch below 800 blocking', () => {
     const another = baseline();
-    versionOf(another, 'municipality', 4, 5).istatCode = '002801';
+    versionOf(another, 'municipality', 4, START).istatCode = '002801';
     const info = checkI7(another.entities, another.historicalCodes);
     expect(info.map((a) => [a.level, a.code])).toEqual([['info', 'municipality-8xx-prefix-of-another-uts']]);
-    expect(info[0]?.context).toMatchObject({ entityId: 4, versionId: 5, prefix: '002' });
+    expect(info[0]?.context).toMatchObject({ entityId: M(4), versionFrom: START, prefix: '002' });
 
     const unknown = baseline();
-    versionOf(unknown, 'municipality', 4, 5).istatCode = '777801';
+    versionOf(unknown, 'municipality', 4, START).istatCode = '777801';
     expect(checkI7(unknown.entities, unknown.historicalCodes).map((a) => [a.level, a.code])).toEqual([
       ['blocking', 'invariant-i7'],
     ]);
 
     const low = baseline();
-    versionOf(low, 'municipality', 4, 5).istatCode = '002799';
+    versionOf(low, 'municipality', 4, START).istatCode = '002799';
     expect(checkI7(low.entities, low.historicalCodes).map((a) => [a.level, a.code])).toEqual([
       ['blocking', 'invariant-i7'],
     ]);
@@ -326,32 +334,32 @@ describe('I7: the code prefix is the historical code of the UTS', () => {
   it('knows the UTS codes of every time, historical ones included, and skips undetermined provinces', () => {
     const world = baseline();
     // 215 was the code of UTS 2 from 1950 only (a metropolitan-city renumbering): a known UTS code.
-    const historicalCodes = new Map(world.historicalCodes).set(2, [
+    const historicalCodes = new Map(world.historicalCodes).set(P(2), [
       { validFrom: START, validTo: '1950-01-01', value: '002' },
       { validFrom: '1950-01-01', validTo: null, value: '215' },
     ]);
-    versionOf(world, 'municipality', 4, 5).istatCode = '215801';
-    const ofM4 = (found: Anomaly[]) => found.filter((a) => a.context.entityId === 4).map((a) => a.level);
+    versionOf(world, 'municipality', 4, START).istatCode = '215801';
+    const ofM4 = (found: Anomaly[]) => found.filter((a) => a.context.entityId === M(4)).map((a) => a.level);
     expect(ofM4(checkI7(world.entities, historicalCodes))).toEqual(['info']);
 
     // A version whose province is undetermined is skipped altogether.
-    versionOf(world, 'municipality', 3, 4).provinceId = null;
-    versionOf(world, 'municipality', 3, 4).istatCode = '009001';
-    expect(checkI7(world.entities, historicalCodes).filter((a) => a.context.entityId === 3)).toEqual([]);
+    versionOf(world, 'municipality', 3, START).provinceId = null;
+    versionOf(world, 'municipality', 3, START).istatCode = '009001';
+    expect(checkI7(world.entities, historicalCodes).filter((a) => a.context.entityId === M(3))).toEqual([]);
   });
 
   it('takes the historical codes of the UTS of the world as UTS codes, and nothing else unless a test adds them', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 4, 5).istatCode = '215801';
+    versionOf(world, 'municipality', 4, START).istatCode = '215801';
     expect(codes(checkI7(world.entities, world.historicalCodes))).toEqual(['invariant-i7']);
     // A historical code of an entity the world does not list does not count.
-    const stray = new Map(world.historicalCodes).set(99, [{ validFrom: START, validTo: null, value: '215' }]);
+    const stray = new Map(world.historicalCodes).set(P(99), [{ validFrom: START, validTo: null, value: '215' }]);
     expect(codes(checkI7(world.entities, stray))).toEqual(['invariant-i7']);
     // The historical code of a UTS of the world does.
-    const own = new Map(world.historicalCodes).set(2, [{ validFrom: START, validTo: null, value: '215' }]);
+    const own = new Map(world.historicalCodes).set(P(2), [{ validFrom: START, validTo: null, value: '215' }]);
     expect(
       checkI7(world.entities, own)
-        .filter((a) => a.context.entityId === 4)
+        .filter((a) => a.context.entityId === M(4))
         .map((a) => a.level),
     ).toEqual(['info']);
     // The explicit test parameter adds codes.
@@ -360,7 +368,7 @@ describe('I7: the code prefix is the historical code of the UTS', () => {
 
   it('rejects a code that is not six digits', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).istatCode = '2001';
+    versionOf(world, 'municipality', 3, START).istatCode = '2001';
     expect(codes(checkI7(world.entities, world.historicalCodes))).toEqual(['invariant-i7']);
   });
 });
@@ -369,10 +377,10 @@ describe('D30: an active municipality with an 8xx code is a warning', () => {
   it('warns on the current version of an active municipality only', () => {
     const world = baseline();
     expect(checkActive8xxCodes(world.entities)).toEqual([]);
-    versionOf(world, 'municipality', 3, 4).istatCode = '002850';
+    versionOf(world, 'municipality', 3, START).istatCode = '002850';
     const found = checkActive8xxCodes(world.entities);
     expect(found.map((a) => [a.level, a.code, a.context.entityId])).toEqual([
-      ['warning', 'active-municipality-8xx-code', 3],
+      ['warning', 'active-municipality-8xx-code', M(3)],
     ]);
   });
 });
@@ -387,24 +395,24 @@ describe('I9: every version boundary is referenced by a variation', () => {
     const world = baseline();
     mut(world).variations = world.variations.filter((v) => v.id !== 2);
     expect(contexts(checkI9(world))).toMatchObject([
-      { entityId: 1, versionId: 1, side: 'before', date: '1950-01-01' },
-      { entityId: 1, versionId: 2, side: 'after', date: '1950-01-01' },
+      { entityId: M(1), versionFrom: START, side: 'before', date: '1950-01-01' },
+      { entityId: M(1), versionFrom: '1950-01-01', side: 'after', date: '1950-01-01' },
     ]);
   });
 
   it('rejects references to a missing version or entity, and dates that disagree', () => {
     const world = baseline();
     variationOf(world, 2).participants = [
-      participant(1, 'changed', ['RN'], 1, 77),
-      participant(42, 'changed', ['RN'], 1, 2),
+      participant(1, 'changed', ['RN'], START, '1977-01-01'),
+      participant(42, 'changed', ['RN'], START, '1950-01-01'),
     ];
-    at(variationOf(world, 1).participants, 1).versionBeforeId = 1;
+    at(variationOf(world, 1).participants, 1).versionBefore = '1950-01-01';
     const found = checkI9(world);
     expect(found.map((a) => a.message)).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('has no version 77'),
-        expect.stringContaining('municipality entity 42 does not exist'),
-        expect.stringContaining('has no version 1'),
+        expect.stringContaining('has no version from 1977-01-01'),
+        expect.stringContaining(`municipality entity ${M(42)} does not exist`),
+        expect.stringContaining('has no version from 1950-01-01'),
       ]),
     );
   });
@@ -414,31 +422,33 @@ describe('I9: every version boundary is referenced by a variation', () => {
     variationOf(world, 2).date = '1951-01-01';
     expect(checkI9(world).map((a) => a.message)).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('version 1 does not end on 1951-01-01'),
-        expect.stringContaining('version 2 does not start on 1951-01-01'),
+        expect.stringContaining(`version from ${START} does not end on 1951-01-01`),
+        expect.stringContaining('version from 1950-01-01 does not start on 1951-01-01'),
       ]),
     );
   });
 
   it('rejects a link to a missing entity', () => {
     const world = baseline();
-    at(variationOf(world, 1).links).to = 77;
-    expect(contexts(checkI9(world))).toMatchObject([{ entityId: 77, link: { from: 2, to: 77 } }]);
+    at(variationOf(world, 1).links).to = M(77);
+    expect(contexts(checkI9(world))).toMatchObject([{ entityId: M(77), link: { from: M(2), to: M(77) } }]);
   });
 });
 
 describe('I10: no zero-length versions, no participation without effect', () => {
   it('rejects a zero-length version', () => {
     const world = baseline();
-    versionOf(world, 'municipality', 2, 3).validTo = START;
-    expect(contexts(checkI10(world))).toMatchObject([{ invariant: 'I10', entityId: 2, versionId: 3, date: START }]);
+    versionOf(world, 'municipality', 2, START).validTo = START;
+    expect(contexts(checkI10(world))).toMatchObject([
+      { invariant: 'I10', entityId: M(2), versionFrom: START, date: START },
+    ]);
   });
 
   it('rejects a participant inconsistent with its role, and a variation without any effect', () => {
     const world = baseline();
-    variationOf(world, 2).participants = [participant(1, 'changed', ['RN'], 1, null)];
+    variationOf(world, 2).participants = [participant(1, 'changed', ['RN'], START, null)];
     expect(contexts(checkI10(world))).toMatchObject([
-      { variationId: 2, entityId: 1, role: 'changed', problems: ['role changed: version_after_id is required'] },
+      { variationId: 2, entityId: M(1), role: 'changed', problems: ['role changed: version_after is required'] },
     ]);
 
     const empty = baseline();
@@ -454,23 +464,56 @@ describe('I10: no zero-length versions, no participation without effect', () => 
 });
 
 describe('I11: derived fields are consistent', () => {
-  it('rejects a stale status, link list, successor list or former-Italian flag, one violation per field', () => {
+  it('rejects a stale status, link list, successor list, former-Italian or partially-ceded flag, one violation per field', () => {
     const world = baseline();
     const m2 = entityOf(world, 'municipality', 2);
     m2.status = 'active';
-    m2.currentSuccessors = [3];
+    m2.currentSuccessors = [M(3)];
     m2.isFormerItalian = true;
+    m2.partiallyCeded = true;
     m2.successors = [];
-    entityOf(world, 'municipality', 1).predecessors = [
-      { id: 2, kind: 'merged_into', date: '1900-01-01', variationId: 1 },
-    ];
+    entityOf(world, 'municipality', 1).predecessors = [{ id: M(2), kind: 'split_into', date: '1900-01-01' }];
     expect(contexts(checkI11(world)).map((c) => [c.entityId, c.field])).toEqual([
-      [1, 'predecessors'],
-      [2, 'status'],
-      [2, 'isFormerItalian'],
-      [2, 'successors'],
-      [2, 'currentSuccessors'],
+      [M(1), 'predecessors'],
+      [M(2), 'status'],
+      [M(2), 'isFormerItalian'],
+      [M(2), 'partiallyCeded'],
+      [M(2), 'successors'],
+      [M(2), 'currentSuccessors'],
+      [M(2), 'partiallyCeded'],
     ]);
+  });
+
+  it('publishes a merged_into towards several destinations of one date as split_into, on both sides', () => {
+    const world = baseline();
+    // Municipalities 2 and 4 each merge into 1 alone: merged_into, not split.
+    expect(entityOf(world, 'municipality', 2).successors).toEqual([
+      { id: M(1), kind: 'merged_into', date: '1900-01-01' },
+    ]);
+    // Municipality 2 now also merges into 3 on the same date, in another variation.
+    const variations = [
+      ...world.variations,
+      {
+        ...at(world.variations),
+        id: 3,
+        istatActId: 3,
+        participants: [participant(3, 'territory_changed', ['AQES'], null, null)],
+        links: [{ level: 'municipality' as const, from: M(2), to: M(3), kind: 'merged_into' as const }],
+      },
+    ];
+    const derived = deriveFields({
+      level: 'municipality',
+      entities: world.entities.municipality,
+      variations,
+      anomalies: new AnomalyCollector(),
+    });
+    const of = (id: string) => derived.find((e) => e.id === id);
+    expect(of(M(2))?.successors).toEqual([
+      { id: M(1), kind: 'split_into', date: '1900-01-01' },
+      { id: M(3), kind: 'split_into', date: '1900-01-01' },
+    ]);
+    expect(of(M(2))?.currentSuccessors).toEqual([M(1), M(3)]);
+    expect(of(M(4))?.successors).toEqual([{ id: M(1), kind: 'merged_into', date: '1900-01-01' }]);
   });
 
   it('rejects a suppressed entity that is not former Italian and has no current successors', () => {
@@ -485,8 +528,8 @@ describe('I11: derived fields are consistent', () => {
     mut(world.entities).municipality = derived;
     const found = checkI11(world);
     expect(contexts(found).map((c) => [c.entityId, c.problem])).toEqual([
-      [2, 'suppressed-without-successors'],
-      [4, 'suppressed-without-successors'],
+      [M(2), 'suppressed-without-successors'],
+      [M(4), 'suppressed-without-successors'],
     ]);
   });
 });
@@ -498,7 +541,7 @@ describe('I12: the reconstruction equals the snapshots', () => {
 
   it('rejects a changed field, naming the code and the field', async () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).cadastralCode = 'B999';
+    versionOf(world, 'municipality', 3, START).cadastralCode = 'B999';
     const found = await i12(world);
     expect(found.length).toBe(world.snapshots.length);
     expect(contexts(found)[0]).toMatchObject({
@@ -510,7 +553,7 @@ describe('I12: the reconstruction equals the snapshots', () => {
         {
           code: '002001',
           kind: 'field',
-          entityId: 3,
+          entityId: M(3),
           fields: [{ field: 'cadastralCode', snapshot: 'B001', version: 'B999' }],
         },
       ],
@@ -534,7 +577,7 @@ describe('I12: the reconstruction equals the snapshots', () => {
       {
         differences: [
           { kind: 'count', rows: 1, versions: 2 },
-          { kind: 'no-row', code: '002001', versionId: 4 },
+          { kind: 'no-row', code: '002001', entityId: M(3), versionFrom: START },
         ],
       },
     ]);
@@ -558,7 +601,7 @@ describe('I12: the reconstruction equals the snapshots', () => {
   it('detects a merge error that alters the abbreviation of a pre-1948 version', async () => {
     const world = baseline();
     // The municipalities of UTS 1 report AA before 1948; the version says otherwise.
-    versionOf(world, 'province', 1, 1).abbreviation = 'ZZ';
+    versionOf(world, 'province', 1, START).abbreviation = 'ZZ';
     const found = await i12(world);
     const wrong = contexts(found).filter((c) => c.level === 'province');
     expect(wrong.map((c) => c.date)).toEqual(['1861-03-17', '1900-01-01', '1950-01-01', '1960-01-01', '2020-01-01']);
@@ -576,14 +619,14 @@ describe('I12: the reconstruction equals the snapshots', () => {
     expect(contexts(found).map((c) => [c.level, c.date])).toEqual([['province', START]]);
     expect(contexts(found)[0]).toMatchObject({ differences: [{ fields: [{ snapshot: null, version: 'AA' }] }] });
 
-    versionOf(world, 'province', 1, 1).abbreviation = null;
+    versionOf(world, 'province', 1, START).abbreviation = null;
     expect(contexts(await i12(world)).filter((c) => c.date === START)).toEqual([]);
   });
 
   it('expects the value of the override applied to a version, whatever the snapshot says', async () => {
     const world = baseline();
     // ISTAT reports a full name; the published value is the override's.
-    versionOf(world, 'province', 1, 1).abbreviation = 'VG';
+    versionOf(world, 'province', 1, START).abbreviation = 'VG';
     for (const set of mut(world.snapshots)) {
       for (const row of set.rows.province ?? [])
         if (row.code === '001' && row.abbreviation !== null) row.abbreviation = 'Venezia';
@@ -593,7 +636,7 @@ describe('I12: the reconstruction equals the snapshots', () => {
 
     const override = {
       key: 'uts-1-abbreviation',
-      entityId: 1,
+      entityId: P(1),
       validFrom: START,
       validTo: null,
       field: 'abbreviation' as const,
@@ -649,7 +692,7 @@ describe('I12: the reconstruction equals the snapshots', () => {
       return set;
     });
     // Province 2 is wrong too, but its abbreviation is not compared either.
-    versionOf(world, 'province', 1, 1).abbreviation = 'ZZ';
+    versionOf(world, 'province', 1, START).abbreviation = 'ZZ';
     const options = {
       entities: world.entities,
       historicalCodes: world.historicalCodes,
@@ -736,18 +779,18 @@ describe('I15: abroad participants', () => {
   it('rejects ceded and annexed participants that are not abroad', () => {
     const world = baseline();
     variationOf(world, 2).participants = [
-      participant(1, 'ceded', ['AS'], 1, null),
-      participant(2, 'annexed', ['AN'], null, 2),
+      participant(1, 'ceded', ['AS'], START, null),
+      participant(2, 'annexed', ['AN'], null, '1950-01-01'),
     ];
     expect(contexts(checkI15(world.variations))).toMatchObject([
-      { invariant: 'I15', entityId: 1, role: 'ceded', abroad: false },
-      { entityId: 2, role: 'annexed', abroad: false },
+      { invariant: 'I15', entityId: M(1), role: 'ceded', abroad: false },
+      { entityId: M(2), role: 'annexed', abroad: false },
     ]);
   });
 
   it('rejects an abroad participant without AS, AN, CE or AQ', () => {
     const world = baseline();
-    variationOf(world, 2).participants = [participant(1, 'changed', ['RN'], 1, 2, { abroad: true })];
+    variationOf(world, 2).participants = [participant(1, 'changed', ['RN'], START, '1950-01-01', { abroad: true })];
     expect(checkI15(world.variations).map((a) => a.message)).toEqual([
       expect.stringContaining('abroad without an AS, AN, CE, AQ event'),
     ]);
@@ -756,8 +799,8 @@ describe('I15: abroad participants', () => {
   it('accepts the abroad events, partial cessions and acquisitions of territory abroad included', () => {
     const world = baseline();
     variationOf(world, 2).participants = [
-      participant(1, 'ceded', ['AS'], 1, null, { abroad: true }),
-      participant(2, 'annexed', ['AN'], null, 2, { abroad: true }),
+      participant(1, 'ceded', ['AS'], START, null, { abroad: true }),
+      participant(2, 'annexed', ['AN'], null, '1950-01-01', { abroad: true }),
       participant(3, 'territory_changed', ['CE'], null, null, { abroad: true }),
       participant(4, 'territory_changed', ['AQ'], null, null, { abroad: true }),
     ];
@@ -768,7 +811,7 @@ describe('I15: abroad participants', () => {
 describe('checkInvariants', () => {
   it('reports a failed invariant, adds its anomalies to the collector and makes assertInvariants throw', async () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).cadastralCode = 'B999';
+    versionOf(world, 'municipality', 3, START).cadastralCode = 'B999';
     const anomalies = new AnomalyCollector();
     const report = await checkInvariants(world, anomalies);
     // One violation per snapshot date.
@@ -826,7 +869,7 @@ describe('checkInvariants', () => {
 
   it('keeps the non-blocking anomalies of I7 and D30 out of the verdict', async () => {
     const world = baseline();
-    versionOf(world, 'municipality', 3, 4).istatCode = '002850';
+    versionOf(world, 'municipality', 3, START).istatCode = '002850';
     const report = await checkInvariants(world);
     expect(report.results.find((r) => r.id === 'I7')?.status).toBe('passed');
     expect(report.anomalies.map((a) => [a.level, a.code])).toEqual(

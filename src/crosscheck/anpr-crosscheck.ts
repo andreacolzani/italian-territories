@@ -143,7 +143,7 @@ export function crossCheckAnpr(options: {
     (r) => r.istatCode,
   );
 
-  const municipalities = [...options.municipalities].sort((a, b) => a.id - b.id);
+  const municipalities = [...options.municipalities].sort((a, b) => compareCodeUnits(a.id, b.id));
   const versionsByCadastral = new Map<string, VersionRef[]>();
   const uncodedVersionsByCode = new Map<string, VersionRef[]>();
   const versionsByCode = new Map<string, VersionRef[]>();
@@ -257,12 +257,12 @@ export function crossCheckAnpr(options: {
     const context = {
       matchedBy: methodOf(version, row),
       entityId: entity.id,
-      versionId: version.id,
+      versionFrom: version.validFrom,
       validFrom: period.validFrom,
       validTo: period.validTo,
       anprRow: rowRef(row),
     };
-    const where = `municipality ${entity.id} (version ${version.id}, ${describe(period)})`;
+    const where = `municipality ${entity.id} (version from ${version.validFrom}, ${describe(period)})`;
     if (version.istatCode !== row.istatCode) {
       const item = { ...context, situas: version.istatCode, anpr: row.istatCode };
       const place = placeInHistory(entity, period, istatCodesIn, row.istatCode);
@@ -349,7 +349,7 @@ export function crossCheckAnpr(options: {
     for (const period of ambiguous) {
       addInfo(ANPR_ANOMALIES.notComparable, {
         entityId: entity.id,
-        versionId: version.id,
+        versionFrom: version.validFrom,
         matchedBy,
         validFrom: period.validFrom,
         validTo: period.validTo,
@@ -392,7 +392,7 @@ export function crossCheckAnpr(options: {
       const segment = segments.find((s) => covers(s, piece)) ?? piece;
       const item = {
         entityId: entity.id,
-        versionIds: inside.map((u) => u.ref.version.id),
+        versionsFrom: inside.map((u) => u.ref.version.validFrom),
         matchedBy: [...new Set(inside.map((u) => u.ref.matchedBy))],
         validFrom: piece.validFrom,
         validTo: piece.validTo,
@@ -433,7 +433,7 @@ export function crossCheckAnpr(options: {
     const context = {
       matchedBy: lastRef.matchedBy,
       entityId: entity.id,
-      versionId: last.id,
+      versionFrom: last.validFrom,
       isFormerItalian: entity.isFormerItalian,
       anprRegion: row.regionCode,
       anprRow: rowRef(row),
@@ -553,7 +553,7 @@ function knownCause(
   }
   for (const { entity, version } of near) {
     if (version.validTo !== piece.validFrom || entity.versions.at(-1) !== version || !entity.isFormerItalian) continue;
-    return { code: ANPR_ANOMALIES.cessionExtended, context: { entityId: entity.id, versionId: version.id } };
+    return { code: ANPR_ANOMALIES.cessionExtended, context: { entityId: entity.id, versionFrom: version.validFrom } };
   }
   if (days(piece) > MAX_BOUNDARY_OFFSET_DAYS) return null;
   for (const { entity, version } of near) {
@@ -566,7 +566,7 @@ function knownCause(
       code: ANPR_ANOMALIES.boundaryOffset,
       context: {
         entityId: entity.id,
-        versionId: version.id,
+        versionFrom: version.validFrom,
         boundary: established ? 'establishment' : 'suppression',
         days: days(piece),
       },
@@ -689,7 +689,6 @@ function rowSummary(row: AnprRecord) {
 
 function versionSummary(version: MunicipalityVersion) {
   return {
-    versionId: version.id,
     validFrom: version.validFrom,
     validTo: version.validTo,
     istatCode: version.istatCode,
@@ -702,8 +701,10 @@ function uniqueRows(rows: readonly AnprRecord[]): AnprRecord[] {
 }
 
 function uniqueVersions(refs: readonly VersionRef[]): VersionRef[] {
-  const byVersion = new Map(refs.map((r) => [r.version.id, r]));
-  return [...byVersion.values()].sort((a, b) => a.version.id - b.version.id);
+  const byVersion = new Map(refs.map((r) => [`${r.entity.id}|${r.version.validFrom}`, r]));
+  return [...byVersion.values()].sort(
+    (a, b) => compareCodeUnits(a.entity.id, b.entity.id) || compareDates(a.version.validFrom, b.version.validFrom),
+  );
 }
 
 function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
@@ -716,4 +717,8 @@ function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const list = map.get(key);
   if (list === undefined) map.set(key, [value]);
   else list.push(value);
+}
+
+function compareCodeUnits(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }

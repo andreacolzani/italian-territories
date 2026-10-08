@@ -61,8 +61,27 @@ export type UtsType = (typeof UTS_TYPES)[number];
 export const ENTITY_STATUSES = ['active', 'suppressed'] as const;
 export type EntityStatus = (typeof ENTITY_STATUSES)[number];
 
+/** Kinds of the links of a variation (§4.3, internal). */
 export const LINK_KINDS = ['merged_into', 'detached_into', 'transferred_to'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
+
+/**
+ * Kinds of the published links (`predecessors`/`successors`, §7, D44): `split_into` is a
+ * `merged_into` towards several destinations on the same date; `transferred_to` is never published.
+ */
+export const PUBLIC_LINK_KINDS = ['merged_into', 'split_into', 'detached_into'] as const;
+export type PublicLinkKind = (typeof PUBLIC_LINK_KINDS)[number];
+
+/** Prefix of the entity ids of each level (§5.3, D42). */
+export const ENTITY_ID_PREFIXES: Readonly<Record<Level, string>> = {
+  region: 'reg',
+  province: 'prv',
+  municipality: 'mun',
+};
+
+/** Entity id: `<prefix>-<code>`, code of 6 Crockford base32 characters (§5.3, D42). */
+export const ENTITY_ID_PATTERN = /^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$/;
+export type EntityId = string;
 
 export const VARIATION_ORIGINS = ['istat', 'inferred'] as const;
 export type VariationOrigin = (typeof VARIATION_ORIGINS)[number];
@@ -150,18 +169,20 @@ export const PARTICIPANT_ROLE_RULES: Readonly<Record<ParticipantRole, Participan
 export function participantRoleViolations(participant: {
   role: ParticipantRole;
   istatEvents: readonly IstatEventCode[];
-  versionBeforeId: number | null;
-  versionAfterId: number | null;
+  /** `validFrom` of the closed version, null when none. */
+  versionBefore: string | null;
+  /** `validFrom` of the opened version, null when none. */
+  versionAfter: string | null;
 }): string[] {
-  const { role, istatEvents, versionBeforeId, versionAfterId } = participant;
+  const { role, istatEvents, versionBefore, versionAfter } = participant;
   const rule = PARTICIPANT_ROLE_RULES[role];
   const violations: string[] = [];
   const presence = (present: boolean): string => (present ? 'required' : 'forbidden');
-  if ((versionBeforeId !== null) !== rule.versionBefore) {
-    violations.push(`role ${role}: version_before_id is ${presence(rule.versionBefore)}`);
+  if ((versionBefore !== null) !== rule.versionBefore) {
+    violations.push(`role ${role}: version_before is ${presence(rule.versionBefore)}`);
   }
-  if ((versionAfterId !== null) !== rule.versionAfter) {
-    violations.push(`role ${role}: version_after_id is ${presence(rule.versionAfter)}`);
+  if ((versionAfter !== null) !== rule.versionAfter) {
+    violations.push(`role ${role}: version_after is ${presence(rule.versionAfter)}`);
   }
   if (rule.requiresOwnEvent && istatEvents.length === 0) {
     violations.push(`role ${role}: at least one own ISTAT event is required`);

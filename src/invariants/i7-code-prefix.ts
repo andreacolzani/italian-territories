@@ -50,7 +50,7 @@ export function checkI7(
       const context = {
         level: 'municipality',
         entityId: entity.id,
-        versionId: version.id,
+        versionFrom: version.validFrom,
         istatCode: version.istatCode,
         validFrom: version.validFrom,
         validTo: version.validTo,
@@ -60,7 +60,7 @@ export function checkI7(
         anomalies.push(
           violation(
             'I7',
-            `municipality entity ${entity.id}, version ${version.id}: ${JSON.stringify(version.istatCode)} is not a 6-digit code`,
+            `municipality entity ${entity.id}, version from ${version.validFrom}: ${JSON.stringify(version.istatCode)} is not a 6-digit code`,
             context,
           ),
         );
@@ -72,7 +72,7 @@ export function checkI7(
         anomalies.push(
           violation(
             'I7',
-            `municipality entity ${entity.id}, version ${version.id}: code ${version.istatCode} has prefix ${prefix}, which was never the code of a UTS`,
+            `municipality entity ${entity.id}, version from ${version.validFrom}: code ${version.istatCode} has prefix ${prefix}, which was never the code of a UTS`,
             { ...context, prefix },
           ),
         );
@@ -88,14 +88,14 @@ export function checkI7(
         anomalies.push({
           level: 'info',
           code: I7_ANOMALIES.prefixOfAnotherUts,
-          message: `municipality entity ${entity.id}, version ${version.id}: code ${version.istatCode} has the prefix ${prefix} of another UTS than its own over ${where}`,
+          message: `municipality entity ${entity.id}, version from ${version.validFrom}: code ${version.istatCode} has the prefix ${prefix} of another UTS than its own over ${where}`,
           context: { ...context, prefix, different },
         });
       } else {
         anomalies.push(
           violation(
             'I7',
-            `municipality entity ${entity.id}, version ${version.id}: code ${version.istatCode} has prefix ${prefix}, the historical code of its UTS ${version.provinceId} is different over ${where}`,
+            `municipality entity ${entity.id}, version from ${version.validFrom}: code ${version.istatCode} has prefix ${prefix}, the historical code of its UTS ${version.provinceId} is different over ${where}`,
             { ...context, prefix, different },
           ),
         );
@@ -117,7 +117,12 @@ export function checkActive8xxCodes(entities: InvariantEntities): Anomaly[] {
       level: 'warning',
       code: I7_ANOMALIES.activeWith8xxCode,
       message: `active municipality ${entity.id} has the current code ${current.istatCode}, with suffix >= 800`,
-      context: { level: 'municipality', entityId: entity.id, versionId: current.id, istatCode: current.istatCode },
+      context: {
+        level: 'municipality',
+        entityId: entity.id,
+        versionFrom: current.validFrom,
+        istatCode: current.istatCode,
+      },
     });
   }
   return anomalies;

@@ -9,6 +9,7 @@ import {
   sourceSummaries,
   summariseManifests,
   type EmitOptions,
+  type ReleaseDirs,
   type SourceSummaries,
 } from '../../src/emit/index.ts';
 import { canonicalJson, sha256 } from '../../src/http/index.ts';
@@ -16,7 +17,7 @@ import { generateJsonSchemas } from '../../src/model/json-schema.ts';
 import { reportUrls } from '../../src/sources/situas-internal/index.ts';
 import { Store } from '../../src/store/index.ts';
 import { withTempDir } from '../helpers/http.ts';
-import { at, baseline, entityOf } from '../helpers/invariants.ts';
+import { at, baseline, entityOf, M, mut } from '../helpers/invariants.ts';
 
 const SOURCES: SourceSummaries = {
   'situas-public-snapshots': { fetched_at: '2026-10-01', content_hash: 'a'.repeat(64), manifests: 3 },
@@ -30,9 +31,14 @@ const ANOMALIES: EmitOptions['anomalies'] = [
   { level: 'warning', code: 'inferred-breakpoint', message: 'inferred', context: { date: '1900-01-01' } },
 ];
 
+/** The release of a directory: `dist/` and `reports/` inside it. */
+function dirs(dir: string): ReleaseDirs {
+  return { dist: join(dir, 'dist'), reports: join(dir, 'reports') };
+}
+
 function options(dir: string, over: Partial<EmitOptions> = {}): EmitOptions {
   return {
-    dir,
+    dirs: dirs(dir),
     world: baseline(),
     anomalies: ANOMALIES,
     previous: null,
@@ -43,8 +49,9 @@ function options(dir: string, over: Partial<EmitOptions> = {}): EmitOptions {
   };
 }
 
+/** Every file under `dir`, by path relative to it (`dist/…`, `reports/…`). */
 async function filesOf(dir: string): Promise<Record<string, string>> {
-  const entries = await readdir(dir, { recursive: true, withFileTypes: true });
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []);
   const files = entries.filter((e) => e.isFile()).map((e) => join(e.parentPath, e.name));
   const texts = await Promise.all(
     files.map(async (f): Promise<[string, string]> => [
@@ -56,29 +63,39 @@ async function filesOf(dir: string): Promise<Record<string, string>> {
 }
 
 describe('emitDataset (§6.12, §9)', () => {
-  it('writes the data files, anomalies, changes, schemas and meta last', async () => {
+  it('writes the three data files and their schemas to dist/, the reports to reports/, meta last', async () => {
     await withTempDir(async (dir) => {
       const result = await emitDataset(options(dir));
       expect(result.kind).toBe('data');
       if (result.kind === 'unchanged') return;
-      expect(result.files.at(-1)).toBe('meta.json');
-      expect(result.files.slice(0, 6)).toEqual([
+      expect(result.files.at(-1)).toBe('reports/meta.json');
+      expect(result.files).toEqual([
         'regions.json',
         'provinces.json',
         'municipalities.json',
-        'variations.json',
-        'anomalies.json',
-        'changes.json',
+        'schema/regions.schema.json',
+        'schema/provinces.schema.json',
+        'schema/municipalities.schema.json',
+        'reports/variations.json',
+        'reports/anomalies.json',
+        'reports/changes.json',
+        'reports/meta.json',
+      ]);
+      expect(Object.keys(generateJsonSchemas())).toEqual([
+        'regions.schema.json',
+        'provinces.schema.json',
+        'municipalities.schema.json',
       ]);
       const files = await filesOf(dir);
-      expect(Object.keys(files).sort()).toEqual([...result.files].sort());
-      for (const name of Object.keys(generateJsonSchemas())) expect(files).toHaveProperty(`schema/${name}`);
+      expect(Object.keys(files).sort()).toEqual(
+        result.files.map((f) => (f.startsWith('reports/') ? f : `dist/${f}`)).sort(),
+      );
       for (const text of Object.values(files)) {
         expect(text.endsWith('}\n') || text.endsWith(']\n')).toBe(true);
         expect(text.charCodeAt(0)).not.toBe(0xfeff);
         expect(text).not.toContain('\r');
       }
-      expect(JSON.parse(files['meta.json'] ?? '')).toEqual({
+      expect(JSON.parse(files['reports/meta.json'] ?? '')).toEqual({
         schema_version: '1.0.0',
         data_version: '2026.01.01',
         generated_at: '2026-01-01T04:00:00Z',
@@ -91,11 +108,11 @@ describe('emitDataset (§6.12, §9)', () => {
         },
         anomalies: { warning: 1, info: 1 },
       });
-      expect((JSON.parse(files['anomalies.json'] ?? '') as { code: string }[]).map((a) => a.code)).toEqual([
+      expect((JSON.parse(files['reports/anomalies.json'] ?? '') as { code: string }[]).map((a) => a.code)).toEqual([
         'inferred-breakpoint',
         'anpr-missing-entity',
       ]);
-      expect(JSON.parse(files['changes.json'] ?? '')).toMatchObject({ from: null, retroactive: false });
+      expect(JSON.parse(files['reports/changes.json'] ?? '')).toMatchObject({ from: null, retroactive: false });
     });
   });
 
@@ -105,10 +122,11 @@ describe('emitDataset (§6.12, §9)', () => {
       await emitDataset(options(join(dir, 'b')));
       expect(await filesOf(join(dir, 'a'))).toEqual(await filesOf(join(dir, 'b')));
 
-      const previous = await loadPublishedDataset(join(dir, 'a'));
+      const previous = await loadPublishedDataset(dirs(join(dir, 'a')));
       expect(previous?.meta.data_version).toBe('2026.01.01');
       expect(previous?.municipalities).toHaveLength(4);
-      expect(await loadPublishedDataset(join(dir, 'none'))).toBeNull();
+      expect(previous?.variations).toHaveLength(2);
+      expect(await loadPublishedDataset(dirs(join(dir, 'none')))).toBeNull();
     });
   });
 
@@ -116,22 +134,35 @@ describe('emitDataset (§6.12, §9)', () => {
     await withTempDir(async (dir) => {
       await emitDataset(options(dir));
       const before = await filesOf(dir);
-      const mtime = (await stat(join(dir, 'meta.json'))).mtimeMs;
-      const previous = await loadPublishedDataset(dir);
+      const mtime = (await stat(join(dir, 'reports', 'meta.json'))).mtimeMs;
+      const previous = await loadPublishedDataset(dirs(dir));
       const result = await emitDataset(
         options(dir, { previous, generatedAt: '2026-01-08T04:00:00Z', today: '2026-01-08', anomalies: [] }),
       );
       expect(result.kind).toBe('unchanged');
       expect(result.anomalies).toEqual([]);
       expect(await filesOf(dir)).toEqual(before);
-      expect((await stat(join(dir, 'meta.json'))).mtimeMs).toBe(mtime);
+      expect((await stat(join(dir, 'reports', 'meta.json'))).mtimeMs).toBe(mtime);
+    });
+  });
+
+  it('does not release when only the internal reports would change (§9)', async () => {
+    await withTempDir(async (dir) => {
+      await emitDataset(options(dir));
+      const before = await filesOf(dir);
+      const previous = await loadPublishedDataset(dirs(dir));
+      const world = baseline();
+      mut(world).variations[1] = { ...at(world.variations, 1), description: 'Altra descrizione' };
+      const result = await emitDataset(options(dir, { world, previous, today: '2026-01-08' }));
+      expect(result.kind).toBe('unchanged');
+      expect(await filesOf(dir)).toEqual(before);
     });
   });
 
   it('writes a diff against the previous release when the data changed', async () => {
     await withTempDir(async (dir) => {
       await emitDataset(options(dir));
-      const previous = await loadPublishedDataset(dir);
+      const previous = await loadPublishedDataset(dirs(dir));
       const world = baseline();
       at(entityOf(world, 'municipality', 3).versions).officialName = 'Delta Nuova';
       const result = await emitDataset(
@@ -143,10 +174,20 @@ describe('emitDataset (§6.12, §9)', () => {
         to: { data_version: '2026.01.08', generated_at: '2026-01-08T04:00:00Z' },
         retroactive: true,
         municipalities: {
-          versions: { updated: [{ id: 4, fields: ['official_name'], affected_from: '1861-03-17', retroactive: true }] },
+          versions: {
+            updated: [
+              {
+                entity_id: M(3),
+                valid_from: '1861-03-17',
+                fields: ['official_name'],
+                affected_from: '1861-03-17',
+                retroactive: true,
+              },
+            ],
+          },
         },
       });
-      expect((await loadPublishedDataset(dir))?.meta.data_version).toBe('2026.01.08');
+      expect((await loadPublishedDataset(dirs(dir)))?.meta.data_version).toBe('2026.01.08');
     });
   });
 
@@ -154,11 +195,11 @@ describe('emitDataset (§6.12, §9)', () => {
     await withTempDir(async (dir) => {
       await emitDataset(options(dir));
       const before = await filesOf(dir);
-      const previous = await loadPublishedDataset(dir);
+      const previous = await loadPublishedDataset(dirs(dir));
       if (previous === null) throw new Error('nothing published');
       // A release of an older generator: one schema differs, one is missing.
-      previous.schemas['meta.schema.json'] = '{}';
-      delete previous.schemas['changes.schema.json'];
+      previous.schemas['regions.schema.json'] = '{}';
+      delete previous.schemas['provinces.schema.json'];
       const result = await emitDataset(
         options(dir, {
           previous,
@@ -171,17 +212,17 @@ describe('emitDataset (§6.12, §9)', () => {
       expect(result.kind).toBe('schemas');
       if (result.kind === 'unchanged') return;
       expect(result.files).toEqual([
-        'changes.json',
         ...Object.keys(generateJsonSchemas()).map((name) => `schema/${name}`),
-        'meta.json',
+        'reports/changes.json',
+        'reports/meta.json',
       ]);
       const after = await filesOf(dir);
       for (const name of [
-        'regions.json',
-        'provinces.json',
-        'municipalities.json',
-        'variations.json',
-        'anomalies.json',
+        'dist/regions.json',
+        'dist/provinces.json',
+        'dist/municipalities.json',
+        'reports/variations.json',
+        'reports/anomalies.json',
       ]) {
         expect(after[name]).toBe(before[name]);
       }
@@ -202,7 +243,7 @@ describe('emitDataset (§6.12, §9)', () => {
         generated_at: '2026-01-08T04:00:00Z',
       });
       expect(result.meta.data_version).toBe('2026.01.01');
-      const reloaded = await loadPublishedDataset(dir);
+      const reloaded = await loadPublishedDataset(dirs(dir));
       expect(reloaded?.schemas).toEqual(
         Object.fromEntries(Object.entries(generateJsonSchemas()).map(([name, schema]) => [name, serialize(schema)])),
       );
@@ -215,17 +256,23 @@ describe('emitDataset (§6.12, §9)', () => {
       await expect(emitDataset(options(dir, { anomalies: blocking }))).rejects.toThrow(EmitError);
       const world = baseline();
       at(entityOf(world, 'province', 1).versions).abbreviation = 'Venezia Giulia';
-      await expect(emitDataset(options(dir, { world }))).rejects.toThrow(/provinces.json violates its public model/);
+      await expect(emitDataset(options(dir, { world }))).rejects.toThrow(/provinces.json violates its model/);
       expect(await readdir(dir)).toEqual([]);
     });
   });
 
-  it('rejects a previous release that violates the public models', async () => {
+  it('rejects a previous release that violates its models, public files and reports', async () => {
     await withTempDir(async (dir) => {
       await emitDataset(options(dir));
       const { writeFile } = await import('node:fs/promises');
-      await writeFile(join(dir, 'regions.json'), '[{"id": 0}]\n');
-      await expect(loadPublishedDataset(dir)).rejects.toThrow(EmitError);
+      await writeFile(join(dir, 'dist', 'regions.json'), '[{"id": 0}]\n');
+      await expect(loadPublishedDataset(dirs(dir))).rejects.toThrow(EmitError);
+    });
+    await withTempDir(async (dir) => {
+      await emitDataset(options(dir));
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(join(dir, 'reports', 'variations.json'), '[{"id": 0}]\n');
+      await expect(loadPublishedDataset(dirs(dir))).rejects.toThrow(EmitError);
     });
   });
 });

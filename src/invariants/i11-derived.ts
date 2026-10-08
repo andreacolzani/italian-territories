@@ -2,9 +2,10 @@
  * Invariant I11 (§8.1): the derived fields (§7) are consistent with the versions and the
  * variations. The expected values are recomputed from the entities' versions and the variations
  * (`deriveFields`) and every field of every entity is compared: a stale or tampered `status`,
- * `predecessors`, `successors`, `current_successors` or `is_former_italian` is a violation, one per
- * entity and field. Moreover, a suppressed entity that is not former Italian must have a non-empty
- * `current_successors`.
+ * `predecessors`, `successors` (the `split_into` kind included), `current_successors`,
+ * `is_former_italian` or `partially_ceded` is a violation, one per entity and field. Moreover, a
+ * suppressed entity that is not former Italian must have a non-empty `current_successors`, and
+ * `is_former_italian` and `partially_ceded` are never both true.
  */
 import { AnomalyCollector } from '../anomalies.ts';
 import { deriveFields } from '../derive/index.ts';
@@ -13,7 +14,7 @@ import type { Anomaly, EntityLink, Variation } from '../model/internal.ts';
 import { violation } from './anomaly.ts';
 import type { InvariantEntities, InvariantEntity } from './world.ts';
 
-const linkKey = (l: EntityLink): string => `${l.id}|${l.kind}|${l.date}|${l.variationId}`;
+const linkKey = (l: EntityLink): string => `${l.id}|${l.kind}|${l.date}`;
 
 export function checkI11(options: { entities: InvariantEntities; variations: readonly Variation[] }): Anomaly[] {
   const anomalies: Anomaly[] = [];
@@ -50,6 +51,9 @@ export function checkI11(options: { entities: InvariantEntities; variations: rea
       if (entity.isFormerItalian !== wanted.isFormerItalian) {
         mismatch('isFormerItalian', entity.isFormerItalian, wanted.isFormerItalian);
       }
+      if (entity.partiallyCeded !== wanted.partiallyCeded) {
+        mismatch('partiallyCeded', entity.partiallyCeded, wanted.partiallyCeded);
+      }
       for (const field of ['predecessors', 'successors'] as const) {
         const got = entity[field].map(linkKey);
         const want = wanted[field].map(linkKey);
@@ -69,6 +73,16 @@ export function checkI11(options: { entities: InvariantEntities; variations: rea
             `${level} entity ${entity.id} is suppressed and not former Italian but has no current successors`,
             { level, entityId: entity.id, field: 'currentSuccessors', problem: 'suppressed-without-successors' },
           ),
+        );
+      }
+      if (entity.isFormerItalian && entity.partiallyCeded) {
+        anomalies.push(
+          violation('I11', `${level} entity ${entity.id} is both former Italian and partially ceded`, {
+            level,
+            entityId: entity.id,
+            field: 'partiallyCeded',
+            problem: 'former-italian-and-partially-ceded',
+          }),
         );
       }
     }

@@ -21,12 +21,11 @@ export function checkI8(provinces: readonly Entity<'province'>[]): Anomaly[] {
         violation(
           'I8',
           abbreviation === null
-            ? `province entity ${entity.id}, version ${version.id} (code ${version.istatCode}) has no abbreviation`
-            : `province entity ${entity.id}, version ${version.id} (code ${version.istatCode}) has abbreviation ` +
+            ? `province entity ${entity.id}, version from ${version.validFrom} (code ${version.istatCode}) has no abbreviation`
+            : `province entity ${entity.id}, version from ${version.validFrom} (code ${version.istatCode}) has abbreviation ` +
                 `${JSON.stringify(abbreviation)}, not two uppercase letters`,
           {
             entityId: entity.id,
-            versionId: version.id,
             istatCode: version.istatCode,
             validFrom: version.validFrom,
             validTo: version.validTo,

@@ -11,11 +11,20 @@ import { describe, expect, it } from 'vitest';
 import type { IsoDate } from '../../src/dates/index.ts';
 import type { Level } from '../../src/model/common.ts';
 import type { Variation } from '../../src/model/internal.ts';
-import { municipalityGraph, utsGraph } from '../helpers/identity.ts';
+import { AnomalyCollector } from '../../src/anomalies.ts';
+import { deriveFields } from '../../src/derive/index.ts';
+import { internalIdentity } from '../../src/identity/index.ts';
+import { IntervalIndex } from '../../src/resolve/index.ts';
+import { municipalityGraph, regionGraph, snapshotIndex, utsGraph } from '../helpers/identity.ts';
+import { withSources } from '../helpers/sources.ts';
 import {
   accountViolations,
   eventLists,
+  buildVariationWorld,
   fixtureWorld,
+  onDates,
+  regionDetails,
+  variationEvents,
   variationOf,
   variationPropertyViolations,
   type BuiltVariations,
@@ -25,11 +34,11 @@ import { entityAt } from '../helpers/versions.ts';
 const lists = await eventLists();
 
 /** Participants of a variation as `[level, entity id, events, role]`. */
-function roles(variation: Variation): [Level, number, string[], string | null][] {
+function roles(variation: Variation): [Level, string, string[], string | null][] {
   return variation.participants.map((p) => [p.level, p.entityId, p.istatEvents, p.role]);
 }
 
-function links(variation: Variation): [number, number, string][] {
+function links(variation: Variation): [string, string, string][] {
   return variation.links.map((l) => [l.from, l.to, l.kind]);
 }
 
@@ -70,13 +79,13 @@ describe('golden-1: Setteville and the mergers of 2024-01-22', async () => {
         ['municipality', queroVas.id, ['ES'], 'suppressed'],
         ['municipality', alano.id, ['ES'], 'suppressed'],
         ['municipality', setteville.id, ['CS'], 'established'],
-      ].sort((a, b) => (a[1] as number) - (b[1] as number)),
+      ].sort((a, b) => cmp(a[1] as string, b[1] as string)),
     );
     expect(links(variation)).toEqual(
       [
         [queroVas.id, setteville.id, 'merged_into'],
         [alano.id, setteville.id, 'merged_into'],
-      ].sort((a, b) => (a[0] as number) - (b[0] as number)),
+      ].sort((a, b) => cmp(a[0] ?? '', b[0] ?? '')),
     );
   });
 
@@ -91,7 +100,7 @@ describe('golden-1: Setteville and the mergers of 2024-01-22', async () => {
       [
         [oldSovizzo.id, newSovizzo.id, 'merged_into'],
         [gambugliano.id, newSovizzo.id, 'merged_into'],
-      ].sort((a, b) => (a[0] as number) - (b[0] as number)),
+      ].sort((a, b) => cmp(a[0] ?? '', b[0] ?? '')),
     );
     expect(built.variations).toHaveLength(3);
     expectComplete(built);
@@ -119,7 +128,7 @@ describe('golden-2: Sassofeltrio', async () => {
       [
         [sassofeltrio.id, monteGrimano.id, 'merged_into'],
         [sassofeltrio.id, piandicastello.id, 'merged_into'],
-      ].sort((a, b) => (a[1] as number) - (b[1] as number)),
+      ].sort((a, b) => cmp(a[1] ?? '', b[1] ?? '')),
     );
   });
 
@@ -133,7 +142,7 @@ describe('golden-2: Sassofeltrio', async () => {
       [
         [monteGrimano.id, sassofeltrio.id, 'detached_into'],
         [piandicastello.id, sassofeltrio.id, 'detached_into'],
-      ].sort((a, b) => (a[0] as number) - (b[0] as number)),
+      ].sort((a, b) => cmp(a[0] ?? '', b[0] ?? '')),
     );
   });
 
@@ -148,11 +157,87 @@ describe('golden-2: Sassofeltrio', async () => {
         istatEvents: ['AP'],
         abroad: false,
         role: 'changed',
-        versionBeforeId: sassofeltrio.versions[1]?.id,
-        versionAfterId: last?.id,
+        versionBefore: sassofeltrio.versions[1]?.validFrom,
+        versionAfter: last?.validFrom,
       },
     ]);
     expect(first?.validTo).toBe('1929-05-14');
+  });
+});
+
+describe('golden-15: the regions of 1948-01-01, links of act 6107 repeated by pfun 106 (D43)', async () => {
+  const DAY: IsoDate = '1948-01-01';
+  // Compartments Piemonte, Veneto, Venezia Giulia; regions Piemonte, Valle d'Aosta, Veneto, Friuli-Venezia Giulia.
+  const CODES = ['01', '02', '05', '06', '83'];
+  const graph = await regionGraph([
+    ['01', 'compartment', '01_1_piemonte.json'],
+    ['01', 'region', '01_2_piemonte.json'],
+    ['02', 'region', '02_2_valle-d-aosta.json'],
+    ['05', 'compartment', '05_1_veneto.json'],
+    ['05', 'region', '05_2_veneto.json'],
+    ['06', 'region', '06_2_friuli-venezia-giulia.json'],
+    ['83', 'compartment', '83_1_venezia-giulia.json'],
+  ]);
+  const details = await regionDetails([
+    '25_CS_6107.json',
+    '29_CS_6107.json',
+    '14_CSCT_6107.json',
+    '12_CSCT_6107.json',
+    '14_ES_6107.json',
+    '12_ES_6107.json',
+    '23_ES_6107.json',
+  ]);
+  const index = await withSources(({ situasPublic }) =>
+    snapshotIndex(situasPublic, 'region', ['1947-12-31', DAY], CODES),
+  );
+  const kept = (r: { date: IsoDate; code: string; related: { code: string | null } | null }) =>
+    r.date === DAY && CODES.includes(r.code) && (r.related?.code == null || CODES.includes(r.related.code));
+  const built = await buildVariationWorld({
+    region: {
+      index,
+      internal: internalIdentity(graph, true, (e) => ({ ...e, recordId: e.originId }), 'r4:region-events'),
+      eventLists: { 106: lists.region[106].filter(kept), 107: lists.region[107].filter(kept) },
+    },
+    province: { index: new IntervalIndex('province', new Map()) },
+    internalEvents: { region: onDates(variationEvents(graph, details), [DAY]) },
+  });
+  const regions = deriveFields({
+    level: 'region',
+    entities: built.entities.region,
+    variations: built.variations,
+    anomalies: new AnomalyCollector(),
+  });
+  const at = (code: string, date: IsoDate) => entityAt(regions, code, date);
+
+  it('the ESCT rows of pfun 106 are explained by act 6107: no nk: variation', () => {
+    const esct = [...lists.region[106]].filter((r) => kept(r) && r.event === 'ESCT');
+    expect(esct.map((r) => [r.code, r.related?.code])).toEqual(
+      expect.arrayContaining([
+        ['01', '02'],
+        ['05', '06'],
+      ]),
+    );
+    expect(built.variations.map((v) => v.istatActId)).toEqual([6107]);
+    const explained = built.variationAnomalies.list().filter((a) => a.code === 'link-explained-by-act');
+    expect(explained.map((a) => a.context.count)).toEqual([2]);
+    expect(accountViolations(built)).toEqual([]);
+    expect(variationPropertyViolations(built)).toEqual([]);
+    expect(
+      [...built.identityAnomalies.list(), ...built.variationAnomalies.list()].filter((a) => a.level === 'blocking'),
+    ).toEqual([]);
+  });
+
+  it("Valle d'Aosta has one predecessor, Friuli-Venezia Giulia two, none duplicated", () => {
+    const piemonte = at('01', '1947-12-31').id;
+    const veneto = at('05', '1947-12-31').id;
+    const veneziaGiulia = at('83', '1947-12-31').id;
+    expect(at('02', DAY).predecessors).toEqual([{ id: piemonte, kind: 'detached_into', date: DAY }]);
+    expect(at('06', DAY).predecessors).toEqual(
+      [
+        { id: veneto, kind: 'detached_into', date: DAY },
+        { id: veneziaGiulia, kind: 'merged_into', date: DAY },
+      ].sort((a, b) => cmp(a.id, b.id)),
+    );
   });
 });
 
@@ -199,8 +284,8 @@ describe('golden-20: Caserta, suppressed in 1927 and reconstituted in 1945', asy
     expect(variation.istatActId).toBe(5390);
     expect(links(variation).filter(([, to]) => to === caserta.id)).toEqual(
       ['062', '063', '070']
-        .map((code): [number, number, string] => [at(code, '1945-09-01').id, caserta.id, 'detached_into'])
-        .sort((a, b) => a[0] - b[0]),
+        .map((code): [string, string, string] => [at(code, '1945-09-01').id, caserta.id, 'detached_into'])
+        .sort((a, b) => cmp(a[0], b[0])),
     );
     expect(links(variation).some(([from, to]) => from === to)).toBe(false);
   });
@@ -263,7 +348,7 @@ describe('golden-4: Sardinia 2026', async () => {
   const uts = (code: string) => entityAt(built.entities.province, code, '2026-01-01').id;
   const sudSardegna = entityAt(built.entities.province, '111', '2025-12-31').id;
   const act = built.variations.find((v) => v.istatActId === 6151);
-  const participant = (level: Level, entityId: number) =>
+  const participant = (level: Level, entityId: string) =>
     act?.participants.find((p) => p.level === level && p.entityId === entityId);
 
   it('one variation (act 6151) for the whole reorganisation', () => {
@@ -276,7 +361,7 @@ describe('golden-4: Sardinia 2026', async () => {
     expect(participant('province', sudSardegna)).toMatchObject({ istatEvents: ['ES'], role: 'suppressed' });
     const successors = ['114', '116', '117', '119', '318'].map(uts);
     expect(act?.links.filter((l) => l.from === sudSardegna).map((l) => [l.to, l.kind])).toEqual(
-      successors.sort((a, b) => a - b).map((id) => [id, 'merged_into']),
+      successors.sort(cmp).map((id) => [id, 'merged_into']),
     );
   });
 
@@ -305,8 +390,8 @@ describe('golden-4: Sardinia 2026', async () => {
       istatEvents: ['RN'],
       abroad: false,
       role: 'changed',
-      versionBeforeId: before?.id,
-      versionAfterId: after?.id,
+      versionBefore: before?.validFrom,
+      versionAfter: after?.validFrom,
     });
     const alghero = entityAt(built.entities.municipality, '112001', '2026-01-01');
     expect(variationOf(built, 'municipality', alghero.id, '2026-01-01').participants).toEqual([
@@ -329,11 +414,15 @@ describe('golden-6: same-day suppressions', async () => {
       expect(entity.versions[0]).toMatchObject({ validTo: '1927-01-12', provinceId: genova });
     }
     const variation = variationOf(built, 'municipality', finaleLigure.id, '1927-01-12');
-    expect(roles(variation)).toEqual([
-      ...suppressed.map((e): [Level, number, string[], string] => ['municipality', e.id, ['ES'], 'suppressed']),
-      ['municipality', finaleLigure.id, ['CS'], 'established'],
-    ]);
-    expect(links(variation)).toEqual(suppressed.map((e) => [e.id, finaleLigure.id, 'merged_into']));
+    expect(roles(variation)).toEqual(
+      [
+        ...suppressed.map((e): [Level, string, string[], string] => ['municipality', e.id, ['ES'], 'suppressed']),
+        ['municipality', finaleLigure.id, ['CS'], 'established'],
+      ].sort((a, b) => cmp(a[1] as string, b[1] as string)),
+    );
+    expect(links(variation)).toEqual(
+      suppressed.map((e) => [e.id, finaleLigure.id, 'merged_into']).sort((a, b) => cmp(a[0] ?? '', b[0] ?? '')),
+    );
   });
 
   it('Lucinico is merged into Gorizia', () => {
@@ -380,7 +469,7 @@ describe('golden-6: Cantonale (1936-06-04)', async () => {
 describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
   const built = await fixtureWorld(['1947-09-15', '1947-09-16']);
   const at = (code: string, date: IsoDate) => entityAt(built.entities.municipality, code, date);
-  const participantOf = (entityId: number) =>
+  const participantOf = (entityId: string) =>
     variationOf(built, 'municipality', entityId, '1947-09-16').participants.find((p) => p.entityId === entityId);
 
   it('golden-9: Fiume is ceded abroad on 1947-09-16, like every AS row of pfun 98 dated that day', () => {
@@ -405,8 +494,8 @@ describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
         istatEvents: ['CE'],
         abroad: true,
         role: 'territory_changed',
-        versionBeforeId: null,
-        versionAfterId: null,
+        versionBefore: null,
+        versionAfter: null,
       });
       expect(built.variations.flatMap((v) => v.links).some((l) => l.from === entity.id || l.to === entity.id)).toBe(
         false,
@@ -424,7 +513,7 @@ describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
       [
         [limone.id, 'merged_into'],
         [brigaAlta.id, 'merged_into'],
-      ].sort((a, b) => (a[0] as number) - (b[0] as number)),
+      ].sort((a, b) => cmp(a[0] ?? '', b[0] ?? '')),
     );
   });
 
@@ -448,3 +537,7 @@ describe('full worlds of two consecutive days (I9, I10, I14)', () => {
     });
   }
 });
+
+function cmp(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}

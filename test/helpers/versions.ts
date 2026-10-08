@@ -8,7 +8,6 @@ import {
   buildProvinceVersions,
   buildRegionVersions,
   EntityTimeline,
-  type EntityDraft,
   type IdentifiedEntity,
 } from '../../src/build/index.ts';
 import type { HalfOpenInterval, IsoDate } from '../../src/dates/index.ts';
@@ -19,7 +18,8 @@ import {
   type LevelEventLists,
   type LevelIdentity,
 } from '../../src/identity/index.ts';
-import type { Level } from '../../src/model/common.ts';
+import type { EntityId, Level } from '../../src/model/common.ts';
+import type { EntityByLevel } from '../../src/model/internal.ts';
 import { OverrideRun, type AppliedOverride, type Override } from '../../src/overrides/index.ts';
 import { IntervalIndex } from '../../src/resolve/index.ts';
 import { withTempDir } from './http.ts';
@@ -40,12 +40,12 @@ export interface VersionWorld {
 }
 
 export interface BuiltWorld {
-  region: EntityDraft<'region'>[];
-  province: EntityDraft<'province'>[];
-  municipality: EntityDraft<'municipality'>[];
+  region: EntityByLevel['region'][];
+  province: EntityByLevel['province'][];
+  municipality: EntityByLevel['municipality'][];
   identity: { [L in Level]?: LevelIdentity<L> };
   /** Snapshot intervals of each entity id, per level. */
-  intervals: Record<Level, Map<number, readonly HalfOpenInterval[]>>;
+  intervals: Record<Level, Map<EntityId, readonly HalfOpenInterval[]>>;
   /** The entities of identity resolution with their registry ids, per level. */
   identified: { [L in Level]: IdentifiedEntity<L>[] };
   /** The registry of the build (in memory: its directory is removed). */
@@ -75,7 +75,11 @@ export async function buildWorld(world: VersionWorld): Promise<BuiltWorld> {
         recordedOn: '2026-10-04',
         anomalies: identityAnomalies,
       });
-      const entities: IdentifiedEntity<L>[] = identity.entities.map((e) => ({ ...e, id: ids.get(e.key) ?? 0 }));
+      const entities: IdentifiedEntity<L>[] = identity.entities.map((e) => {
+        const id = ids.get(e.key);
+        if (id === undefined) throw new Error(`no id for ${level} ${e.key}`);
+        return { ...e, id };
+      });
       return { identity, entities };
     };
 
@@ -128,7 +132,7 @@ export async function buildWorld(world: VersionWorld): Promise<BuiltWorld> {
   });
 }
 
-function intervalsById(entities: readonly IdentifiedEntity[]): Map<number, readonly HalfOpenInterval[]> {
+function intervalsById(entities: readonly IdentifiedEntity[]): Map<EntityId, readonly HalfOpenInterval[]> {
   return new Map(entities.map((e) => [e.id, e.intervals]));
 }
 
@@ -153,8 +157,8 @@ function within(interval: HalfOpenInterval, date: IsoDate): boolean {
  * versions differ in a published field (I3). Returns the violations.
  */
 export function versionPropertyViolations(
-  entities: readonly EntityDraft[],
-  intervalsOf: (entityId: number) => readonly HalfOpenInterval[],
+  entities: readonly EntityByLevel[Level][],
+  intervalsOf: (entityId: EntityId) => readonly HalfOpenInterval[],
 ): string[] {
   const violations: string[] = [];
   for (const entity of entities) {

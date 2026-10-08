@@ -128,14 +128,21 @@ export const commands: Record<string, Command> = {
   },
   validate: {
     usage: 'validate',
-    summary: 'Run all invariants on dist/.',
+    summary: 'Run all invariants on the release (dist/ and reports/variations.json).',
     options: {},
     positionals: 0,
-    run: async (ctx) => (await runValidate(ctx.config.paths.dist, ctx.config.dates.start, ctx.io)).exitCode,
+    run: async (ctx) =>
+      (
+        await runValidate(
+          { dist: ctx.config.paths.dist, reports: ctx.config.paths.releaseReports },
+          ctx.config.dates.start,
+          ctx.io,
+        )
+      ).exitCode,
   },
   diff: {
     usage: 'diff <from> <to> [--out FILE]',
-    summary: 'Produce changes.json between two published datasets (directories); stdout or --out.',
+    summary: 'Produce changes.json between two releases (directories holding dist/ and reports/); stdout or --out.',
     options: { out: { type: 'string' } },
     positionals: 2,
     run: (ctx) => {

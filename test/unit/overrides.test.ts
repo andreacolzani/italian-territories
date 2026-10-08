@@ -166,7 +166,7 @@ describe('override applier (§6.10): day by day, before the versions are merged'
     expect(applied).toEqual([
       {
         key: 'k',
-        entityId: expect.any(Number) as number,
+        entityId: expect.any(String) as string,
         validFrom: D1,
         validTo: D2,
         field: 'abbreviation',

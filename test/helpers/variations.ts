@@ -1,19 +1,18 @@
 /**
- * Worlds for variation tests: the version worlds of Step 10 with registered versions, then the
- * variation builder (Step 11) over their event lists and internal events.
+ * Worlds for variation tests: the version worlds of Step 10, then the variation builder (Step 11)
+ * over their event lists and internal events.
  */
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import {
   buildVariations,
   registerVariations,
-  registerVersions,
   type EventAccount,
   type InternalVariationEvent,
   type VariationLevelInput,
 } from '../../src/build/index.ts';
 import { compareDates, type IsoDate } from '../../src/dates/index.ts';
 import { internalIdentity, type IdentityGraph } from '../../src/identity/index.ts';
-import { LEVELS, type IstatEventCode, type Level } from '../../src/model/common.ts';
+import { LEVELS, type EntityId, type IstatEventCode, type Level } from '../../src/model/common.ts';
 import type { EntityByLevel, Variation } from '../../src/model/internal.ts';
 import type { Override } from '../../src/overrides/index.ts';
 import { IntervalIndex } from '../../src/resolve/index.ts';
@@ -31,7 +30,7 @@ export interface VariationWorld extends VersionWorld {
 }
 
 export interface BuiltVariations extends BuiltWorld {
-  /** Entities with registered versions. */
+  /** Entities with their versions. */
   entities: { [L in Level]: EntityByLevel[L][] };
   variations: Variation[];
   accounts: EventAccount[];
@@ -42,11 +41,7 @@ export interface BuiltVariations extends BuiltWorld {
 export async function buildVariationWorld(world: VariationWorld): Promise<BuiltVariations> {
   const built = await buildWorld(world);
   const assign = { recordedOn: '2026-10-05', anomalies: new AnomalyCollector() };
-  const entities = {
-    region: registerVersions(built.registry, 'region', built.region, assign).entities,
-    province: registerVersions(built.registry, 'province', built.province, assign).entities,
-    municipality: registerVersions(built.registry, 'municipality', built.municipality, assign).entities,
-  };
+  const entities = { region: built.region, province: built.province, municipality: built.municipality };
   const starts = LEVELS.flatMap((level) => built.identified[level].flatMap((e) => e.intervals.map((i) => i.validFrom)));
   const start = starts.sort(compareDates)[0] ?? '1861-03-17';
   const level = <L extends Level>(l: L): VariationLevelInput<L> | undefined => {
@@ -101,6 +96,11 @@ export async function utsDetails(files: readonly string[]): Promise<Map<string, 
   return eventDetails('utsEventDetails', 'r8-uts-event-details', files);
 }
 
+/** r7 fixtures (`<id_regione_origine>_<event>_<act>.json`) by origin id, event and act. */
+export async function regionDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
+  return eventDetails('regionEventDetails', 'r7-region-event-details', files);
+}
+
 /** r9 fixtures (`<id_origine>_<event>_<act>.json`) by origin id, event and act. */
 export async function municipalityDetails(
   files: readonly string[],
@@ -109,7 +109,7 @@ export async function municipalityDetails(
 }
 
 async function eventDetails(
-  report: 'utsEventDetails' | 'municipalityEventDetails',
+  report: 'regionEventDetails' | 'utsEventDetails' | 'municipalityEventDetails',
   dir: string,
   files: readonly string[],
 ): Promise<Map<string, InternalVariationEvent['details']>> {
@@ -135,7 +135,7 @@ export function onDates<T extends { date: IsoDate }>(rows: readonly T[], dates: 
 }
 
 /** The variation of `date` in which the entity participates. */
-export function variationOf(built: BuiltVariations, level: Level, entityId: number, date: IsoDate): Variation {
+export function variationOf(built: BuiltVariations, level: Level, entityId: EntityId, date: IsoDate): Variation {
   const found = built.variations.filter(
     (v) => v.date === date && v.participants.some((p) => p.level === level && p.entityId === entityId),
   );
@@ -153,12 +153,16 @@ export function variationOf(built: BuiltVariations, level: Level, entityId: numb
  */
 export function variationPropertyViolations(built: BuiltVariations): string[] {
   const violations: string[] = [];
-  const versions = new Map<string, { entityId: number; validFrom: IsoDate; validTo: IsoDate | null }>();
+  const versions = new Map<string, { entityId: EntityId; validFrom: IsoDate; validTo: IsoDate | null }>();
   let start: IsoDate | undefined;
   for (const level of LEVELS) {
     for (const entity of built.entities[level]) {
       for (const v of entity.versions) {
-        versions.set(`${level}|${v.id}`, { entityId: entity.id, validFrom: v.validFrom, validTo: v.validTo });
+        versions.set(`${level}|${entity.id}|${v.validFrom}`, {
+          entityId: entity.id,
+          validFrom: v.validFrom,
+          validTo: v.validTo,
+        });
         if (start === undefined || v.validFrom < start) start = v.validFrom;
       }
     }
@@ -168,29 +172,29 @@ export function variationPropertyViolations(built: BuiltVariations): string[] {
     for (const p of variation.participants) {
       if (p.role === null) continue;
       for (const [side, id] of [
-        ['before', p.versionBeforeId],
-        ['after', p.versionAfterId],
+        ['before', p.versionBefore],
+        ['after', p.versionAfter],
       ] as const) {
         if (id === null) continue;
-        const version = versions.get(`${p.level}|${id}`);
-        if (version?.entityId !== p.entityId) {
-          violations.push(`variation ${variation.id}: ${p.level} version ${id} is not of entity ${p.entityId}`);
+        const version = versions.get(`${p.level}|${p.entityId}|${id}`);
+        if (version === undefined) {
+          violations.push(`variation ${variation.id}: ${p.level} entity ${p.entityId} has no version from ${id}`);
         } else if ((side === 'before' ? version.validTo : version.validFrom) !== variation.date) {
           violations.push(
-            `variation ${variation.id}: ${p.level} version ${id} does not ${side === 'before' ? 'end' : 'start'} on ${variation.date}`,
+            `variation ${variation.id}: ${p.level} version from ${id} does not ${side === 'before' ? 'end' : 'start'} on ${variation.date}`,
           );
         }
-        referenced.add(`${p.level}|${side}|${id}`);
+        referenced.add(`${p.level}|${p.entityId}|${side}|${id}`);
       }
     }
   }
   for (const level of LEVELS) {
     for (const entity of built.entities[level]) {
       for (const v of entity.versions) {
-        if (v.validFrom !== start && !referenced.has(`${level}|after|${v.id}`)) {
+        if (v.validFrom !== start && !referenced.has(`${level}|${entity.id}|after|${v.validFrom}`)) {
           violations.push(`${level} ${entity.id}: version from ${v.validFrom} opened by no variation`);
         }
-        if (v.validTo !== null && !referenced.has(`${level}|before|${v.id}`)) {
+        if (v.validTo !== null && !referenced.has(`${level}|${entity.id}|before|${v.validFrom}`)) {
           violations.push(`${level} ${entity.id}: version until ${v.validTo} closed by no variation`);
         }
       }
@@ -203,7 +207,7 @@ export function variationPropertyViolations(built: BuiltVariations): string[] {
 export function accountViolations(built: BuiltVariations): string[] {
   return built.accounts.flatMap((a) => {
     if ((a.variation === null) === (a.dropped === null)) return [`${a.source}#${a.index}: not accounted`];
-    if (a.variation !== null && built.registry.get('variation', a.variation) === undefined) {
+    if (a.variation !== null && built.registry.variationId(a.variation) === undefined) {
       return [`${a.source}#${a.index}: variation ${a.variation} not registered`];
     }
     return [];

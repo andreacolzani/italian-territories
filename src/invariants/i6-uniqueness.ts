@@ -5,14 +5,13 @@
  * entity are I1's. A null abbreviation is I8's.
  */
 import { compareDates } from '../dates/index.ts';
-import { LEVELS, type Level } from '../model/common.ts';
+import { LEVELS, type EntityId, type Level } from '../model/common.ts';
 import type { Anomaly, Entity } from '../model/internal.ts';
 import { describeRange, intersection, range, violation } from './anomaly.ts';
 import type { InvariantEntities } from './world.ts';
 
 interface Holder {
-  entityId: number;
-  versionId: number;
+  entityId: EntityId;
   validFrom: string;
   validTo: string | null;
 }
@@ -22,7 +21,10 @@ export function checkI6(entities: InvariantEntities): Anomaly[] {
   const check = (level: Level, field: string, values: Map<string, Holder[]>): void => {
     for (const [value, holders] of [...values].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
       if (holders.length < 2) continue;
-      holders.sort((a, b) => compareDates(a.validFrom, b.validFrom) || a.entityId - b.entityId);
+      holders.sort(
+        (a, b) =>
+          compareDates(a.validFrom, b.validFrom) || (a.entityId < b.entityId ? -1 : a.entityId > b.entityId ? 1 : 0),
+      );
       holders.forEach((a, i) => {
         for (const b of holders.slice(i + 1)) {
           if (a.entityId === b.entityId) continue;
@@ -31,7 +33,7 @@ export function checkI6(entities: InvariantEntities): Anomaly[] {
           anomalies.push(
             violation(
               'I6',
-              `${level} ${field} ${JSON.stringify(value)} is held by entities ${a.entityId} (version ${a.versionId}) and ${b.entityId} (version ${b.versionId}) over ${describeRange(common)}`,
+              `${level} ${field} ${JSON.stringify(value)} is held by entities ${a.entityId} (version from ${a.validFrom}) and ${b.entityId} (version from ${b.validFrom}) over ${describeRange(common)}`,
               { level, field, value, overlap: common, first: a, second: b },
             ),
           );
@@ -48,7 +50,6 @@ export function checkI6(entities: InvariantEntities): Anomaly[] {
       for (const version of entity.versions) {
         const holder: Holder = {
           entityId: entity.id,
-          versionId: version.id,
           validFrom: version.validFrom,
           validTo: version.validTo,
         };

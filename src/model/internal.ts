@@ -8,11 +8,13 @@
 import type { HalfOpenInterval, IsoDate } from '../dates/index.ts';
 import type {
   AnomalyLevel,
+  EntityId,
   EntityStatus,
   IstatEventCode,
   Level,
   LinkKind,
   ParticipantRole,
+  PublicLinkKind,
   RegionType,
   UtsType,
   VariationOrigin,
@@ -94,15 +96,24 @@ export interface Snapshot<L extends Level = Level> {
 // Entities and versions (§4.2)
 // ---------------------------------------------------------------------------------------------
 
+/** A version has no id: it is identified by `(entity id, validFrom)` (§4.2, D40). */
 interface VersionBase extends HalfOpenInterval {
-  id: number;
   istatCode: string;
   officialName: string;
   italianName: string;
   foreignName: string | null;
 }
 
-export interface RegionVersion extends VersionBase {
+/**
+ * Regions and UTS: a bilingual denomination missing from the closed table (§4.2) leaves both names
+ * null (`bilingual-name-unknown`, blocking); the emitter refuses them.
+ */
+interface RegionalNames {
+  italianName: string | null;
+  foreignName: string | null;
+}
+
+export interface RegionVersion extends Omit<VersionBase, 'italianName'>, RegionalNames {
   type: RegionType;
 }
 
@@ -114,17 +125,17 @@ export interface RegionVersion extends VersionBase {
  * public model never admits these nulls: the emitter refuses them (Step 16).
  */
 
-export interface ProvinceVersion extends VersionBase {
+export interface ProvinceVersion extends Omit<VersionBase, 'italianName'>, RegionalNames {
   type: UtsType;
   /** Not validated against `^[A-Z]{2}$` here: overrides come later, I8 checks it. */
   abbreviation: string | null;
-  regionId: number | null;
+  regionId: EntityId | null;
 }
 
 export interface MunicipalityVersion extends VersionBase {
   cadastralCode: string | null;
-  provinceId: number | null;
-  regionId: number | null;
+  provinceId: EntityId | null;
+  regionId: EntityId | null;
 }
 
 export interface VersionByLevel {
@@ -135,7 +146,9 @@ export interface VersionByLevel {
 
 export interface Entity<L extends Level = Level> {
   level: L;
-  id: number;
+  /** Registry id `<prefix>-<code>` (§5.3). */
+  id: EntityId;
+  /** Root ISTAT origin id (internal only, D41). */
   istatOriginId: number | null;
   /** Sorted by `validFrom`, non-overlapping (I1). */
   versions: VersionByLevel[L][];
@@ -159,21 +172,23 @@ export interface EntityByLevel {
   municipality: MunicipalityEntity;
 }
 
+/** A published link (§7): `transferred_to` never appears, `split_into` is derived (D44). */
 export interface EntityLink {
-  id: number;
-  kind: LinkKind;
+  id: EntityId;
+  kind: PublicLinkKind;
   date: IsoDate;
-  variationId: number;
 }
 
 /** Derived fields (§7), computed after overrides. */
 export interface DerivedFields {
   status: EntityStatus;
   isFormerItalian: boolean;
+  /** Some, not all, successor paths end in a ceded entity (D45). */
+  partiallyCeded: boolean;
   predecessors: EntityLink[];
   successors: EntityLink[];
-  /** Ascending ids of active entities of the same level. */
-  currentSuccessors: number[];
+  /** Ids of active entities of the same level, sorted (ordinal string order). */
+  currentSuccessors: EntityId[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -182,20 +197,22 @@ export interface DerivedFields {
 
 export interface Participant {
   level: Level;
-  entityId: number;
+  entityId: EntityId;
   istatEvents: IstatEventCode[];
   /** The counterpart of one of its events (`AS`, `AN`, `CE`, `AQ`) is a foreign state (§4.3). */
   abroad: boolean;
   /** `null` = participation without effect: kept internally, logged and dropped on emit (§4.3). */
   role: ParticipantRole | null;
-  versionBeforeId: number | null;
-  versionAfterId: number | null;
+  /** `validFrom` of the version the participation closes, null when none (D40). */
+  versionBefore: IsoDate | null;
+  /** `validFrom` of the version the participation opens (the variation date), null when none. */
+  versionAfter: IsoDate | null;
 }
 
 export interface VariationLink {
   level: Level;
-  from: number;
-  to: number;
+  from: EntityId;
+  to: EntityId;
   kind: LinkKind;
 }
 

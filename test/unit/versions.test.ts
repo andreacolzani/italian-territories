@@ -1,6 +1,6 @@
 /**
  * Version builder (§4.2, §6.9, Step 10) on synthetic intervals: maximal versions, parents as
- * entity ids, pre-1948 abbreviations, undetermined fields, registry ids, and the I1–I3 properties.
+ * entity ids, pre-1948 abbreviations, bilingual names, undetermined fields, and the I1–I3 properties.
  */
 import { describe, expect, it } from 'vitest';
 import { AnomalyCollector } from '../../src/anomalies.ts';
@@ -12,17 +12,13 @@ import {
   EntityTimeline,
   mergeDated,
   municipalityAbbreviations,
-  registerVersions,
-  splitName,
   splitRange,
   type IdentifiedEntity,
 } from '../../src/build/index.ts';
 import { addDays, type IsoDate } from '../../src/dates/index.ts';
-import { Registry } from '../../src/identity/index.ts';
 import type { Level } from '../../src/model/common.ts';
 import type { MunicipalitySnapshotRow, RegionSnapshotRow, UtsSnapshotRow } from '../../src/model/internal.ts';
 import { IntervalIndex, type SnapshotInterval } from '../../src/resolve/index.ts';
-import { withTempDir } from '../helpers/http.ts';
 import { versionPropertyViolations } from '../helpers/versions.ts';
 
 function interval<L extends Level>(
@@ -67,8 +63,11 @@ function municipality(code: string, overrides: Partial<MunicipalitySnapshotRow> 
   };
 }
 
-function entity<L extends Level>(id: number, intervals: SnapshotInterval<L>[]): IdentifiedEntity<L> {
-  return { id, istatOriginId: id * 10, intervals };
+/** Test entity id `e-<n>`. */
+const E = (n: number): string => `e-${n}`;
+
+function entity<L extends Level>(n: number, intervals: SnapshotInterval<L>[]): IdentifiedEntity<L> {
+  return { id: E(n), istatOriginId: n * 10, intervals };
 }
 
 /** A municipality index of the given intervals. */
@@ -156,18 +155,44 @@ describe('timeline helpers', () => {
   });
 });
 
-describe('splitName (§4.2)', () => {
-  it('splits regions and UTS on the first "/", never on "-"', () => {
-    expect(splitName("Valle d'Aosta/Vallée d'Aoste")).toEqual({
-      officialName: "Valle d'Aosta/Vallée d'Aoste",
-      italianName: "Valle d'Aosta",
-      foreignName: "Vallée d'Aoste",
+describe('bilingual names of regions and UTS (§4.2, golden-23)', () => {
+  it('a denomination with "/" missing from the table has no names and is blocking, with the suggestion', () => {
+    const anomalies = new AnomalyCollector();
+    const [entityWithUnknown] = buildRegionVersions({
+      entities: [entity(1, [interval('region', region('99', 'Nuova-Alta/Neue'), '2000-01-01', null)])],
+      anomalies,
     });
-    expect(splitName('Trentino-Alto Adige')).toEqual({
-      officialName: 'Trentino-Alto Adige',
-      italianName: 'Trentino-Alto Adige',
+    expect(entityWithUnknown?.versions[0]).toMatchObject({
+      officialName: 'Nuova-Alta/Neue',
+      italianName: null,
       foreignName: null,
     });
+    expect(anomalies.list().map((a) => [a.level, a.code, a.context.suggested])).toEqual([
+      ['blocking', 'bilingual-name-unknown', { italianName: 'Nuova-Alta', foreignName: 'Nuova-Neue' }],
+    ]);
+    expect(anomalies.list()[0]?.message).toContain('"Nuova-Alta" / "Nuova-Neue"');
+  });
+
+  it('takes the names of a known denomination from the table, at every level', () => {
+    const anomalies = new AnomalyCollector();
+    const [trentino] = buildRegionVersions({
+      entities: [entity(1, [interval('region', region('04', 'Trentino-Alto Adige/Südtirol'), '1948-01-01', null)])],
+      anomalies,
+    });
+    expect(trentino?.versions[0]).toMatchObject({
+      italianName: 'Trentino-Alto Adige',
+      foreignName: 'Trentino-Südtirol',
+    });
+    const [aosta] = buildProvinceVersions({
+      entities: [
+        entity(2, [interval('province', uts('007', { name: "Valle d'Aosta/Vallée d'Aoste" }), '2003-07-06', null)]),
+      ],
+      regions: regionsTimeline,
+      municipalities: municipalityIndex([]),
+      anomalies,
+    });
+    expect(aosta?.versions[0]).toMatchObject({ italianName: "Valle d'Aosta", foreignName: "Vallée d'Aoste" });
+    expect(anomalies.list()).toEqual([]);
   });
 });
 
@@ -188,7 +213,7 @@ describe('region versions', () => {
       ['1861-03-17', '1948-01-01', 'compartment'],
       ['1948-01-01', null, 'region'],
     ]);
-    expect(piemonte).toMatchObject({ level: 'region', id: 1, istatOriginId: 10 });
+    expect(piemonte).toMatchObject({ level: 'region', id: E(1), istatOriginId: 10 });
     expect(anomalies.list()).toEqual([]);
   });
 });
@@ -217,7 +242,7 @@ describe('UTS versions', () => {
         foreignName: null,
         type: 'province',
         abbreviation: 'AA',
-        regionId: 1,
+        regionId: E(1),
       },
     ]);
     expect(milano?.historicalCodes).toEqual([
@@ -242,8 +267,8 @@ describe('UTS versions', () => {
       anomalies: new AnomalyCollector(),
     });
     expect(bologna?.versions.map((v) => [v.validFrom, v.validTo, v.regionId])).toEqual([
-      ['1948-01-01', '1960-01-01', 1],
-      ['1960-01-01', null, 2],
+      ['1948-01-01', '1960-01-01', E(1)],
+      ['1960-01-01', null, E(2)],
     ]);
   });
 
@@ -377,10 +402,10 @@ describe('municipality versions', () => {
     expect(
       siamanna?.versions.map((v) => [v.validFrom, v.validTo, v.istatCode, v.cadastralCode, v.provinceId, v.regionId]),
     ).toEqual([
-      ['1947-11-28', '1974-08-20', '092128', 'I719', 10, 20],
-      ['1974-08-20', '1974-09-13', '095057', 'I719', 11, 20],
-      ['1974-09-13', '2026-01-01', '095057', 'I718', 11, 20],
-      ['2026-01-01', null, '115064', 'I718', 11, 20],
+      ['1947-11-28', '1974-08-20', '092128', 'I719', E(10), E(20)],
+      ['1974-08-20', '1974-09-13', '095057', 'I719', E(11), E(20)],
+      ['1974-09-13', '2026-01-01', '095057', 'I718', E(11), E(20)],
+      ['2026-01-01', null, '115064', 'I718', E(11), E(20)],
     ]);
     expect(anomalies.list()).toEqual([]);
   });
@@ -418,7 +443,7 @@ describe('municipality versions', () => {
       anomalies,
     });
     expect(orphan?.versions.map((v) => [v.validFrom, v.validTo, v.cadastralCode, v.provinceId])).toEqual([
-      ['2010-01-01', '2016-04-28', 'A001', 10],
+      ['2010-01-01', '2016-04-28', 'A001', E(10)],
       ['2016-04-28', '2020-01-01', 'A001', null],
       ['2020-01-01', null, 'A002', null],
     ]);
@@ -481,11 +506,11 @@ describe('I1–I3 on built versions', () => {
       italianName: officialName,
       foreignName: null,
       cadastralCode: null,
-      provinceId: 1,
-      regionId: 1,
+      provinceId: E(1),
+      regionId: E(1),
     });
     const draft = (versions: ReturnType<typeof v>[]) => [
-      { level: 'municipality' as const, id: 1, istatOriginId: null, versions },
+      { level: 'municipality' as const, id: E(1), istatOriginId: null, versions },
     ];
     const always = () => [{ validFrom: '1900-01-01', validTo: null }];
     expect(
@@ -497,37 +522,5 @@ describe('I1–I3 on built versions', () => {
     expect(
       versionPropertyViolations(draft([v('1900-01-01', '1910-01-01'), v('1920-01-01', null, 'B')]), always),
     ).toHaveLength(1);
-  });
-});
-
-describe('registry ids of versions (§5.3)', () => {
-  it('are assigned per `<entity id>:<validFrom>` and stable across builds', async () => {
-    await withTempDir(async (dir) => {
-      const drafts = buildRegionVersions({
-        entities: [
-          entity(2, [
-            interval('region', region('01', 'Piemonte', 'compartment'), '1861-03-17', '1948-01-01'),
-            interval('region', region('01', 'Piemonte'), '1948-01-01', null),
-          ]),
-          entity(1, [interval('region', region('03', 'Lombardia'), '1861-03-17', null)]),
-        ],
-        anomalies: new AnomalyCollector(),
-      });
-      const options = { recordedOn: '2026-10-04', anomalies: new AnomalyCollector() };
-      const first = await Registry.load(dir);
-      const { entities } = registerVersions(first, 'region', drafts, options);
-      expect(entities.map((e) => e.versions.map((v) => [v.id, v.validFrom]))).toEqual([
-        [
-          [2, '1861-03-17'],
-          [3, '1948-01-01'],
-        ],
-        [[1, '1861-03-17']],
-      ]);
-      await first.save();
-      const second = registerVersions(await Registry.load(dir), 'region', drafts, options);
-      expect(second.entities).toEqual(entities);
-      expect(second.assignment.remaps).toEqual([]);
-      expect(options.anomalies.list()).toEqual([]);
-    });
   });
 });

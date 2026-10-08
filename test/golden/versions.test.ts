@@ -8,16 +8,16 @@
  * subject: these tests only look at the anomalies of the version builder.
  */
 import { describe, expect, it } from 'vitest';
-import type { EntityDraft } from '../../src/build/index.ts';
 import type { IsoDate } from '../../src/dates/index.ts';
 import type { InternalIdentity } from '../../src/identity/index.ts';
 import type { Level } from '../../src/model/common.ts';
+import type { EntityByLevel } from '../../src/model/internal.ts';
 import { municipalityIdentity, piemonteIdentity, snapshotIndex, utsIdentity } from '../helpers/identity.ts';
 import { withSources } from '../helpers/sources.ts';
 import { buildWorld, entityAt, versionPropertyViolations, type BuiltWorld } from '../helpers/versions.ts';
 
 /** Versions as `[validFrom, validTo, code, official name]`. */
-function spans(entity: EntityDraft): [IsoDate, IsoDate | null, string, string][] {
+function spans(entity: EntityByLevel[Level]): [IsoDate, IsoDate | null, string, string][] {
   return entity.versions.map((v) => [v.validFrom, v.validTo, v.istatCode, v.officialName]);
 }
 
@@ -147,7 +147,7 @@ describe('golden-3: Siamanna', async () => {
       istatCode: string,
       name: string,
       cadastralCode: string,
-      provinceId: number,
+      provinceId: string,
     ) => ({
       validFrom,
       validTo,
@@ -326,7 +326,7 @@ describe('golden-15: the 1948 regime boundary', async () => {
     expect(entityAt(built.region, '04', '1948-01-01').versions.at(-1)).toMatchObject({
       officialName: 'Trentino-Alto Adige/Südtirol',
       italianName: 'Trentino-Alto Adige',
-      foreignName: 'Südtirol',
+      foreignName: 'Trentino-Südtirol',
     });
     expectWellFormed(built);
   });

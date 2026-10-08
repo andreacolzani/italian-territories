@@ -246,7 +246,7 @@ describe('links and roles (§4.3)', async () => {
         [x, y, 'merged_into'],
         [z, y, 'transferred_to'],
         [y, w, 'detached_into'],
-      ].sort((a, b) => (a[0] as number) - (b[0] as number) || (a[1] as number) - (b[1] as number)),
+      ].sort((a, b) => cmp(a[0] ?? '', b[0] ?? '') || cmp(a[1] ?? '', b[1] ?? '')),
     );
   });
 
@@ -258,7 +258,7 @@ describe('links and roles (§4.3)', async () => {
         [y, ['AQ', 'AQES', 'CECS'], 'territory_changed', false],
         [z, ['CE'], 'territory_changed', false],
         [w, ['CS'], 'established', false],
-      ].sort((a, b) => (a[0] as number) - (b[0] as number)),
+      ].sort((a, b) => cmp(a[0] as string, b[0] as string)),
     );
     expect(variation?.istatActId).toBeNull();
     expect(variationPropertyViolations(built)).toEqual([]);
@@ -292,9 +292,7 @@ describe('grouping (§4.3)', () => {
       [id('001003')],
     ]);
     expect(
-      built.variations.map((v) =>
-        built.registry.get('variation', `nk:${D2}:municipality:${v.participants[0]?.entityId}`),
-      ),
+      built.variations.map((v) => built.registry.variationId(`nk:${D2}:municipality:${v.participants[0]?.entityId}`)),
     ).toEqual(built.variations.map((v) => v.id));
   });
 
@@ -328,12 +326,60 @@ describe('grouping (§4.3)', () => {
       ['province', ['CD'], 'changed'],
       ['municipality', ['CD'], 'changed'],
     ]);
-    expect(built.registry.get('variation', `act:9:${D2}`)).toBe(variation?.id);
+    expect(built.registry.variationId(`act:9:${D2}`)).toBe(variation?.id);
     expect(built.accounts.filter((a) => a.variation !== null).map((a) => a.source)).toEqual([
       'events:pfun-104',
       'r5:uts-events',
       'r6:municipality-events',
     ]);
+  });
+});
+
+describe('rows explained by an act (§4.3, D43)', () => {
+  const world = (withAct: boolean): SyntheticWorld => ({
+    municipalities: {
+      [D1]: [municipality('001001')],
+      [D2]: [municipality('001001'), municipality('001003')],
+    },
+    lists: { 100: [row('CS', D2, '001003', '001001')], 103: [row('CECS', D2, '001001', '001003')] },
+    internal: {
+      municipality: identity([
+        [7, [['PV', D1, '001001']]],
+        [9, [['CS', D2, '001003']]],
+      ]),
+    },
+    internalEvents: { municipality: withAct ? [internalEvent(9, 'CS', D2, 50, 'ISTITUZIONE')] : [] },
+  });
+
+  it('a row without act whose link is already in a variation with an act forms no nk: variation', async () => {
+    const built = await run(world(true));
+    const x = entityAt(built.entities.municipality, '001001', D1).id;
+    const w = entityAt(built.entities.municipality, '001003', D2).id;
+    expect(built.variations.map((v) => [v.istatActId, v.links.map((l) => [l.from, l.to, l.kind])])).toEqual([
+      [50, [[x, w, 'detached_into']]],
+    ]);
+    expect(built.accounts.find((a) => a.source === 'events:pfun-103')).toMatchObject({
+      variation: `act:50:${D2}`,
+      dropped: null,
+    });
+    const explained = built.variationAnomalies.list().filter((a) => a.code === 'link-explained-by-act');
+    expect(explained.map((a) => [a.level, a.context])).toEqual([
+      [
+        'info',
+        {
+          count: 1,
+          items: [{ level: 'municipality', date: D2, event: 'CECS', entityId: x, variation: `act:50:${D2}` }],
+        },
+      ],
+    ]);
+    expect(accountViolations(built)).toEqual([]);
+    expect(variationPropertyViolations(built)).toEqual([]);
+  });
+
+  it('without the act, the rows form one nk: variation as before', async () => {
+    const built = await run(world(false));
+    expect(built.variations.map((v) => v.istatActId)).toEqual([null]);
+    expect(codes(built)).not.toContain('link-explained-by-act');
   });
 });
 
@@ -390,10 +436,10 @@ describe('effect per event (§4.3)', () => {
       v.istatActId,
       v.participants
         .filter((p) => p.entityId === x.id)
-        .map((p) => [p.istatEvents, p.role, p.versionBeforeId, p.versionAfterId]),
+        .map((p) => [p.istatEvents, p.role, p.versionBefore, p.versionAfter]),
     ]);
     expect(participants).toEqual([
-      [1, [[['CD'], 'changed', x.versions[0]?.id, x.versions[1]?.id]]],
+      [1, [[['CD'], 'changed', x.versions[0]?.validFrom, x.versions[1]?.validFrom]]],
       [2, [[['CE'], 'territory_changed', null, null]]],
     ]);
     expect(variationPropertyViolations(built)).toEqual([]);
@@ -406,8 +452,8 @@ describe('effect per event (§4.3)', () => {
     expect(built.variations[0]?.participants.find((p) => p.entityId === x.id)).toMatchObject({
       istatEvents: ['CD', 'CE'],
       role: 'changed',
-      versionBeforeId: x.versions[0]?.id,
-      versionAfterId: x.versions[1]?.id,
+      versionBefore: x.versions[0]?.validFrom,
+      versionAfter: x.versions[1]?.validFrom,
     });
   });
 
@@ -423,8 +469,8 @@ describe('effect per event (§4.3)', () => {
     expect(built.variations[0]?.participants.find((p) => p.entityId === x.id)).toMatchObject({
       istatEvents: ['AQ'],
       role: 'changed',
-      versionBeforeId: x.versions[0]?.id,
-      versionAfterId: x.versions[1]?.id,
+      versionBefore: x.versions[0]?.validFrom,
+      versionAfter: x.versions[1]?.validFrom,
     });
     expect(variationPropertyViolations(built)).toEqual([]);
   });
@@ -461,8 +507,8 @@ describe('version boundaries without own events (I9)', () => {
         istatEvents: [],
         abroad: false,
         role: 'indirect',
-        versionBeforeId: m.versions[0]?.id,
-        versionAfterId: m.versions[1]?.id,
+        versionBefore: m.versions[0]?.validFrom,
+        versionAfter: m.versions[1]?.validFrom,
       },
     ]);
     expect(variationPropertyViolations(built)).toEqual([]);
@@ -488,7 +534,7 @@ describe('version boundaries without own events (I9)', () => {
         links: [],
       },
     ]);
-    expect(built.registry.get('variation', `inferred:${D2}:municipality:${m.id}`)).toBe(built.variations[0]?.id);
+    expect(built.registry.variationId(`inferred:${D2}:municipality:${m.id}`)).toBe(built.variations[0]?.id);
     expect(codes(built)).toEqual([]);
   });
 
@@ -566,3 +612,7 @@ describe('version boundaries without own events (I9)', () => {
     ]);
   });
 });
+
+function cmp(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}

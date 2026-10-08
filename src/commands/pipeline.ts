@@ -3,10 +3,11 @@
  * `audit`. Every run executes the whole pipeline: sources (§6.1–§6.3) → calendar (d) → audit
  * (update only) → snapshots and completeness (e) → build → invariants → emit. There is no shortcut
  * for "nothing changed": a new generator, an override or the registry may change the output, so the
- * emitter decides (`unchanged` → `dist/` not touched, nothing to commit).
+ * emitter decides (`unchanged` → `dist/` and `reports/` not touched, nothing to commit).
  *
- * Effects by exit code: 0 and 2 write `dist/` and `registry/`; 1 and 3 write neither. The store and
- * `calendar.json` are always written (they cache the sources), and so is the run summary.
+ * Effects by exit code: 0 and 2 write `dist/`, `reports/` and `registry/`; 1 and 3 write none of
+ * them. The store and `calendar.json` are always written (they cache the sources), and so is the
+ * run summary.
  */
 import {
   anprContributions,
@@ -21,7 +22,7 @@ import {
 } from '../calendar/index.ts';
 import { runSnapshots, storeSnapshotProvider } from '../completeness/index.ts';
 import { compareDates, type IsoDate } from '../dates/index.ts';
-import { emitDataset, loadPublishedDataset, sourceSummaries } from '../emit/index.ts';
+import { emitDataset, loadPublishedDataset, sourceSummaries, type ReleaseDirs } from '../emit/index.ts';
 import type { InternalCrawlResult } from '../enrich/index.ts';
 import type { Level } from '../model/common.ts';
 import type { AnprRecord } from '../sources/anpr/index.ts';
@@ -42,11 +43,11 @@ export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitC
   const { store, config, today, anomalies } = ctx;
   const previousCalendar = await loadCalendar(store.dir);
   if (mode === 'update') {
-    const previousRelease = await loadPublishedDataset(config.paths.dist);
+    const previousRelease = await loadPublishedDataset(releaseDirs(ctx));
     if (previousCalendar === undefined || previousRelease === null) {
       return fail(
         ctx,
-        `update needs the state of a previous run (${previousCalendar === undefined ? 'calendar.json in the store' : 'a release in dist/'}): ` +
+        `update needs the state of a previous run (${previousCalendar === undefined ? 'calendar.json in the store' : 'a release in dist/ and reports/'}): ` +
           'run bootstrap, which resumes from the cache',
       );
     }
@@ -164,12 +165,12 @@ export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitC
   }
 
   const result = await timed(ctx, 'emit', async () => {
-    const previous = await loadPublishedDataset(config.paths.dist);
+    const previous = await loadPublishedDataset(releaseDirs(ctx));
     const summariesStart = ctx.runtime.now();
     const summaries = await sourceSummaries(store);
     ctx.summary.sourceSummaries = ctx.runtime.now() - summariesStart;
     return emitDataset({
-      dir: config.paths.dist,
+      dirs: releaseDirs(ctx),
       world: { entities: built.entities, variations: built.variations },
       anomalies: anomalies.list(),
       previous,
@@ -252,6 +253,11 @@ function fail(ctx: RunContext, message: string): ExitCode {
   ctx.summary.message = message;
   ctx.logger.error(message);
   return EXIT_CODES.blocking;
+}
+
+/** Where the release lives (§9): the published files and the internal reports. */
+export function releaseDirs(ctx: RunContext): ReleaseDirs {
+  return { dist: ctx.config.paths.dist, reports: ctx.config.paths.releaseReports };
 }
 
 /** `generated_at`: the wall clock, to the second. */

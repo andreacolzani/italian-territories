@@ -21,14 +21,10 @@ describe('JSON Schema generation', () => {
       'regions.schema.json',
       'provinces.schema.json',
       'municipalities.schema.json',
-      'variations.schema.json',
-      'anomalies.schema.json',
-      'changes.schema.json',
-      'meta.schema.json',
     ]);
-    for (const [name, schema] of Object.entries(schemas)) {
+    for (const schema of Object.values(schemas)) {
       expect(schema.$schema).toBe('https://json-schema.org/draft/2020-12/schema');
-      expect(schema.type).toBe(['changes.schema.json', 'meta.schema.json'].includes(name) ? 'object' : 'array');
+      expect(schema.type).toBe('array');
     }
   });
 
@@ -41,7 +37,6 @@ describe('JSON Schema generation', () => {
     const version = def(provinces, 'ProvinceVersion');
     expect(version.additionalProperties).toBe(false);
     expect(Object.keys(version.properties)).toEqual([
-      'id',
       'valid_from',
       'valid_until',
       'istat_code',
@@ -59,12 +54,11 @@ describe('JSON Schema generation', () => {
 
     const entity = def(provinces, 'Province');
     expect(entity.properties.status?.enum).toEqual(['active', 'suppressed']);
-    expect(def(provinces, 'Link').properties.kind?.enum).toEqual(['merged_into', 'detached_into', 'transferred_to']);
-
-    const participant = def(generateJsonSchema('variations'), 'Participant');
-    expect(participant.properties.role?.enum).toContain('territory_changed');
-    expect(participant.properties.abroad?.type).toBe('boolean');
-    expect(participant.required).toContain('abroad');
+    expect(entity.properties.partially_ceded?.type).toBe('boolean');
+    expect(Object.keys(entity.properties)).not.toContain('istat_origin_id');
+    expect(def(provinces, 'Link').properties.kind?.enum).toEqual(['merged_into', 'split_into', 'detached_into']);
+    expect(Object.keys(def(provinces, 'Link').properties)).toEqual(['id', 'kind', 'date']);
+    expect(def(provinces, 'Link').properties.id?.pattern).toBe('^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$');
   });
 
   it('covers every public file model', () => {

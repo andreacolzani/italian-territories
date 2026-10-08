@@ -15,7 +15,7 @@ import {
   type InvariantWorld,
   type SnapshotSet,
 } from '../../src/invariants/index.ts';
-import type { Level } from '../../src/model/common.ts';
+import { ENTITY_ID_PREFIXES, type EntityId, type Level } from '../../src/model/common.ts';
 import type { AppliedOverride } from '../../src/overrides/index.ts';
 import type {
   Dated,
@@ -36,9 +36,16 @@ export const SNAPSHOT_DATES: IsoDate[] = ['1861-03-17', '1900-01-01', '1950-01-0
 type Interval = [IsoDate, IsoDate | null];
 const span = ([validFrom, validTo]: Interval): HalfOpenInterval => ({ validFrom, validTo });
 
-export function regionVersion(id: number, interval: Interval, over: Partial<RegionVersion> = {}): RegionVersion {
+/** A test entity id of `level`: the prefix and `n` zero-padded (valid Crockford base32). */
+export function testId(level: Level, n: number): EntityId {
+  return `${ENTITY_ID_PREFIXES[level]}-${String(n).padStart(6, '0')}`;
+}
+export const R = (n: number): EntityId => testId('region', n);
+export const P = (n: number): EntityId => testId('province', n);
+export const M = (n: number): EntityId => testId('municipality', n);
+
+export function regionVersion(interval: Interval, over: Partial<RegionVersion> = {}): RegionVersion {
   return {
-    id,
     ...span(interval),
     istatCode: '01',
     officialName: 'Regione',
@@ -50,14 +57,12 @@ export function regionVersion(id: number, interval: Interval, over: Partial<Regi
 }
 
 export function provinceVersion(
-  id: number,
   interval: Interval,
   code: string,
   abbreviation: string,
   over: Partial<ProvinceVersion> = {},
 ): ProvinceVersion {
   return {
-    id,
     ...span(interval),
     istatCode: code,
     officialName: `Provincia ${code}`,
@@ -65,13 +70,12 @@ export function provinceVersion(
     foreignName: null,
     type: 'province',
     abbreviation,
-    regionId: 1,
+    regionId: R(1),
     ...over,
   };
 }
 
 export function municipalityVersion(
-  id: number,
   interval: Interval,
   code: string,
   cadastral: string | null,
@@ -79,35 +83,35 @@ export function municipalityVersion(
   over: Partial<MunicipalityVersion> = {},
 ): MunicipalityVersion {
   return {
-    id,
     ...span(interval),
     istatCode: code,
     officialName: name,
     italianName: name,
     foreignName: null,
     cadastralCode: cadastral,
-    provinceId: 1,
-    regionId: 1,
+    provinceId: P(1),
+    regionId: R(1),
     ...over,
   };
 }
 
+/** A municipality participant (`entityId` a number: `M(n)`); versions by `validFrom`. */
 export function participant(
-  entityId: number,
+  entityId: number | EntityId,
   role: NonNullable<Participant['role']> | null,
   istatEvents: Participant['istatEvents'],
-  versionBeforeId: number | null,
-  versionAfterId: number | null,
+  versionBefore: IsoDate | null,
+  versionAfter: IsoDate | null,
   over: Partial<Participant> = {},
 ): Participant {
   return {
     level: 'municipality',
-    entityId,
+    entityId: typeof entityId === 'number' ? M(entityId) : entityId,
     istatEvents,
     abroad: false,
     role,
-    versionBeforeId,
-    versionAfterId,
+    versionBefore,
+    versionAfter,
     ...over,
   };
 }
@@ -125,7 +129,7 @@ export interface Baseline extends InvariantWorld {
 }
 
 /**
- * Entities and variations:
+ * Entities (`R(n)`, `P(n)`, `M(n)`) and variations:
  *
  * - municipality 1: `001001` Alfa (until 1950-01-01, RN, variation 2) then Beta;
  * - municipality 2: `001002` suppressed on 1900-01-01 and merged into 1 (variation 1, `ES`/`AQES`);
@@ -135,54 +139,54 @@ export interface Baseline extends InvariantWorld {
 export function baseline(): Baseline {
   const regionEntity = {
     level: 'region' as const,
-    id: 1,
+    id: R(1),
     istatOriginId: 1,
-    versions: [regionVersion(1, [START, null])],
+    versions: [regionVersion([START, null])],
   };
   const historical = (code: string): Dated<string>[] => [{ ...span([START, null]), value: code }];
   const provinceEntities: ProvinceEntity[] = [
     {
       level: 'province',
-      id: 1,
+      id: P(1),
       istatOriginId: 1,
-      versions: [provinceVersion(1, [START, null], '001', 'AA')],
+      versions: [provinceVersion([START, null], '001', 'AA')],
       historicalCodes: historical('001'),
     },
     {
       level: 'province',
-      id: 2,
+      id: P(2),
       istatOriginId: 2,
-      versions: [provinceVersion(2, [START, null], '002', 'BB')],
+      versions: [provinceVersion([START, null], '002', 'BB')],
       historicalCodes: historical('002'),
     },
   ];
   const municipalities: Entity<'municipality'>[] = [
     {
       level: 'municipality',
-      id: 1,
+      id: M(1),
       istatOriginId: 1,
       versions: [
-        municipalityVersion(1, [START, '1950-01-01'], '001001', 'A001', 'Alfa'),
-        municipalityVersion(2, ['1950-01-01', null], '001001', 'A001', 'Beta'),
+        municipalityVersion([START, '1950-01-01'], '001001', 'A001', 'Alfa'),
+        municipalityVersion(['1950-01-01', null], '001001', 'A001', 'Beta'),
       ],
     },
     {
       level: 'municipality',
-      id: 2,
+      id: M(2),
       istatOriginId: 2,
-      versions: [municipalityVersion(3, [START, '1900-01-01'], '001002', 'A002', 'Gamma')],
+      versions: [municipalityVersion([START, '1900-01-01'], '001002', 'A002', 'Gamma')],
     },
     {
       level: 'municipality',
-      id: 3,
+      id: M(3),
       istatOriginId: 3,
-      versions: [municipalityVersion(4, [START, null], '002001', 'B001', 'Delta', { provinceId: 2 })],
+      versions: [municipalityVersion([START, null], '002001', 'B001', 'Delta', { provinceId: P(2) })],
     },
     {
       level: 'municipality',
-      id: 4,
+      id: M(4),
       istatOriginId: 4,
-      versions: [municipalityVersion(5, [START, '1900-01-01'], '001801', null, 'Epsilon')],
+      versions: [municipalityVersion([START, '1900-01-01'], '001801', null, 'Epsilon')],
     },
   ];
   const variations: Variation[] = [
@@ -194,12 +198,12 @@ export function baseline(): Baseline {
       description: 'Fusione',
       participants: [
         participant(1, 'territory_changed', ['AQES'], null, null),
-        participant(2, 'suppressed', ['ES'], 3, null),
-        participant(4, 'suppressed', ['ES'], 5, null),
+        participant(2, 'suppressed', ['ES'], START, null),
+        participant(4, 'suppressed', ['ES'], START, null),
       ],
       links: [
-        { level: 'municipality', from: 2, to: 1, kind: 'merged_into' },
-        { level: 'municipality', from: 4, to: 1, kind: 'merged_into' },
+        { level: 'municipality', from: M(2), to: M(1), kind: 'merged_into' },
+        { level: 'municipality', from: M(4), to: M(1), kind: 'merged_into' },
       ],
     },
     {
@@ -208,7 +212,7 @@ export function baseline(): Baseline {
       istatActId: 2,
       origin: 'istat',
       description: 'Cambio di denominazione',
-      participants: [participant(1, 'changed', ['RN'], 1, 2)],
+      participants: [participant(1, 'changed', ['RN'], START, '1950-01-01')],
       links: [],
     },
   ];
@@ -290,14 +294,14 @@ export function baseline(): Baseline {
 
 /** The rows the snapshots of `date` would hold if SITUAS agreed with the entities. */
 export function snapshotSet(entities: InvariantEntities, date: IsoDate): SnapshotSet {
-  const valid = <V extends HalfOpenInterval>(list: readonly { id: number; versions: readonly V[] }[]) =>
+  const valid = <V extends HalfOpenInterval>(list: readonly { id: EntityId; versions: readonly V[] }[]) =>
     list.flatMap((entity) =>
       entity.versions.filter((v) => containsDate(v, date)).map((version) => ({ entity, version })),
     );
-  const regionCode = (id: number | null): string =>
+  const regionCode = (id: EntityId | null): string =>
     valid(entities.region).find((r) => r.entity.id === id)?.version.istatCode ?? '??';
   const provinces = valid(entities.province);
-  const province = (id: number | null) => provinces.find((p) => p.entity.id === id);
+  const province = (id: EntityId | null) => provinces.find((p) => p.entity.id === id);
   const modern = date >= '1948-01-01';
   return {
     date,
@@ -343,22 +347,23 @@ export function mut<T>(value: T): DeepWritable<T> {
   return value as DeepWritable<T>;
 }
 
-/** The (writable) entity with `id` of `level`. */
-export function entityOf<L extends Level>(world: Baseline, level: L, id: number): DeepWritable<InvariantEntity<L>> {
+/** The (writable) entity `testId(level, n)`. */
+export function entityOf<L extends Level>(world: Baseline, level: L, n: number): DeepWritable<InvariantEntity<L>> {
+  const id = testId(level, n);
   const found = (world.entities[level] as readonly InvariantEntity<L>[]).find((e) => e.id === id);
   if (found === undefined) throw new Error(`no ${level} entity ${id}`);
   return mut(found);
 }
 
-/** The (writable) version `versionId` of an entity. */
+/** The (writable) version of entity `testId(level, n)` starting on `validFrom`. */
 export function versionOf<L extends Level>(
   world: Baseline,
   level: L,
-  entityId: number,
-  versionId: number,
+  n: number,
+  validFrom: IsoDate,
 ): DeepWritable<InvariantEntity<L>['versions'][number]> {
-  const found = entityOf(world, level, entityId).versions.find((v) => v.id === versionId);
-  if (found === undefined) throw new Error(`no ${level} version ${versionId}`);
+  const found = entityOf(world, level, n).versions.find((v) => v.validFrom === validFrom);
+  if (found === undefined) throw new Error(`no ${level} version of ${testId(level, n)} from ${validFrom}`);
   return found;
 }
 

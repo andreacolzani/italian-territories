@@ -15,6 +15,7 @@ import { compareDates, type IsoDate } from '../../src/dates/index.ts';
 import { internalIdentity, type IdentityGraph } from '../../src/identity/index.ts';
 import { LEVELS, type IstatEventCode, type Level } from '../../src/model/common.ts';
 import type { EntityByLevel, Variation } from '../../src/model/internal.ts';
+import type { Override } from '../../src/overrides/index.ts';
 import { IntervalIndex } from '../../src/resolve/index.ts';
 import type { InternalMunicipalityEvent, InternalUtsEvent } from '../../src/sources/situas-internal/index.ts';
 import { snapshotIndex } from './identity.ts';
@@ -73,13 +74,21 @@ export async function buildVariationWorld(world: VariationWorld): Promise<BuiltV
 
 /** The internal events of an identity graph, with the r7/r8 details of `details` when given. */
 export function variationEvents<
-  E extends { event: IstatEventCode; date: IsoDate; actId: number; description: string | null; originId: number },
+  E extends {
+    event: IstatEventCode;
+    date: IsoDate;
+    code: string;
+    actId: number;
+    description: string | null;
+    originId: number;
+  },
 >(graph: IdentityGraph<E>, details = new Map<string, InternalVariationEvent['details']>()): InternalVariationEvent[] {
   return graph.components.flatMap((component) =>
     component.events.map((e) => ({
       root: component.root,
       event: e.event,
       date: e.date,
+      code: e.code,
       actId: e.actId,
       description: e.description,
       details: details.get(detailKey(e.originId, e.event, e.actId)) ?? null,
@@ -89,10 +98,25 @@ export function variationEvents<
 
 /** r8 fixtures (`<id_uts_origine>_<event>_<act>.json`) by origin id, event and act. */
 export async function utsDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
+  return eventDetails('utsEventDetails', 'r8-uts-event-details', files);
+}
+
+/** r9 fixtures (`<id_origine>_<event>_<act>.json`) by origin id, event and act. */
+export async function municipalityDetails(
+  files: readonly string[],
+): Promise<Map<string, InternalVariationEvent['details']>> {
+  return eventDetails('municipalityEventDetails', 'r9-municipality-event-details', files);
+}
+
+async function eventDetails(
+  report: 'utsEventDetails' | 'municipalityEventDetails',
+  dir: string,
+  files: readonly string[],
+): Promise<Map<string, InternalVariationEvent['details']>> {
   const details = new Map<string, InternalVariationEvent['details']>();
   for (const file of files) {
     const [originId, event, actId] = file.replace(/\.json$/, '').split('_');
-    const rows = await decodedRows('utsEventDetails', `r8-uts-event-details/${file}`);
+    const rows = await decodedRows(report, `${dir}/${file}`);
     details.set(
       detailKey(Number(originId), event as IstatEventCode, Number(actId)),
       rows.map((r) => ({ abroad: r.abroad, code: r.related?.code ?? null })),
@@ -230,7 +254,10 @@ export interface WorldOptions {
   /** Codes kept per level; `false`: an empty level (no snapshots of those dates). */
   codes?: { region?: string[] | false; province?: string[] | false; municipality?: string[] };
   municipalities?: IdentityGraph<InternalMunicipalityEvent>;
+  /** r9 fixtures of `municipalities`' events (the ambiguous ones, §6.8). */
+  municipalityDetails?: string[];
   provinces?: { graph: IdentityGraph<InternalUtsEvent>; details?: string[] };
+  overrides?: readonly Override[];
 }
 
 /**
@@ -253,6 +280,7 @@ export async function fixtureWorld(dates: readonly IsoDate[], options: WorldOpti
   }));
   const { municipalities, provinces } = options;
   return buildVariationWorld({
+    ...(options.overrides === undefined ? {} : { overrides: options.overrides }),
     region: { index: indexes.region, eventLists: await listsOn('region', eventDates) },
     province: {
       index: indexes.province,
@@ -271,7 +299,14 @@ export async function fixtureWorld(dates: readonly IsoDate[], options: WorldOpti
           : internalIdentity(municipalities, false, (e) => ({ ...e, recordId: e.originId }), 'r6:municipality-events'),
     },
     internalEvents: {
-      ...(municipalities === undefined ? {} : { municipality: onDates(variationEvents(municipalities), eventDates) }),
+      ...(municipalities === undefined
+        ? {}
+        : {
+            municipality: onDates(
+              variationEvents(municipalities, await municipalityDetails(options.municipalityDetails ?? [])),
+              eventDates,
+            ),
+          }),
       ...(provinces === undefined
         ? {}
         : {

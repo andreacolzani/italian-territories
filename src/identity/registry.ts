@@ -20,6 +20,12 @@
  *   registered whose key disappeared. Retroactive (`warning`).
  * - `key-moved`: a version key disappears and the same entity gets a new key whose interval
  *   overlaps it. Retroactive (`warning`).
+ *
+ * Re-keying goes from `nk:` to `istat:` only, never back: a registered `istat:` entity whose key
+ * disappears while none of its members is in any entity of the run has lost its internal history
+ * (e.g. an r6 missing from the store in an offline `rebuild`). That is `internal-data-required`
+ * (`blocking`, one per level, every such entity in `context`), never a new `nk:` key with a new id:
+ * the blocking anomaly keeps `registry/` and `dist/` unwritten.
  */
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -28,6 +34,7 @@ import { compareDates, overlaps, type HalfOpenInterval, type IsoDate } from '../
 import type { Level } from '../model/common.ts';
 import { isoDateSchema } from '../model/public.ts';
 import { readTextIfExists, toJsonDocument, writeFileAtomic } from '../store/fs.ts';
+import { ENTITY_ANOMALIES, type InternalDataCause } from './entities.ts';
 
 export const REGISTRY_KINDS = [
   'region',
@@ -115,6 +122,8 @@ export interface AssignOptions {
   /** Date of the run (`dates.today`), recorded in `remaps.json`. */
   recordedOn: IsoDate;
   anomalies: AnomalyCollector;
+  /** Why the level's internal data is incomplete, for `internal-data-required` (default `absent`). */
+  internalCause?: InternalDataCause;
 }
 
 /** An entity to register (a resolved entity, §6.7). */
@@ -252,7 +261,40 @@ export class Registry {
       if (match === undefined) run.create(e.key, { members });
       else run.move(match[0], e.key, { members }, 'root-changed', true, { candidates: previous.map(([k]) => k) });
     }
+    this.#reportLostHistories(level, file.entries, entities, run, options);
     return run.result();
+  }
+
+  /** Registered `istat:` entities of `level` with no member in any entity of the run (see above). */
+  #reportLostHistories(
+    level: Level,
+    entries: ReadonlyMap<string, Entry>,
+    entities: readonly EntityKeyInput[],
+    run: { claimed: (key: string) => boolean },
+    { anomalies, internalCause = 'absent' }: AssignOptions,
+  ): void {
+    const produced = new Set(entities.map((e) => e.key));
+    const members = new Set(entities.flatMap((e) => e.members));
+    const lost = [...entries]
+      .flatMap(([key, entry]) => {
+        if (!key.startsWith('istat:') || produced.has(key) || run.claimed(key)) return [];
+        const { id, members: registered } = entry as EntityEntry;
+        return registered.some((m) => members.has(m)) ? [] : [{ key, id, members: registered }];
+      })
+      .sort((a, b) => a.id - b.id);
+    if (lost.length === 0) return;
+    anomalies.add({
+      level: 'blocking',
+      code: ENTITY_ANOMALIES.internalDataRequired,
+      message:
+        `${lost.length} registered ${level} entities have no internal history in this run ` +
+        `(${lost
+          .slice(0, 5)
+          .map((l) => `${l.key} id ${l.id}`)
+          .join(', ')}${lost.length > 5 ? ', …' : ''}): ` +
+        'their ids cannot be kept without it',
+      context: { level, cause: internalCause, count: lost.length, entities: lost },
+    });
   }
 
   /** Ids of the versions of `level` (§5.3: `<entity id>:<validFrom>`), with the moved-key rule. */

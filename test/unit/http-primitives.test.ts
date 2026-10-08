@@ -170,18 +170,158 @@ describe('AdaptiveLimiter', () => {
 });
 
 describe('CircuitBreaker', () => {
-  it('opens a family after N consecutive failures and stays open', () => {
-    const breaker = new CircuitBreaker(3);
-    expect(breaker.recordFailure('a', 'HTTP 503')).toBe(false);
-    expect(breaker.recordFailure('a', 'HTTP 503')).toBe(false);
+  const options = {
+    threshold: 3,
+    minFailureMs: 60_000,
+    cooldownMs: 60_000,
+    maxCooldownMs: 600_000,
+    maxOpenMs: 900_000,
+  };
+
+  it('opens only after N consecutive failures lasting at least minFailureMs', () => {
+    const clock = fakeClock();
+    const breaker = new CircuitBreaker(options, clock.clock);
+    expect(breaker.recordFailure('a', 'HTTP 503', false, Symbol())).toBeNull();
+    expect(breaker.recordFailure('a', 'HTTP 503', false, Symbol())).toBeNull();
     breaker.recordSuccess('a');
-    expect(breaker.recordFailure('a', 'HTTP 503')).toBe(false);
-    expect(breaker.recordFailure('a', 'HTTP 503')).toBe(false);
-    expect(breaker.recordFailure('a', 'timeout')).toBe(true);
-    expect(breaker.reason('a')).toBe('3 consecutive failures, last: timeout');
-    breaker.recordSuccess('a');
+    for (let i = 0; i < 3; i++) expect(breaker.recordFailure('a', 'HTTP 503', false, Symbol())).toBeNull();
+    clock.advance(59_999);
+    expect(breaker.recordFailure('a', 'timeout', false, Symbol())).toBeNull();
+    expect(breaker.isOpen('a')).toBe(false);
+    clock.advance(1);
+    expect(breaker.recordFailure('a', 'timeout', false, Symbol())).toEqual({
+      kind: 'opened',
+      reason: '5 consecutive failures in 60000 ms, last: timeout',
+      retryInMs: 60_000,
+    });
     expect(breaker.isOpen('a')).toBe(true);
+    expect(breaker.isLost('a')).toBe(false);
     expect(breaker.isOpen('b')).toBe(false);
+  });
+
+  it('holds requests while one probes; a success closes the circuit for all of them', async () => {
+    const clock = fakeClock();
+    const start = clock.clock.now();
+    const breaker = new CircuitBreaker({ ...options, minFailureMs: 0 }, clock.clock);
+    for (let i = 0; i < 3; i++) breaker.recordFailure('a', 'HTTP 503', false, Symbol());
+    const probe = breaker.admit('a');
+    let held: string | undefined;
+    const waiting = breaker.admit('a').then((a) => (held = a.kind));
+    expect(await probe).toEqual({ kind: 'probe' });
+    expect(clock.clock.now() - start).toBe(60_000);
+    expect(held).toBeUndefined();
+    expect(breaker.recordSuccess('a')).toEqual({ kind: 'closed', openMs: 60_000 });
+    await waiting;
+    expect(held).toBe('closed');
+    // Failures of requests sent before the circuit opened neither reopen nor delay it.
+    expect(breaker.recordFailure('a', 'HTTP 503', false, Symbol())).toBeNull();
+  });
+
+  it('doubles the cooldown at every failed probe and gives the family up at the maximum open time', async () => {
+    const clock = fakeClock();
+    const breaker = new CircuitBreaker({ ...options, minFailureMs: 0 }, clock.clock);
+    for (let i = 0; i < 3; i++) breaker.recordFailure('a', 'HTTP 503', false, Symbol());
+    const opened = clock.clock.now();
+    const probes: number[] = [];
+    const transitions = [];
+    for (;;) {
+      const admission = await breaker.admit('a');
+      if (admission.kind !== 'probe') {
+        expect(admission).toEqual({
+          kind: 'lost',
+          reason: 'open for 900000 ms in total, last: probe failed: HTTP 503',
+        });
+        break;
+      }
+      probes.push(clock.clock.now() - opened);
+      transitions.push(breaker.recordFailure('a', 'HTTP 503', true));
+    }
+    // Cooldowns 60 s, 120 s, 240 s, then 480 s clamped to the 15-minute limit.
+    expect(probes).toEqual([60_000, 180_000, 420_000, 900_000]);
+    expect(transitions.map((t) => t?.kind)).toEqual(['reopened', 'reopened', 'reopened', 'lost']);
+    expect(breaker.isLost('a')).toBe(true);
+    expect(breaker.recordSuccess('a')).toBeNull();
+    expect(await breaker.admit('a')).toMatchObject({ kind: 'lost' });
+  });
+
+  it('lets the next request probe at once when a probe ends without a verdict', async () => {
+    const clock = fakeClock();
+    const breaker = new CircuitBreaker({ ...options, minFailureMs: 0 }, clock.clock);
+    for (let i = 0; i < 3; i++) breaker.recordFailure('a', 'HTTP 503', false, Symbol());
+    expect(await breaker.admit('a')).toEqual({ kind: 'probe' });
+    const next = breaker.admit('a');
+    breaker.abandonProbe('a');
+    expect(await next).toEqual({ kind: 'probe' });
+  });
+
+  it('holds requests out of attempts until the family has a verdict', async () => {
+    // A clock whose sleeps end only when the test says so.
+    let now = 0;
+    const sleeping: (() => void)[] = [];
+    const clock = { now: () => now, sleep: () => new Promise<void>((resolve) => sleeping.push(resolve)) };
+    const breaker = new CircuitBreaker({ ...options, threshold: 4 }, clock);
+    breaker.recordFailure('f', 'x', false, Symbol());
+    breaker.recordFailure('f', 'x', false, Symbol());
+    expect(breaker.successes('f')).toBe(0);
+
+    // a drives (sleeps one cycle), b waits; at the end of the cycle a tries again and b drives.
+    const verdicts: string[] = [];
+    const first = breaker.awaitVerdict('f', 10_000).then((v) => verdicts.push(`a:${v.kind}`));
+    const second = breaker.awaitVerdict('f', 10_000).then((v) => verdicts.push(`b:${v.kind}`));
+    expect(sleeping).toHaveLength(1);
+    sleeping.shift()?.();
+    await first;
+    await Promise.resolve();
+    expect(verdicts).toEqual(['a:retry']);
+    expect(sleeping).toHaveLength(1);
+
+    // A success of the family releases the waiting request at once.
+    const third = breaker.awaitVerdict('f', 10_000).then((v) => verdicts.push(`c:${v.kind}`));
+    breaker.recordSuccess('f');
+    await third;
+    expect(verdicts).toEqual(['a:retry', 'c:retry']);
+    expect(breaker.successes('f')).toBe(1);
+    sleeping.shift()?.();
+    await second;
+
+    // An opening sends the waiting requests to `admit`.
+    for (let i = 0; i < 3; i++) breaker.recordFailure('f', 'x', false, Symbol());
+    now = 60_000;
+    const fourth = breaker.awaitVerdict('f', 10_000);
+    const fifth = breaker.awaitVerdict('f', 10_000);
+    expect(breaker.recordFailure('f', 'x', false, Symbol())).toMatchObject({ kind: 'opened' });
+    expect(await fifth).toEqual({ kind: 'open' });
+    sleeping.shift()?.();
+    expect(await fourth).toEqual({ kind: 'open' });
+  });
+
+  it('never opens on the failures of a single request: it gives up alone and the streak ends', () => {
+    const clock = fakeClock();
+    const breaker = new CircuitBreaker(options, clock.clock);
+    const only = Symbol('only');
+    for (let i = 0; i < 2; i++) expect(breaker.recordFailure('a', 'HTTP 503', false, only)).toBeNull();
+    clock.advance(60_000);
+    expect(breaker.recordFailure('a', 'HTTP 503', false, only)).toEqual({ kind: 'alone' });
+    expect(breaker.isOpen('a')).toBe(false);
+    // A new streak: another request's failure does not join the old one.
+    expect(breaker.recordFailure('a', 'HTTP 503', false, Symbol())).toBeNull();
+    // With a second request in the streak, the same failures open it.
+    const other = Symbol('other');
+    breaker.recordFailure('b', 'HTTP 503', false, only);
+    breaker.recordFailure('b', 'HTTP 503', false, other);
+    clock.advance(60_000);
+    expect(breaker.recordFailure('b', 'HTTP 503', false, only)).toMatchObject({ kind: 'opened' });
+  });
+
+  it('with no open time allowed, gives the family up as soon as it opens', () => {
+    const breaker = new CircuitBreaker({ ...options, minFailureMs: 0, maxOpenMs: 0 }, fakeClock().clock);
+    breaker.recordFailure('a', 'HTTP 503', false, Symbol());
+    breaker.recordFailure('a', 'HTTP 503', false, Symbol());
+    expect(breaker.recordFailure('a', 'timeout', false, Symbol())).toEqual({
+      kind: 'lost',
+      reason: '3 consecutive failures in 0 ms, last: timeout',
+      openMs: 0,
+    });
   });
 });
 
@@ -223,6 +363,9 @@ describe('cache keys', () => {
     expect(isFresh(entry, { maxAgeDays: 3 }, '2026-10-01')).toBe(true);
     expect(isFresh(entry, { maxAgeDays: 2 }, '2026-10-01')).toBe(false);
     expect(isFresh(entry, { maxAgeDays: 0 }, '2026-09-28')).toBe(true);
+    expect(isFresh(entry, { fetchedSince: '2026-09-28' }, '2026-10-01')).toBe(true);
+    expect(isFresh(entry, { fetchedSince: '2026-09-27' }, '2026-10-01')).toBe(true);
+    expect(isFresh(entry, { fetchedSince: '2026-09-29' }, '2026-10-01')).toBe(false);
   });
 });
 

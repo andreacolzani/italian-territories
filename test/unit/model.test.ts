@@ -240,7 +240,7 @@ describe('public variation model (§4.3)', () => {
     expect(variationSchema.safeParse({ ...sassari2026, participants: [] }).success).toBe(false);
   });
 
-  it('allows abroad only with an AS, AN or CE event (golden-18)', () => {
+  it('allows abroad only with an AS, AN, CE or AQ event (golden-18)', () => {
     const gorizia = {
       level: 'municipality',
       territory_id: 7,
@@ -251,7 +251,8 @@ describe('public variation model (§4.3)', () => {
       version_after_id: null,
     };
     expect(participantSchema.safeParse(gorizia).success).toBe(true);
-    expect(participantSchema.safeParse({ ...gorizia, istat_events: ['AQ'] }).success).toBe(false);
+    expect(participantSchema.safeParse({ ...gorizia, istat_events: ['AQ'] }).success).toBe(true);
+    expect(participantSchema.safeParse({ ...gorizia, istat_events: ['AQES'] }).success).toBe(false);
     expect(participantSchema.safeParse({ ...gorizia, abroad: undefined }).success).toBe(false);
   });
 
@@ -318,8 +319,8 @@ describe('public variation model (§4.3)', () => {
 describe('anomalies (§8.2)', () => {
   const anomaly = {
     level: 'warning',
-    code: 'anpr-date-divergence',
-    message: 'SITUAS start date differs from ANPR',
+    code: 'anpr-unmatched-period',
+    message: 'ANPR covers a period SITUAS does not',
     context: { entity_id: 10704, situas: '1947-11-28', anpr: '1947-12-13' },
   };
 

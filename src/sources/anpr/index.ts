@@ -10,6 +10,7 @@
 import { CsvError, parse } from 'csv-parse/sync';
 import { isIsoDate, nextDay, compareDates, type IsoDate } from '../../dates/index.ts';
 import {
+  canonicalJson,
   CONTENT_TYPES,
   textDecoder,
   type ClientResult,
@@ -58,6 +59,47 @@ export interface AnprRow {
   provinceAbbreviation: string | null;
   /** `A` active, `C` ceased. */
   status: 'A' | 'C';
+}
+
+/**
+ * An ANPR row as stored (§6.3) and cross-checked: without the CSV `line`, which would change the
+ * hash of every following row at each insertion in the file.
+ */
+export type AnprRecord = Omit<AnprRow, 'line'>;
+
+/** The stored row of an adapter row (any extra field, such as `line`, is left out). */
+export function anprRecord(row: AnprRecord): AnprRecord {
+  return {
+    validFrom: row.validFrom,
+    validTo: row.validTo,
+    istatCode: row.istatCode,
+    cadastralCode: row.cadastralCode,
+    italianName: row.italianName,
+    otherName: row.otherName,
+    provinceCode: row.provinceCode,
+    regionCode: row.regionCode,
+    provinceAbbreviation: row.provinceAbbreviation,
+    status: row.status,
+  };
+}
+
+/**
+ * Stable order of ANPR records, independent of the file: cadastral code (rows without one last),
+ * ISTAT code, `validFrom`, then the canonical JSON of the record.
+ */
+export function compareAnprRecords(a: AnprRecord, b: AnprRecord): number {
+  const cadastral = (r: AnprRecord) => (r.cadastralCode === null ? 1 : 0);
+  return (
+    cadastral(a) - cadastral(b) ||
+    compareText(a.cadastralCode ?? '', b.cadastralCode ?? '') ||
+    compareText(a.istatCode, b.istatCode) ||
+    compareText(a.validFrom, b.validFrom) ||
+    compareText(canonicalJson(a), canonicalJson(b))
+  );
+}
+
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 export interface AnprIssue {

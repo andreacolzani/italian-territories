@@ -38,10 +38,11 @@ export const TERRITORIAL_EVENT_CODES = ['AQ', 'CE', 'AQES', 'CECS'] as const sat
 
 /**
  * Events whose counterpart may be a foreign state (`Stato estero`, no code): cession abroad,
- * annexation, partial cession of territory abroad (§3.5 item 15). Such a counterpart is never
+ * annexation, partial cession of territory abroad, acquisition of territory from abroad (§3.5
+ * item 15; `AQ` verified in r7: Lombardia, 1866-11-20, act 3619). Such a counterpart is never
  * resolved and never produces links; the participant is flagged `abroad` (§4.3).
  */
-export const ABROAD_EVENT_CODES = ['AS', 'AN', 'CE'] as const satisfies readonly IstatEventCode[];
+export const ABROAD_EVENT_CODES = ['AS', 'AN', 'CE', 'AQ'] as const satisfies readonly IstatEventCode[];
 
 /** Region types, indexed by the ISTAT `tipo regione` value minus one (1 compartment, 2 region). */
 export const REGION_TYPES = ['compartment', 'region'] as const;

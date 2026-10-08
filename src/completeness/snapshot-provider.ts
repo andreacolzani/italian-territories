@@ -7,9 +7,10 @@
  * Only the manifest travels back: equality is projection equality, i.e. `content_hash` (§6.3).
  */
 import type { IsoDate } from '../dates/index.ts';
+import type { CachePolicy } from '../http/index.ts';
 import type { Level } from '../model/common.ts';
 import type { SituasPublicSource } from '../sources/situas-public/index.ts';
-import type { AdapterStats, PutOutcome, Store } from '../store/index.ts';
+import { NotInStoreError, type AdapterStats, type PutOutcome, type Store } from '../store/index.ts';
 
 /** `adapter_stats` keys of snapshot manifests (§3.5 item 16). */
 export const HISTORICAL_CODE_FALLBACKS = 'historical_code_fallbacks';
@@ -40,10 +41,20 @@ export interface StoreSnapshotProviderOptions {
    * `rebuild --refetch`).
    */
   mustRefresh: (level: Level, date: IsoDate) => boolean;
+  /**
+   * HTTP cache policy of those requests: `refresh` (default), or `{ fetchedSince: today }` in
+   * `rebuild --refetch`, so an interrupted refetch resumes from the responses of the same day.
+   */
+  refreshPolicy?: CachePolicy;
+  /**
+   * Offline run (`rebuild` without `--refetch`): never fetches; a snapshot missing from the store
+   * throws `NotInStoreError` (an unavailable snapshot for the orchestrator).
+   */
+  offline?: boolean;
 }
 
 export function storeSnapshotProvider(options: StoreSnapshotProviderOptions): SnapshotProvider {
-  const { store, source, mustRefresh } = options;
+  const { store, source, mustRefresh, offline = false, refreshPolicy = 'refresh' } = options;
   return {
     snapshot: async (level, date) => {
       const refresh = mustRefresh(level, date);
@@ -60,7 +71,10 @@ export function storeSnapshotProvider(options: StoreSnapshotProviderOptions): Sn
           };
         }
       }
-      const { data, fetchedAt } = await source.fetchSnapshot(level, date, { cache: refresh ? 'refresh' : 'prefer' });
+      if (offline) throw new NotInStoreError(`snapshot ${level} ${date}`);
+      const { data, fetchedAt } = await source.fetchSnapshot(level, date, {
+        cache: refresh ? refreshPolicy : 'prefer',
+      });
       const { manifest, outcome } = await store.putSnapshot(level, date, data.pfun, {
         fetchedAt,
         rows: data.snapshot.rows,

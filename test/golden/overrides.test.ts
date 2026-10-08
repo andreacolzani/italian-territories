@@ -13,7 +13,8 @@ import { AnomalyCollector } from '../../src/anomalies.ts';
 import { registerVersions } from '../../src/build/index.ts';
 import type { IsoDate } from '../../src/dates/index.ts';
 import { checkI8 } from '../../src/invariants/index.ts';
-import { applyOverrides, loadOverrides } from '../../src/overrides/index.ts';
+import { canonicalJson } from '../../src/http/index.ts';
+import { loadOverrides } from '../../src/overrides/index.ts';
 import { snapshotIndex } from '../helpers/identity.ts';
 import { withSources } from '../helpers/sources.ts';
 import { buildWorld, entityAt } from '../helpers/versions.ts';
@@ -27,22 +28,23 @@ describe('golden-7: Venezia Giulia 1921', async () => {
     province: await snapshotIndex(situasPublic, 'province', dates),
     municipality: await snapshotIndex(situasPublic, 'municipality', dates),
   }));
-  const built = await buildWorld({
+  const world = {
     region: { index: indexes.region },
     province: { index: indexes.province },
     municipality: { index: indexes.municipality },
-  });
-  const registered = registerVersions(built.registry, 'province', built.province, {
-    recordedOn: '2026-10-05',
-    anomalies: new AnomalyCollector(),
-  });
-  const overrides = await loadOverrides(OVERRIDES_DIR);
-  const anomalies = new AnomalyCollector();
-  const { provinces, applied } = applyOverrides({ overrides, provinces: registered.entities, anomalies });
+  };
+  const plain = await buildWorld(world);
+  const built = await buildWorld({ ...world, overrides: await loadOverrides(OVERRIDES_DIR) });
+  const register = (drafts: typeof built.province) =>
+    registerVersions(built.registry, 'province', drafts, {
+      recordedOn: '2026-10-05',
+      anomalies: new AnomalyCollector(),
+    }).entities;
+  const provinces = register(built.province);
 
-  it('fails I8 before the override, on UTS 801 only', () => {
-    expect(built.anomalies.list()).toEqual([]);
-    const violations = checkI8(registered.entities);
+  it('fails I8 without the override, on UTS 801 only', () => {
+    expect(plain.anomalies.list()).toEqual([]);
+    const violations = checkI8(register(plain.province));
     expect(violations.map((a) => [a.code, a.context.istatCode, a.context.abbreviation])).toEqual([
       ['invariant-i8', '801', 'Venezia Giulia'],
     ]);
@@ -53,7 +55,7 @@ describe('golden-7: Venezia Giulia 1921', async () => {
     expect(veneziaGiulia.versions.map((v) => [v.validFrom, v.validTo, v.abbreviation])).toEqual([
       ['1921-06-01', '1923-02-08', 'VG'],
     ]);
-    expect(applied).toEqual([
+    expect(built.appliedOverrides).toEqual([
       {
         key: 'uts-801-abbreviation',
         entityId: veneziaGiulia.id,
@@ -64,16 +66,19 @@ describe('golden-7: Venezia Giulia 1921', async () => {
         after: 'VG',
       },
     ]);
-    expect(anomalies.list()).toEqual([]);
+    // The Littoria override targets 1934: obsolete in this world, which ends in 1923.
+    expect(built.anomalies.list().map((a) => [a.code, a.context.key, a.context.reason])).toEqual([
+      ['override-obsolete', 'uts-059-abbreviation', 'no-match'],
+    ]);
     expect(checkI8(provinces)).toEqual([]);
   });
 
-  it('keeps version ids and every other UTS unchanged', () => {
-    expect(provinces.map((e) => e.versions.map((v) => v.id))).toEqual(
-      registered.entities.map((e) => e.versions.map((v) => v.id)),
+  it('changes no version boundary and no other UTS', () => {
+    expect(built.province.map((e) => e.versions.map((v) => [v.validFrom, v.validTo]))).toEqual(
+      plain.province.map((e) => e.versions.map((v) => [v.validFrom, v.validTo])),
     );
-    const changed = provinces.filter((e, i) => e !== registered.entities[i]).map((e) => e.id);
-    expect(changed).toEqual([entityAt(provinces, '801', '1921-06-01').id]);
+    const changed = built.province.filter((e, i) => canonicalJson(e) !== canonicalJson(plain.province[i]));
+    expect(changed.map((e) => e.id)).toEqual([entityAt(provinces, '801', '1921-06-01').id]);
   });
 
   it('has Zara (801256, M149) in UTS 801 in 1921 and Venezia Tridentina (802) as TN', () => {

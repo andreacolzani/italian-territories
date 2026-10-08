@@ -114,16 +114,23 @@ export async function municipalityGraph(files: readonly string[]): Promise<Ident
 
 /** Internal identity of Piemonte (r4 for its compartment and region records); never complete. */
 export async function piemonteIdentity(): Promise<InternalIdentity> {
+  return regionIdentity([
+    ['01', 'compartment', '01_1_piemonte.json'],
+    ['01', 'region', '01_2_piemonte.json'],
+  ]);
+}
+
+/** Internal region identity from r4 fixtures, as `[code, type, fixture file]`; never complete. */
+export async function regionIdentity(
+  records: readonly [string, InternalRegionEvent['type'], string][],
+): Promise<InternalIdentity> {
   const regionList = await decodedRows('regionList', 'r1-region-list/all.json');
-  const files = { compartment: '01_1_piemonte.json', region: '01_2_piemonte.json' } as const;
-  const sources: IdentitySource<InternalRegionEvent>[] = await Promise.all(
-    regionList
-      .filter((r) => r.name === 'Piemonte')
-      .map(async (listed) => ({
-        listed,
-        events: await decodedRows('regionEvents', `r4-region-events/${files[listed.type]}`),
-      })),
-  );
+  const sources: IdentitySource<InternalRegionEvent>[] = [];
+  for (const [code, type, file] of records) {
+    const listed = regionList.find((r) => r.code === code && r.type === type);
+    if (listed === undefined) throw new Error(`region ${code} (${type}) not listed by r1`);
+    sources.push({ listed, events: await decodedRows('regionEvents', `r4-region-events/${file}`) });
+  }
   const graph = buildIdentityGraph<InternalRegionEvent>({
     level: 'region',
     sources,

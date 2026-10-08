@@ -22,7 +22,7 @@
  * cause; the version is kept, so later stages still run (see the internal model).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
-import { compareDates, type HalfOpenInterval } from '../dates/index.ts';
+import { compareDates, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
 import { canonicalJson } from '../http/index.ts';
 import type { Level } from '../model/common.ts';
 import type {
@@ -34,6 +34,7 @@ import type {
   VersionByLevel,
 } from '../model/internal.ts';
 import { versionKey, type AssignOptions, type Assignment, type Registry } from '../identity/index.ts';
+import { boundaryCreated, type OverrideRun } from '../overrides/apply.ts';
 import type { IntervalIndex, SnapshotInterval } from '../resolve/index.ts';
 import { REGIME_1948_START } from '../sources/situas-public/pfun.ts';
 import {
@@ -96,44 +97,67 @@ export function buildProvinceVersions(options: {
   regions: EntityTimeline;
   /** The municipality index: pre-1948 abbreviations (§6.9). */
   municipalities: IntervalIndex<'municipality'>;
+  /** Curated corrections, applied to the values of every day before the merge (§6.10). */
+  overrides?: OverrideRun;
   anomalies: AnomalyCollector;
 }): EntityDraft<'province'>[] {
   const abbreviations = municipalityAbbreviations(options.municipalities.all());
+  const run = options.overrides;
   return options.entities.map((entity) => {
-    const built = draft('province', entity, options.anomalies, (interval) => {
-      const row: UtsSnapshotRow = interval.row;
-      const regions = parentPieces(options.regions, row.regionCode, interval);
-      const derived = row.abbreviation === null && compareDates(interval.validFrom, REGIME_1948_START) < 0;
-      const sigle = derived
-        ? cover<string[]>(interval, abbreviations.get(row.code) ?? [], [])
-        : [{ ...range(interval), value: [] }];
-      return splitRange(interval, [regions, sigle]).map((sub) => {
-        const regionId = valueAt(regions, sub.validFrom);
-        const values = valueAt(sigle, sub.validFrom);
-        const abbreviation = derived ? (values.length === 1 ? (values[0] ?? null) : null) : row.abbreviation;
-        const notes: Note[] = [];
-        if (regionId === null) notes.push(parentNote('region', 'regionId', row.regionCode));
-        if (derived && abbreviation === null) {
-          notes.push({
-            code: VERSION_ANOMALIES.abbreviationUnderived,
-            field: 'abbreviation',
-            message:
-              values.length === 0
-                ? `no municipality of UTS ${row.code} reports an abbreviation`
-                : `the municipalities of UTS ${row.code} report ${values.length} abbreviations (${values.join(', ')})`,
-            detail: { utsCode: row.code, values },
-          });
-        }
-        const fields: Fields<'province'> = {
-          istatCode: row.code,
-          ...splitName(row.name),
-          type: row.type,
-          abbreviation,
-          regionId,
-        };
-        return { ...sub, fields, notes };
-      });
-    });
+    const overridden =
+      run === undefined
+        ? undefined
+        : (pieces: Piece<'province'>[]): Piece<'province'>[] => {
+            const result = pieces.flatMap((piece) => overridePiece(run, entity.id, piece));
+            // An override may remove version boundaries, never create one (§6.10).
+            const before = new Set(boundaries(merge(pieces)));
+            for (const date of boundaries(merge(result))) {
+              if (before.has(date)) continue;
+              const at = result.find((p) => p.validFrom === date) ?? result[0];
+              options.anomalies.add(boundaryCreated(entity.id, at?.fields.istatCode ?? '', date, run.overrides));
+            }
+            return result;
+          };
+    const built = draft(
+      'province',
+      entity,
+      options.anomalies,
+      (interval) => {
+        const row: UtsSnapshotRow = interval.row;
+        const regions = parentPieces(options.regions, row.regionCode, interval);
+        const derived = row.abbreviation === null && compareDates(interval.validFrom, REGIME_1948_START) < 0;
+        const sigle = derived
+          ? cover<string[]>(interval, abbreviations.get(row.code) ?? [], [])
+          : [{ ...range(interval), value: [] }];
+        return splitRange(interval, [regions, sigle]).map((sub) => {
+          const regionId = valueAt(regions, sub.validFrom);
+          const values = valueAt(sigle, sub.validFrom);
+          const abbreviation = derived ? (values.length === 1 ? (values[0] ?? null) : null) : row.abbreviation;
+          const notes: Note[] = [];
+          if (regionId === null) notes.push(parentNote('region', 'regionId', row.regionCode));
+          if (derived && abbreviation === null) {
+            notes.push({
+              code: VERSION_ANOMALIES.abbreviationUnderived,
+              field: 'abbreviation',
+              message:
+                values.length === 0
+                  ? `no municipality of UTS ${row.code} reports an abbreviation`
+                  : `the municipalities of UTS ${row.code} report ${values.length} abbreviations (${values.join(', ')})`,
+              detail: { utsCode: row.code, values },
+            });
+          }
+          const fields: Fields<'province'> = {
+            istatCode: row.code,
+            ...splitName(row.name),
+            type: row.type,
+            abbreviation,
+            regionId,
+          };
+          return { ...sub, fields, notes };
+        });
+      },
+      overridden,
+    );
     const historicalCodes = mergeDated(
       entity.intervals.map((i) => ({ ...range(i), value: i.row.historicalCode })),
       (v) => v,
@@ -185,15 +209,30 @@ export function splitName(name: string): { officialName: string; italianName: st
   return { officialName: name, italianName: name.slice(0, slash).trim(), foreignName: foreign === '' ? null : foreign };
 }
 
-/** The versions of one entity: its pieces, merged while their fields are equal. */
+/**
+ * The versions of one entity: its pieces (after `transform`, e.g. the overrides), merged while
+ * their fields are equal.
+ */
 function draft<L extends Level>(
   level: L,
   entity: IdentifiedEntity<L>,
   anomalies: AnomalyCollector,
   pieces: (interval: SnapshotInterval<L>) => Piece<L>[],
+  transform: (pieces: Piece<L>[]) => Piece<L>[] = (p) => p,
 ): { level: L; id: number; istatOriginId: number | null; versions: VersionDraft<L>[] } {
+  const all = [...entity.intervals].sort((a, b) => compareDates(a.validFrom, b.validFrom)).flatMap(pieces);
+  const merged = merge(transform(all));
+  const versions = merged.map((piece) => {
+    report(level, entity, piece, anomalies);
+    return { validFrom: piece.validFrom, validTo: piece.validTo, ...piece.fields } as VersionDraft<L>;
+  });
+  return { level, id: entity.id, istatOriginId: entity.istatOriginId, versions };
+}
+
+/** Contiguous pieces with equal fields merged (their notes joined). */
+function merge<L extends Level>(pieces: readonly Piece<L>[]): Piece<L>[] {
   const merged: Piece<L>[] = [];
-  for (const piece of [...entity.intervals].sort((a, b) => compareDates(a.validFrom, b.validFrom)).flatMap(pieces)) {
+  for (const piece of pieces) {
     const last = merged[merged.length - 1];
     if (last?.validTo === piece.validFrom && sameFields(last.fields, piece.fields)) {
       last.validTo = piece.validTo;
@@ -202,11 +241,34 @@ function draft<L extends Level>(
       merged.push({ ...piece, notes: [...piece.notes] });
     }
   }
-  const versions = merged.map((piece) => {
-    report(level, entity, piece, anomalies);
-    return { validFrom: piece.validFrom, validTo: piece.validTo, ...piece.fields } as VersionDraft<L>;
+  return merged;
+}
+
+/** The dates where one version ends and the next, contiguous, begins. */
+function boundaries(versions: readonly HalfOpenInterval[]): IsoDate[] {
+  return versions.flatMap((v, i) => {
+    const next = versions[i + 1];
+    return v.validTo !== null && next?.validFrom === v.validTo ? [v.validTo] : [];
   });
-  return { level, id: entity.id, istatOriginId: entity.istatOriginId, versions };
+}
+
+/**
+ * A UTS piece with the abbreviation overrides of its code applied on the days they cover; the
+ * abbreviation an override supplies is no longer undetermined.
+ */
+function overridePiece(run: OverrideRun, entityId: number, piece: Piece<'province'>): Piece<'province'>[] {
+  return run.abbreviationOverrides(piece.fields.istatCode, piece).map((sub) => {
+    const range = { validFrom: sub.validFrom, validTo: sub.validTo };
+    const override = sub.value;
+    if (override === null) return { ...piece, ...range, notes: [...piece.notes] };
+    run.record(override, entityId, range, piece.fields.abbreviation);
+    return {
+      ...piece,
+      ...range,
+      fields: { ...piece.fields, abbreviation: override.value },
+      notes: piece.notes.filter((n) => n.field !== 'abbreviation'),
+    };
+  });
 }
 
 function report<L extends Level>(

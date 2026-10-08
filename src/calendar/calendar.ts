@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { compareDates, isAfter, isBetweenInclusive, UNIFICATION_DATE, type IsoDate } from '../dates/index.ts';
 import { isoDateSchema } from '../model/public.ts';
-import type { AnprRow } from '../sources/anpr/index.ts';
+import type { AnprRecord } from '../sources/anpr/index.ts';
 import { INTERNAL_REPORTS } from '../sources/situas-internal/index.ts';
 import {
   EVENT_LISTS,
@@ -144,7 +144,7 @@ export function internalEventsContribution(
 }
 
 /** `DATAISTITUZIONE` and `DATACESSAZIONE + 1` (the adapter's half-open `validTo`), as hints. */
-export function anprContributions(rows: readonly AnprRow[]): CalendarContribution[] {
+export function anprContributions(rows: readonly AnprRecord[]): CalendarContribution[] {
   return [
     { source: 'anpr:start', dates: rows.map((r) => r.validFrom) },
     { source: 'anpr:end', dates: rows.flatMap((r) => (r.validTo === null ? [] : [r.validTo])) },

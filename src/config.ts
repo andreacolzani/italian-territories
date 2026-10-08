@@ -15,6 +15,8 @@ const pathsSchema = z
     store: z.string().default('.cache/store'),
     /** Build reports that are neither data nor sources (e.g. the event code summary, Step 7). */
     reports: z.string().default('.cache/reports'),
+    /** Summary of the last run, for the workflows (Step 17). */
+    runSummary: z.string().default('.cache/last-run.json'),
     registry: z.string().default('registry'),
     overrides: z.string().default('overrides'),
     dist: z.string().default('dist'),
@@ -50,6 +52,13 @@ const httpSchema = z
       .prefault({}),
     /** Consecutive failed attempts on a family before its circuit opens (§6.1). */
     circuitBreakerThreshold: z.int().min(1).default(10),
+    /** ...and for at least this long: a blip of a few seconds never opens it. */
+    circuitBreakerMinFailureMs: z.int().min(0).default(60_000),
+    /** Wait before the first probe of an open circuit; doubled at every reopening. */
+    circuitBreakerCooldownMs: z.int().min(0).default(60_000),
+    circuitBreakerMaxCooldownMs: z.int().min(0).default(600_000),
+    /** Total open time after which the family is given up for the run (exit 3). */
+    circuitBreakerMaxOpenMs: z.int().min(0).default(900_000),
     userAgent: z
       .string()
       .min(1)
@@ -84,6 +93,11 @@ const updateSchema = z
     lookbackDays: z.int().min(0).default(365),
     /** Random historical dates checked by `audit` during an update (§10.2). */
     auditSamples: z.int().min(0).default(50),
+    /**
+     * Stored snapshots an update may refresh after late events or audit discrepancies (Step 17);
+     * above it the run blocks (`refresh-too-large`) and asks for `rebuild --refetch`.
+     */
+    maxRefreshSnapshots: z.int().min(0).default(300),
   })
   .prefault({});
 
@@ -113,6 +127,7 @@ export function resolveConfig(input: ConfigInput = {}): Config {
       httpCache: abs(config.paths.httpCache),
       store: abs(config.paths.store),
       reports: abs(config.paths.reports),
+      runSummary: abs(config.paths.runSummary),
       registry: abs(config.paths.registry),
       overrides: abs(config.paths.overrides),
       dist: abs(config.paths.dist),

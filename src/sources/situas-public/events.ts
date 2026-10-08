@@ -5,7 +5,7 @@
  * code column and are renames (`CD`) by definition (§3.5).
  *
  * `*_REL` fields identify the related territory (§3.5 item 6). A related foreign state
- * (`Stato estero`, no code) is allowed only for `AS`, `AN` and `CE`: it becomes `abroad: true`
+ * (`Stato estero`, no code) is allowed only for `AS`, `AN`, `CE` and `AQ`: it becomes `abroad: true`
  * with `related: null`, so it is never resolved and never produces links (§3.5 item 15).
  */
 import { z } from 'zod';
@@ -39,7 +39,7 @@ export interface RegionEventRow extends EventRowBase {
   code: string;
   name: string;
   type: RegionType;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`; §3.5 item 15). */
+  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; type: RegionType | null } | null;
 }
@@ -50,7 +50,7 @@ export interface UtsEventRow extends EventRowBase {
   type: UtsType;
   /** `SIGLA_UTS` as reported (may be a full name, §3.5 item 12). */
   abbreviation: string | null;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`; §3.5 item 15). */
+  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; abbreviation: string | null; type: UtsType | null } | null;
 }
@@ -62,7 +62,7 @@ export interface MunicipalityEventRow extends EventRowBase {
   cadastralCode: string | null;
   utsCode: string;
   utsAbbreviation: string | null;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`; §3.5 item 15). */
+  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: {
     code: string | null;

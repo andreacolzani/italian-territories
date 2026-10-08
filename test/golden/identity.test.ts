@@ -19,7 +19,7 @@ import {
 import type { Level } from '../../src/model/common.ts';
 import type { IntervalIndex } from '../../src/resolve/index.ts';
 import { withTempDir } from '../helpers/http.ts';
-import { municipalityIdentity, snapshotIndex, utsIdentity } from '../helpers/identity.ts';
+import { municipalityIdentity, regionIdentity, snapshotIndex, utsIdentity } from '../helpers/identity.ts';
 import { withSources } from '../helpers/sources.ts';
 
 const SARDINIA_2026: IsoDate[] = ['2025-12-31', '2026-01-01'];
@@ -265,5 +265,59 @@ describe('registry ids across builds (§5.3)', () => {
       });
       expect(options.anomalies.list()).toEqual([]);
     });
+  });
+});
+
+describe('golden-15: type changes of 1948 without ESCT', async () => {
+  const CODES = ['01', '82', '04'];
+  const DAY = '1948-01-01';
+  const { index, lists } = await withSources(async ({ situasPublic }) => {
+    const rows = async (pfun: 106 | 107) =>
+      (await situasPublic.fetchEventList('region', pfun, '1861-03-17', '2026-10-01')).data.filter(
+        (r) => r.date === DAY && CODES.includes(r.code),
+      );
+    return {
+      index: await snapshotIndex(situasPublic, 'region', ['1947-12-31', DAY], CODES),
+      lists: { 106: await rows(106), 107: await rows(107) },
+    };
+  });
+  const internal = await regionIdentity([
+    ['01', 'compartment', '01_1_piemonte.json'],
+    ['01', 'region', '01_2_piemonte.json'],
+    ['82', 'compartment', '82_1_venezia-tridentina.json'],
+    ['04', 'region', '04_2_trentino-alto-adige-sudtirol.json'],
+  ]);
+  const { entities, transitions, anomalies } = resolve('region', index, internal, lists);
+
+  it('Venezia Tridentina (82, no event on the day) becomes Trentino-Alto Adige (04, CSCT): one entity, origin 22', () => {
+    expect(entityOf(entities, '82', '1947-12-31')).toBe(entityOf(entities, '04', DAY));
+    expect(entityOf(entities, '04', DAY)).toMatchObject({ key: 'istat:22', istatOriginId: 22 });
+    expect(transitions.links).toContainEqual({
+      date: DAY,
+      from: '82@1947-12-31',
+      to: '04@1948-01-01',
+      rule: 'type-change',
+    });
+  });
+
+  it('Piemonte (ES on the compartment, CSCT on the region) is a type change of the same code', () => {
+    expect(entityOf(entities, '01', '1947-12-31')).toBe(entityOf(entities, '01', DAY));
+    expect(transitions.links).toContainEqual({
+      date: DAY,
+      from: '01@1947-12-31',
+      to: '01@1948-01-01',
+      rule: 'type-change',
+    });
+  });
+
+  it('explains the ESCT rows of pfun 106 and the new name of the typed record: no anomaly', () => {
+    expect(lists[106].map((r) => [r.event, r.code, r.related?.code])).toEqual(
+      expect.arrayContaining([
+        ['ESCT', '82', '04'],
+        ['ESCT', '01', '01'],
+      ]),
+    );
+    // The new name comes with the new typed record: no `name-change-without-event` (§6.7).
+    expect(codes(anomalies)).toEqual([]);
   });
 });

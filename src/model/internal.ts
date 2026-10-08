@@ -184,7 +184,7 @@ export interface Participant {
   level: Level;
   entityId: number;
   istatEvents: IstatEventCode[];
-  /** The counterpart of one of its events (`AS`, `AN`, `CE`) is a foreign state (§4.3). */
+  /** The counterpart of one of its events (`AS`, `AN`, `CE`, `AQ`) is a foreign state (§4.3). */
   abroad: boolean;
   /** `null` = participation without effect: kept internally, logged and dropped on emit (§4.3). */
   role: ParticipantRole | null;

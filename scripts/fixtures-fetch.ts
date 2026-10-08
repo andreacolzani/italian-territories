@@ -192,6 +192,46 @@ function staticDownloads(): Download[] {
     internal(reportUrls.utsEventDetails({ originId: 9, actId: 6029, utsType: 'province', event: 'ESCT' }), [
       'golden-5',
     ]),
+    // A foreign state counterpart of `AQ` (Lombardia, 1866) and with a blank UTS type (Cuneo, 1947).
+    internal(reportUrls.regionEventDetails({ regionType: 'compartment', actId: 3619, event: 'AQ', originId: 1 }), [
+      'quirk-15',
+    ]),
+    internal(reportUrls.utsEventDetails({ originId: 3, actId: 2410, utsType: 'province', event: 'CE' }), ['quirk-15']),
+    // golden-15: type changes of 1948 without `ESCT` (Venezia Tridentina → Trentino-Alto Adige).
+    internal(reportUrls.regionEvents({ code: '82', name: 'Venezia Tridentina', type: 'compartment' }), ['golden-15']),
+    internal(reportUrls.regionEvents({ code: '04', name: 'Trentino-Alto Adige/Südtirol', type: 'region' }), [
+      'golden-15',
+    ]),
+    // golden-20: Caserta, suppressed in 1927 and reconstituted in 1945 with the same origin.
+    ...(['Terra del Lavoro', 'Caserta'] as const).map((name) =>
+      internal(reportUrls.utsEvents({ code: '061', name, type: 'province' }), ['golden-20']),
+    ),
+    internal(reportUrls.utsEvents({ code: '062', name: 'Benevento', type: 'province' }), ['golden-20']),
+    internal(reportUrls.utsEvents({ code: '063', name: 'Napoli', type: 'province' }), ['golden-20']),
+    internal(reportUrls.utsEvents({ code: '070', name: 'Campobasso', type: 'province' }), ['golden-20']),
+    internal(reportUrls.utsEventDetails({ originId: 35, actId: 5390, utsType: 'province', event: 'CS' }), [
+      'golden-20',
+    ]),
+    ...[43, 36, 37].map((originId) =>
+      internal(reportUrls.utsEventDetails({ originId, actId: 5390, utsType: 'province', event: 'CECS' }), [
+        'golden-20',
+      ]),
+    ),
+    // golden-21: two acts of the same day and event, told apart by their r9 details.
+    internal(reportUrls.municipalityEvents({ code: '092092', name: 'Riola Sardo' }), ['golden-21']),
+    ...[5831, 5841].map((actId) =>
+      internal(reportUrls.municipalityEventDetails({ originId: 7543, actId, event: 'CECS' }), ['golden-21']),
+    ),
+    ...(['1946-02-06', '1946-02-07'] as const).flatMap((date) => [
+      snapshot(46, date, ['golden-21']),
+      snapshot(49, date, ['golden-21']),
+      snapshot(50, date, ['golden-21']),
+    ]),
+    ...(['1945-08-31', '1945-09-01'] as const).flatMap((date) => [
+      snapshot(46, date, ['golden-20']),
+      snapshot(49, date, ['golden-20']),
+      snapshot(50, date, ['golden-20']),
+    ]),
   ];
 }
 

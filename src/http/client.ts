@@ -1,7 +1,7 @@
 /**
  * HTTP client of §6.1, shared by every adapter: AIMD worker pool and token bucket per host,
  * retries with full-jitter backoff and `Retry-After`, per-class timeouts, circuit breaker per
- * family, endpoints disabled by permanent validation errors, `User-Agent`, response cache with
+ * family (half-open probes, given up after a maximum open time), endpoints disabled by permanent validation errors, `User-Agent`, response cache with
  * per-call freshness, response validation and degradation.
  */
 import type { Config } from '../config.ts';
@@ -9,7 +9,7 @@ import { currentDate, type IsoDate } from '../dates/index.ts';
 import { AdaptiveLimiter } from './adaptive-limiter.ts';
 import { fullJitterDelay, parseRetryAfter } from './backoff.ts';
 import { cacheKey, isFresh, ResponseCache, sha256, type CacheEntry, type CachePolicy } from './cache.ts';
-import { CircuitBreaker } from './circuit-breaker.ts';
+import { CircuitBreaker, type Transition } from './circuit-breaker.ts';
 import { systemClock, type Clock } from './clock.ts';
 import { mediaType, type Endpoint, type Family } from './decode.ts';
 import {
@@ -31,9 +31,27 @@ export type HttpSettings = Config['http'];
 export type HttpClientEvent =
   | { type: 'retry'; endpoint: string; request: HttpRequest; attempt: number; reason: string; delayMs: number }
   | { type: 'concurrency'; host: string; limit: number }
-  | { type: 'circuit-open'; family: Family; reason: string }
-  /** Also disables the endpoint for the rest of the run. */
-  | { type: 'validation-error'; endpoint: string; request: HttpRequest; error: ResponseValidationError }
+  /** The family's circuit opened (or a probe failed and it reopened); a probe follows in `retryInMs`. */
+  | { type: 'circuit-open'; family: Family; reason: string; retryInMs: number; reopened: boolean }
+  | { type: 'circuit-closed'; family: Family; openMs: number }
+  /**
+   * The request ran out of attempts while other requests of its family were failing too: it waits
+   * for the family's verdict instead of failing (once per request).
+   */
+  | { type: 'request-held'; endpoint: string; request: HttpRequest; attempts: number; reason: string }
+  /** Open for `circuitBreakerMaxOpenMs` in total: the family is given up for the run. */
+  | { type: 'circuit-lost'; family: Family; reason: string; openMs: number }
+  /**
+   * A permanent validation error; `disabled` when it is the one that disabled the endpoint for the
+   * rest of the run (once per endpoint; later errors of requests already in flight are `false`).
+   */
+  | {
+      type: 'validation-error';
+      endpoint: string;
+      request: HttpRequest;
+      error: ResponseValidationError;
+      disabled: boolean;
+    }
   | {
       type: 'changed';
       endpoint: string;
@@ -95,6 +113,8 @@ export class HttpClient {
   readonly #breaker: CircuitBreaker;
   /** Endpoint id → reason, for endpoints disabled by a permanent validation error. */
   readonly #disabled = new Map<string, string>();
+  /** Endpoint id → requests refused because the endpoint was disabled. */
+  readonly #refused = new Map<string, number>();
 
   constructor(options: HttpClientOptions) {
     this.#http = options.http;
@@ -103,7 +123,16 @@ export class HttpClient {
     this.#clock = options.clock ?? systemClock;
     this.#random = options.random ?? Math.random;
     this.#onEvent = options.onEvent ?? (() => undefined);
-    this.#breaker = new CircuitBreaker(options.http.circuitBreakerThreshold);
+    this.#breaker = new CircuitBreaker(
+      {
+        threshold: options.http.circuitBreakerThreshold,
+        minFailureMs: options.http.circuitBreakerMinFailureMs,
+        cooldownMs: options.http.circuitBreakerCooldownMs,
+        maxCooldownMs: options.http.circuitBreakerMaxCooldownMs,
+        maxOpenMs: options.http.circuitBreakerMaxOpenMs,
+      },
+      this.#clock,
+    );
   }
 
   /** Current AIMD concurrency limit of a host (e.g. `situas.istat.it`). */
@@ -111,8 +140,21 @@ export class HttpClient {
     return this.#hosts.get(host)?.limiter.limit ?? this.#http.concurrency;
   }
 
+  /** Open (requests held until a probe succeeds) or lost for the run. */
   isCircuitOpen(family: Family): boolean {
     return this.#breaker.isOpen(family);
+  }
+
+  /** Given up for the rest of the run (open for `circuitBreakerMaxOpenMs` in total). */
+  isCircuitLost(family: Family): boolean {
+    return this.#breaker.isLost(family);
+  }
+
+  /** Endpoints disabled in this run, with the cause and the requests refused since, by endpoint id. */
+  disabledEndpoints(): { endpoint: string; cause: string; refused: number }[] {
+    return [...this.#disabled]
+      .map(([endpoint, cause]) => ({ endpoint, cause, refused: this.#refused.get(endpoint) ?? 0 }))
+      .sort((a, b) => (a.endpoint < b.endpoint ? -1 : a.endpoint > b.endpoint ? 1 : 0));
   }
 
   isEndpointDisabled(endpoint: string): boolean {
@@ -125,7 +167,10 @@ export class HttpClient {
     options: RequestOptions = {},
   ): Promise<ClientResult<T>> {
     const disabled = this.#disabled.get(endpoint.id);
-    if (disabled !== undefined) throw new EndpointDisabledError(endpoint.id, request, disabled);
+    if (disabled !== undefined) {
+      this.#refused.set(endpoint.id, (this.#refused.get(endpoint.id) ?? 0) + 1);
+      throw new EndpointDisabledError(endpoint.id, request, disabled);
+    }
 
     const key = cacheKey(request);
     const cached = await this.#cache.get(key);
@@ -205,8 +250,9 @@ export class HttpClient {
   #disable(error: ResponseValidationError, endpoint: Endpoint<unknown>, request: HttpRequest): void {
     error.endpoint = endpoint.id;
     error.request = request;
-    if (!this.#disabled.has(endpoint.id)) this.#disabled.set(endpoint.id, `invalid rows: ${error.message}`);
-    this.#onEvent({ type: 'validation-error', endpoint: endpoint.id, request, error });
+    const disabling = !this.#disabled.has(endpoint.id);
+    if (disabling) this.#disabled.set(endpoint.id, `invalid rows: ${error.message}`);
+    this.#onEvent({ type: 'validation-error', endpoint: endpoint.id, request, error, disabled: disabling });
   }
 
   #hostScope(request: HttpRequest): HostScope {
@@ -235,10 +281,17 @@ export class HttpClient {
     const timeoutMs =
       endpoint.timeoutClass === 'snapshot' ? this.#http.timeouts.snapshotMs : this.#http.timeouts.defaultMs;
     let transientFailures = 0;
+    /** Successes of the family when this request first failed: a later one means the family works. */
+    let successesAtFailure: number | undefined;
+    /** Identifies this request in its family's failure streak. */
+    const token = Symbol(endpoint.id);
+    let held = false;
 
-    for (let attempt = 1; ; attempt++) {
-      const reason = this.#breaker.reason(family);
-      if (reason !== undefined) throw new CircuitOpenError(endpoint.id, request, family, reason);
+    for (let attempt = 1; ;) {
+      // An open circuit holds the request (no attempt spent) until it closes, probes or is lost.
+      const admission = await this.#breaker.admit(family);
+      if (admission.kind === 'lost') throw new CircuitOpenError(endpoint.id, request, family, admission.reason);
+      const probe = admission.kind === 'probe';
 
       const epoch = await limiter.acquire();
       let outcome: AttemptOutcome<T>;
@@ -249,37 +302,88 @@ export class HttpClient {
         // Neither AIMD nor the circuit breaker hear about it: only transport failures and
         // transient validation errors are congestion or availability signals.
         if (error instanceof ResponseValidationError) this.#disable(error, endpoint, request);
+        if (probe) this.#breaker.abandonProbe(family);
         throw error;
       } finally {
         limiter.release();
       }
 
       if (outcome.ok) {
-        this.#breaker.recordSuccess(family);
+        this.#transition(family, this.#breaker.recordSuccess(family));
         limiter.recordSuccess(outcome.latencyMs <= this.#http.aimdFastFraction * timeoutMs);
         return outcome;
       }
 
       limiter.recordFailure(epoch);
-      this.#recordFailure(family, outcome.reason);
+      successesAtFailure ??= this.#breaker.successes(family);
+      const transition = this.#breaker.recordFailure(family, outcome.reason, probe, token);
+      // Failing alone for as long as it takes to open a circuit: this request, not its family.
+      if (transition?.kind === 'alone') throw new RetriesExhaustedError(endpoint.id, request, attempt, outcome.reason);
+      this.#transition(family, transition);
+      // A failed probe is the circuit's attempt, not the request's: it waits for the next one.
+      if (probe) continue;
       if (outcome.transient) transientFailures++;
       if (attempt >= this.#http.maxAttempts || transientFailures > this.#http.transientValidationRetries) {
-        throw new RetriesExhaustedError(endpoint.id, request, attempt, outcome.reason);
+        // Out of attempts: the request fails alone only when its family works (D38).
+        const reason = this.#breaker.lostReason(family);
+        if (reason !== undefined) throw new CircuitOpenError(endpoint.id, request, family, reason);
+        if (this.#breaker.isOpen(family)) continue;
+        if (this.#breaker.successes(family) !== successesAtFailure) {
+          throw new RetriesExhaustedError(endpoint.id, request, attempt, outcome.reason);
+        }
+        if (!held) {
+          held = true;
+          this.#onEvent({
+            type: 'request-held',
+            endpoint: endpoint.id,
+            request,
+            attempts: attempt,
+            reason: outcome.reason,
+          });
+        }
+        const verdict = await this.#breaker.awaitVerdict(family, this.#http.backoffMaxMs);
+        if (verdict.kind === 'lost') throw new CircuitOpenError(endpoint.id, request, family, verdict.reason);
+        continue;
       }
-      const openReason = this.#breaker.reason(family);
-      if (openReason !== undefined) throw new CircuitOpenError(endpoint.id, request, family, openReason);
+      attempt++;
+      if (this.#breaker.isOpen(family)) continue;
 
-      const backoff = fullJitterDelay(attempt, this.#http.backoffBaseMs, this.#http.backoffMaxMs, this.#random);
+      const backoff = fullJitterDelay(attempt - 1, this.#http.backoffBaseMs, this.#http.backoffMaxMs, this.#random);
       const delayMs = Math.max(backoff, Math.min(outcome.retryAfterMs ?? 0, this.#http.retryAfterMaxMs));
-      this.#onEvent({ type: 'retry', endpoint: endpoint.id, request, attempt, reason: outcome.reason, delayMs });
+      this.#onEvent({
+        type: 'retry',
+        endpoint: endpoint.id,
+        request,
+        attempt: attempt - 1,
+        reason: outcome.reason,
+        delayMs,
+      });
       await this.#clock.sleep(delayMs);
     }
   }
 
-  #recordFailure(family: Family, reason: string): void {
-    if (!this.#breaker.recordFailure(family, reason)) return;
-    const openReason = this.#breaker.reason(family);
-    if (openReason !== undefined) this.#onEvent({ type: 'circuit-open', family, reason: openReason });
+  #transition(family: Family, transition: Transition | null): void {
+    if (transition === null) return;
+    switch (transition.kind) {
+      case 'opened':
+      case 'reopened':
+        this.#onEvent({
+          type: 'circuit-open',
+          family,
+          reason: transition.reason,
+          retryInMs: transition.retryInMs,
+          reopened: transition.kind === 'reopened',
+        });
+        return;
+      case 'closed':
+        this.#onEvent({ type: 'circuit-closed', family, openMs: transition.openMs });
+        return;
+      case 'lost':
+        this.#onEvent({ type: 'circuit-lost', family, reason: transition.reason, openMs: transition.openMs });
+        return;
+      case 'alone':
+        return;
+    }
   }
 
   /** One attempt. Returns retryable failures; throws non-retryable ones. */

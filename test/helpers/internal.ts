@@ -84,7 +84,7 @@ async function municipalityHistories(): Promise<Map<string, HttpResponse>> {
 
 /**
  * Lists from `lists`, other reports from the real fixtures; r6 answers every historical pair of
- * a fixture's municipality. Details reports (r7, r8) without a fixture are served empty, as the
+ * a fixture's municipality. Details reports (r7, r8, r9) without a fixture are served empty, as the
  * API does for events without associated territories; any other unknown request fails loudly.
  */
 export async function internalWorld(options: InternalWorldOptions): Promise<Transport> {
@@ -109,7 +109,7 @@ export async function internalWorld(options: InternalWorldOptions): Promise<Tran
     try {
       return await fixtures(request, transportOptions);
     } catch (error) {
-      if (report === 7 || report === 8) return EMPTY_INTERNAL;
+      if (report === 7 || report === 8 || report === 9) return EMPTY_INTERNAL;
       throw error;
     }
   };

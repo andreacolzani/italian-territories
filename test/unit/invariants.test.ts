@@ -745,20 +745,21 @@ describe('I15: abroad participants', () => {
     ]);
   });
 
-  it('rejects an abroad participant without AS, AN or CE', () => {
+  it('rejects an abroad participant without AS, AN, CE or AQ', () => {
     const world = baseline();
     variationOf(world, 2).participants = [participant(1, 'changed', ['RN'], 1, 2, { abroad: true })];
     expect(checkI15(world.variations).map((a) => a.message)).toEqual([
-      expect.stringContaining('abroad without an AS, AN, CE event'),
+      expect.stringContaining('abroad without an AS, AN, CE, AQ event'),
     ]);
   });
 
-  it('accepts the three abroad events and a participant with a partial cession abroad', () => {
+  it('accepts the abroad events, partial cessions and acquisitions of territory abroad included', () => {
     const world = baseline();
     variationOf(world, 2).participants = [
       participant(1, 'ceded', ['AS'], 1, null, { abroad: true }),
       participant(2, 'annexed', ['AN'], null, 2, { abroad: true }),
       participant(3, 'territory_changed', ['CE'], null, null, { abroad: true }),
+      participant(4, 'territory_changed', ['AQ'], null, null, { abroad: true }),
     ];
     expect(checkI15(world.variations)).toEqual([]);
   });

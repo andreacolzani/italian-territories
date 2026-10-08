@@ -5,8 +5,8 @@
  * A source family is summarised from the store manifests of the current projection version (§6.3)
  * it holds: `fetched_at` is the latest fetch date, `content_hash` the SHA-256 of the canonical JSON
  * of the sorted `[manifest key, content_hash]` pairs, `manifests` their number; a family without
- * manifests is null. `situas-public-reports` covers the stored event lists (counts are not stored).
- * ANPR is summarised from the downloaded response, or null when the cross-check was skipped.
+ * manifests is null. `situas-public-reports` covers the stored event lists and counts; `anpr` the
+ * stored ANPR archive (one manifest).
  */
 import { type IsoDate, maxDate } from '../dates/index.ts';
 import { canonicalJson, sha256 } from '../http/index.ts';
@@ -40,11 +40,8 @@ export function summariseManifests(manifests: readonly ManifestRef[]): SourceSum
   };
 }
 
-/** The summaries of the store's source families, plus ANPR (`null` when skipped). */
-export async function sourceSummaries(
-  store: Store,
-  anpr: { fetchedAt: IsoDate; contentHash: string } | null,
-): Promise<SourceSummaries> {
+/** The summaries of the store's source families. */
+export async function sourceSummaries(store: Store): Promise<SourceSummaries> {
   const snapshots: ManifestRef[] = [];
   for (const level of LEVELS) {
     for (const date of await store.snapshotDates(level)) {
@@ -56,15 +53,17 @@ export async function sourceSummaries(
   for (const pfun of Object.keys(EVENT_LISTS).map(Number) as EventListPfun[]) {
     for (const m of await store.eventLists(pfun)) events.push({ key: `pfun-${pfun}/${m.from}_${m.to}`, ...pick(m) });
   }
+  for (const m of await store.countManifests()) events.push({ key: `count:pfun-${m.pfun}/${m.date}`, ...pick(m) });
   const internal: ManifestRef[] = [];
   for (const report of Object.keys(INTERNAL_REPORTS).map(Number) as InternalReportNumber[]) {
     for (const m of await store.internalReports(report)) internal.push({ key: `r${report}/${m.key}`, ...pick(m) });
   }
+  const anpr = await store.getAnpr();
   return {
     'situas-public-snapshots': summariseManifests(snapshots),
     'situas-public-reports': summariseManifests(events),
     'situas-internal': summariseManifests(internal),
-    anpr: anpr === null ? null : { fetched_at: anpr.fetchedAt, content_hash: anpr.contentHash, manifests: 1 },
+    anpr: summariseManifests(anpr === undefined ? [] : [{ key: 'anpr', ...pick(anpr.manifest) }]),
   };
 }
 

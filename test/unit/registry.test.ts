@@ -121,6 +121,52 @@ describe('id registry (§5.3)', () => {
     });
   });
 
+  it('never re-keys a registered istat: entity to nk: when its internal history is missing (blocking)', async () => {
+    await withTempDir(async (dir) => {
+      const first = await Registry.load(dir);
+      const nk = 'nk:municipality:090003:1861-03-17';
+      first.assignEntities(
+        'municipality',
+        [entity('istat:2610', nk, [2610]), entity('istat:4450', 'nk:municipality:041060:1861-03-17', [4450])],
+        options(),
+      );
+      await first.save();
+
+      // Alghero's r6 is missing: the same intervals come back under the fallback key.
+      const second = await Registry.load(dir);
+      const run = options();
+      second.assignEntities(
+        'municipality',
+        [entity(nk, nk, []), entity('istat:4450', 'nk:municipality:041060:1861-03-17', [4450])],
+        run,
+      );
+      expect(run.anomalies.list().map((a) => [a.level, a.code, a.context])).toEqual([
+        [
+          'blocking',
+          'internal-data-required',
+          {
+            level: 'municipality',
+            cause: 'absent',
+            count: 1,
+            entities: [{ key: 'istat:2610', id: 2, members: [2610] }],
+          },
+        ],
+      ]);
+    });
+  });
+
+  it('a registered istat: entity whose members are in another component is a root change, not a lost history', async () => {
+    await withTempDir(async (dir) => {
+      const first = await Registry.load(dir);
+      first.assignEntities('province', [entity('istat:9', 'nk:province:015:1861-03-17', [9, 119])], options());
+      await first.save();
+      const second = await Registry.load(dir);
+      const run = options();
+      second.assignEntities('province', [entity('istat:7', 'nk:province:007:1850-01-01', [7, 9, 119])], run);
+      expect(run.anomalies.list().map((a) => a.code)).toEqual([REGISTRY_ANOMALIES.rootChanged]);
+    });
+  });
+
   it('moved-key rule: a version whose start moved keeps its id (retroactive)', async () => {
     await withTempDir(async (dir) => {
       const first = await Registry.load(dir);

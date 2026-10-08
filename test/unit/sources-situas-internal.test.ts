@@ -63,8 +63,12 @@ describe('internal lists (r1–r3)', () => {
   it('treats an empty list as transient (impossible for r1–r3)', async () => {
     await withSources(
       async ({ situasInternal, calls }) => {
-        await expect(situasInternal.regionList()).rejects.toBeInstanceOf(RetriesExhaustedError);
-        expect(calls).toHaveLength(3);
+        const error = await situasInternal.regionList().catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(RetriesExhaustedError);
+        expect(error).toMatchObject({ attempts: 3 });
+        // 1 + 2 transient retries; then, alone in its family, it keeps trying until its failures
+        // reach the circuit threshold (10) and gives up without opening the circuit (§6.1, D38).
+        expect(calls).toHaveLength(10);
       },
       { transport: constant(plain([], 'text/plain')) },
     );
@@ -235,6 +239,57 @@ describe('internal event details (r7–r9)', () => {
         },
       ]);
     });
+  });
+
+  it('r7: an acquisition of territory from abroad (AQ with Stato estero, §3.5 item 15)', async () => {
+    await withSources(async ({ situasInternal }) => {
+      const lombardia = (
+        await situasInternal.regionEventDetails({ originId: 1, regionType: 'compartment', actId: 3619, event: 'AQ' })
+      ).data;
+      expect(lombardia).toEqual([
+        { event: 'AQ', date: '1866-11-20', code: '03', name: 'Lombardia', related: null, abroad: true },
+      ]);
+    });
+  });
+
+  it('r8: a blank associated UTS type only for a foreign state (Cuneo, 1947, §3.5 item 15)', async () => {
+    await withSources(async ({ situasInternal }) => {
+      const cuneo = (
+        await situasInternal.utsEventDetails({ originId: 3, utsType: 'province', actId: 2410, event: 'CE' })
+      ).data;
+      expect(cuneo).toEqual([
+        {
+          event: 'CE',
+          date: '1947-09-16',
+          code: '004',
+          name: 'Cuneo',
+          type: 'province',
+          regionCode: '01',
+          related: null,
+          abroad: true,
+        },
+      ]);
+    });
+    const domestic = {
+      'Codice Compartimento/Regione': '01',
+      'codice Provincia/Uts': '004',
+      'Tipo Uts': 'Provincia',
+      Denominazione: 'Cuneo',
+      'data evento': '16/09/1947',
+      'Codice Compartimento/Regione associato': '01',
+      'Codice Provincia/Uts associato': '001',
+      'Denominazione associata': 'Torino',
+      'descrizione variazione': 'CE-Cessione territorio',
+      'Tipo Uts associato': ' ',
+    };
+    await withSources(
+      async ({ situasInternal }) => {
+        await expect(
+          situasInternal.utsEventDetails({ originId: 3, utsType: 'province', actId: 2410, event: 'CE' }),
+        ).rejects.toBeInstanceOf(ResponseValidationError);
+      },
+      { transport: constant(doubleEncoded([domestic])) },
+    );
   });
 
   it('r9: municipalities associated with Sassofeltrio events (golden-2)', async () => {

@@ -127,8 +127,9 @@ function internalEvent(
   date: IsoDate,
   actId: number,
   description: string | null = null,
+  code = '',
 ): InternalVariationEvent {
-  return { root, event, date, actId, description, details: null };
+  return { root, event, date, code, actId, description, details: null };
 }
 
 interface SyntheticWorld {
@@ -522,6 +523,38 @@ describe('version boundaries without own events (I9)', () => {
     expect(unexplained.variationAnomalies.list().map((a) => [a.level, a.code, a.context.date])).toEqual([
       ['blocking', 'version-boundary-unexplained', D3],
     ]);
+  });
+
+  it('an abbreviation change without an event is a warning with an inferred variation (FO → FC, 1999)', async () => {
+    const province = identity([[5, [['PV', D1, '001']]]]);
+    const built = await run({
+      regions,
+      provinces: { [D1]: [uts('001', { abbreviation: 'FO' })], [D2]: [uts('001', { abbreviation: 'FC' })] },
+      municipalities: { [D1]: [municipality('001001')], [D2]: [municipality('001001')] },
+      internal: { province },
+    });
+    const p = entityAt(built.entities.province, '001', D2);
+    expect(p.versions.map((v) => v.abbreviation)).toEqual(['FO', 'FC']);
+    expect(built.variations.map((v) => [v.date, v.origin, v.participants.map((x) => [x.entityId, x.role])])).toEqual([
+      [D2, 'inferred', [[p.id, 'indirect']]],
+    ]);
+    expect(built.variationAnomalies.list().map((a) => [a.level, a.code, a.context.from, a.context.to])).toEqual([
+      ['warning', 'abbreviation-change-without-event', 'FO', 'FC'],
+    ]);
+    expect(variationPropertyViolations(built)).toEqual([]);
+  });
+
+  it('an abbreviation change together with another field is not covered by the rule', async () => {
+    const built = await run({
+      regions,
+      provinces: {
+        [D1]: [uts('001', { abbreviation: 'FO' })],
+        [D2]: [uts('001', { abbreviation: 'FC', name: 'Altra' })],
+      },
+      municipalities: { [D1]: [municipality('001001')], [D2]: [municipality('001001')] },
+      internal: { province: identity([[5, [['PV', D1, '001']]]]) },
+    });
+    expect(codes(built)).not.toContain('abbreviation-change-without-event');
   });
 
   it('a municipality appearing without an establishment is blocking', async () => {

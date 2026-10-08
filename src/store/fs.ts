@@ -14,6 +14,17 @@ export class StoreCorruptionError extends Error {
   }
 }
 
+/**
+ * A source an offline run (`rebuild` without `--refetch`, §10.1) needs is not in the store. Offline
+ * runs never fetch (§6.3): the caller treats it as the source being unavailable.
+ */
+export class NotInStoreError extends Error {
+  constructor(what: string) {
+    super(`${what} is not in the store (offline rebuild): run update or rebuild --refetch`);
+    this.name = 'NotInStoreError';
+  }
+}
+
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
 }
@@ -45,6 +56,16 @@ export async function readTextIfExists(path: string): Promise<string | undefined
 export async function listFiles(dir: string): Promise<string[]> {
   try {
     return (await readdir(dir, { withFileTypes: true })).filter((e) => e.isFile()).map((e) => e.name);
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+}
+
+/** Names of the subdirectories of `dir` (none if it does not exist). */
+export async function listDirs(dir: string): Promise<string[]> {
+  try {
+    return (await readdir(dir, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
   } catch (error) {
     if (isMissing(error)) return [];
     throw error;

@@ -250,10 +250,10 @@ describe('source summaries (meta.json)', () => {
     expect(summariseManifests([])).toBeNull();
   });
 
-  it('reads the store families and the ANPR response', async () => {
+  it('reads every source family from the store, counts and ANPR included', async () => {
     await withTempDir(async (dir) => {
       const store = new Store(dir);
-      expect(await sourceSummaries(store, null)).toEqual({
+      expect(await sourceSummaries(store)).toEqual({
         'situas-public-snapshots': null,
         'situas-public-reports': null,
         'situas-internal': null,
@@ -267,11 +267,17 @@ describe('source summaries (meta.json)', () => {
         fetchedAt: '2026-09-30',
         rows: [{ code: '001001', name: 'A' }],
       });
-      const summaries = await sourceSummaries(store, { fetchedAt: '2026-10-03', contentHash: 'f'.repeat(64) });
+      await store.putCount(68, '2026-10-01', { fetchedAt: '2026-10-04', rows: [{ count: 20 }] });
+      const anpr = await store.putAnpr({ fetchedAt: '2026-10-03', rows: [] });
+      const summaries = await sourceSummaries(store);
       expect(summaries['situas-public-snapshots']).toMatchObject({ fetched_at: '2026-10-02', manifests: 2 });
-      expect(summaries['situas-public-reports']).toMatchObject({ fetched_at: '2026-10-01', manifests: 1 });
+      expect(summaries['situas-public-reports']).toMatchObject({ fetched_at: '2026-10-04', manifests: 2 });
       expect(summaries['situas-internal']).toMatchObject({ fetched_at: '2026-09-30', manifests: 1 });
-      expect(summaries.anpr).toEqual({ fetched_at: '2026-10-03', content_hash: 'f'.repeat(64), manifests: 1 });
+      expect(summaries.anpr).toEqual({
+        fetched_at: '2026-10-03',
+        content_hash: sha256(canonicalJson([['anpr', anpr.manifest.content_hash]])),
+        manifests: 1,
+      });
     });
   });
 });

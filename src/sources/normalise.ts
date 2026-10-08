@@ -119,11 +119,14 @@ const UTS_TYPE_LABELS: Readonly<Record<string, UtsType>> = {
   'Unità non amministrativa': 'non_administrative_unit',
 };
 
-export const utsTypeLabel = z.string().transform((value, ctx): UtsType => {
+export const utsTypeLabel = z.string().transform((value, ctx): UtsType => parseUtsTypeLabel(value, ctx));
+
+/** A UTS type label of the internal reports (`Città metropolitana`); unknown or blank → issue. */
+export function parseUtsTypeLabel(value: string, ctx: Ctx): UtsType {
   const label = cleanText(value);
   const type = label === null ? undefined : UTS_TYPE_LABELS[label];
   return type ?? fail(ctx, value, `unknown UTS type label '${value}'`);
-});
+}
 
 /** `DD/MM/YYYY` → ISO. */
 export const italianDate = z.string().transform((value, ctx): IsoDate => {
@@ -174,7 +177,7 @@ export interface RelatedTerritory<T> {
 
 /**
  * Splits the `*_REL` / associated fields of an event row. A foreign state (`Stato estero`, no
- * other field) is accepted only for `AS`, `AN` and `CE`; it is never returned as a territory to
+ * other field) is accepted only for `AS`, `AN`, `CE` and `AQ`; it is never returned as a territory to
  * resolve, only as `abroad`. Anywhere else, or with a code, it is a schema violation.
  */
 export function relatedTerritory<T extends { name: string | null }>(

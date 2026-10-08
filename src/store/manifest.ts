@@ -67,7 +67,24 @@ export const internalReportManifestSchema = z.strictObject({
 });
 export type InternalReportManifest = z.output<typeof internalReportManifestSchema>;
 
-export type Manifest = SnapshotManifest | EventListManifest | InternalReportManifest;
+/** The count of one snapshot request (`count:pfun-<id>` with `{ date }`, I13): one row `{ count }`. */
+export const countManifestSchema = z.strictObject({
+  pfun: z.int(),
+  date: isoDateSchema,
+  ...content,
+  ...rowsAndHistory,
+});
+export type CountManifest = z.output<typeof countManifestSchema>;
+
+/** The ANPR archive (§6.11): the normalised rows without the CSV line, issues in `adapter_stats`. */
+export const anprManifestSchema = z.strictObject({
+  endpoint: z.literal('anpr:archivio-comuni'),
+  ...content,
+  ...rowsAndHistory,
+});
+export type AnprManifest = z.output<typeof anprManifestSchema>;
+
+export type Manifest = SnapshotManifest | EventListManifest | InternalReportManifest | CountManifest | AnprManifest;
 
 export function contentHash(sortedRowHashes: readonly string[]): string {
   return sha256(canonicalJson(sortedRowHashes));

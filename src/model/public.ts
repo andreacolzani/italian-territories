@@ -162,7 +162,7 @@ export const participantSchema = z
       .refine(isUnique, 'events must not repeat')
       .meta({ description: 'ISTAT events of this entity in the variation; empty for indirect participants.' }),
     abroad: z.boolean().meta({
-      description: 'True when the counterpart of one of its events (AS, AN, CE) is a foreign state.',
+      description: 'True when the counterpart of one of its events (AS, AN, CE, AQ) is a foreign state.',
     }),
     role: z.enum(PARTICIPANT_ROLES),
     version_before_id: idSchema.nullable(),

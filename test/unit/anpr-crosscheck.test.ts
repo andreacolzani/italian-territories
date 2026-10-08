@@ -209,6 +209,81 @@ describe('crossCheckAnpr: attributes', () => {
     });
   });
 
+  it('falls back to the ISTAT code for ANPR rows without cadastral code too (San Siro 1861–1928)', () => {
+    const entity = municipality(2322, [
+      version(1, '1861-03-17', '1928-08-12', { istatCode: '013934', cadastralCode: 'I162', officialName: 'San Siro' }),
+    ]);
+    const anomalies = check(
+      [entity],
+      [
+        row(1, '1861-03-17', '1928-08-12', {
+          istatCode: '013934',
+          cadastralCode: null,
+          italianName: 'SAN SIRO',
+          provinceCode: '028',
+        }),
+      ],
+    );
+    expect(codes(anomalies)).toEqual([]);
+  });
+
+  it('retries by ISTAT code a stretch no version matches: a different cadastral code is a warning (Quintosole)', () => {
+    const quintosole = municipality(2856, [
+      version(1, '1861-03-17', '1893-10-07', {
+        istatCode: '015931',
+        cadastralCode: 'H138',
+        officialName: 'Quintosole',
+      }),
+      version(2, '1893-10-07', '1923-10-14', { istatCode: '015931', cadastralCode: 'H138', officialName: 'Vigentino' }),
+    ]);
+    // The cadastral code of the municipality merged into it in 1869, never its own.
+    const vigentino = municipality(2900, [
+      version(3, '1861-03-17', '1869-03-01', { istatCode: '015975', cadastralCode: 'L871', officialName: 'Vigentino' }),
+    ]);
+    const anomalies = check(
+      [quintosole, vigentino],
+      [
+        row(1, '1869-03-01', '1893-10-07', { istatCode: '015931', cadastralCode: 'L871', italianName: 'QUINTOSOLE' }),
+        row(2, '1893-10-07', '1923-10-14', { istatCode: '015931', cadastralCode: 'L871', italianName: 'VIGENTINO' }),
+      ],
+    );
+    expect(codes(anomalies)).not.toContainEqual(['warning', ANPR_ANOMALIES.unmatchedPeriod]);
+    const divergent = anomalies.list().filter((a) => a.code === ANPR_ANOMALIES.divergentCadastral);
+    expect(divergent.map((a) => a.context)).toMatchObject([
+      { matchedBy: 'istat-code', versionId: 1, validFrom: '1869-03-01', situas: 'H138', anpr: 'L871' },
+      { matchedBy: 'istat-code', versionId: 2, validFrom: '1893-10-07', situas: 'H138', anpr: 'L871' },
+    ]);
+    // Joined, Quintosole is no longer missing from ANPR: only its years before 1869 are.
+    expect(one(anomalies, ANPR_ANOMALIES.missingPeriod).context).toMatchObject({
+      items: [{ entityId: 2856, validFrom: '1861-03-17', validTo: '1869-03-01' }],
+    });
+  });
+
+  it('a cadastral code of another time of the municipality follows the rule of the history (info)', () => {
+    const entity = municipality(7, [
+      version(1, '1861-03-17', '1900-01-01', { cadastralCode: 'A001' }),
+      version(2, '1900-01-01', null, { cadastralCode: 'B002' }),
+    ]);
+    // ANPR swaps the two codes: each stretch matches no version by cadastral code and is retried.
+    const anomalies = check(
+      [entity],
+      [
+        row(1, '1861-03-17', '1900-01-01', { cadastralCode: 'B002' }),
+        row(2, '1900-01-01', null, { cadastralCode: 'A001' }),
+      ],
+    );
+    expect(codes(anomalies)).toEqual([
+      ['info', ANPR_ANOMALIES.laggingCadastral],
+      ['info', ANPR_ANOMALIES.anachronisticCadastral],
+    ]);
+    expect(one(anomalies, ANPR_ANOMALIES.laggingCadastral).context).toMatchObject({
+      items: [{ versionId: 2, situas: 'B002', anpr: 'A001', matchedBy: 'istat-code' }],
+    });
+    expect(one(anomalies, ANPR_ANOMALIES.anachronisticCadastral).context).toMatchObject({
+      items: [{ versionId: 1, situas: 'A001', anpr: 'B002', matchedBy: 'istat-code' }],
+    });
+  });
+
   it('compares consecutive rows day by day and skips only the days where rows of the join key overlap', () => {
     const fallback = municipality(1, [
       version(1, '1861-03-17', '1900-01-01', { cadastralCode: null, istatCode: '001801' }),

@@ -10,6 +10,11 @@ export const ANPR_ANOMALIES = {
   /** `warning`: ANPR gives an ISTAT code that never appears in the municipality's history. */
   divergentIstatCode: 'anpr-divergent-istat-code',
   /**
+   * `warning`: on a stretch joined only by ISTAT code (retried, §6.11), ANPR gives a cadastral code
+   * that never appears in the municipality's history.
+   */
+  divergentCadastral: 'anpr-divergent-cadastral',
+  /**
    * `warning`: ANPR's name is neither the official nor the Italian name, even without diacritics,
    * and never was the municipality's name at any time.
    */
@@ -62,6 +67,10 @@ export const ANPR_ANOMALIES = {
   laggingIstatCode: 'anpr-lagging-istat-code',
   /** `info`: an ANPR ISTAT code the municipality has only later in its history. */
   anachronisticIstatCode: 'anpr-anachronistic-istat-code',
+  /** `info`: an ANPR cadastral code the municipality had only earlier (retried stretch). */
+  laggingCadastral: 'anpr-lagging-cadastral',
+  /** `info`: an ANPR cadastral code the municipality has only later in its history (retried stretch). */
+  anachronisticCadastral: 'anpr-anachronistic-cadastral',
   /** `info`: an ANPR province the municipality belonged to only earlier (ANPR lag, e.g. Sardinia 2026). */
   laggingProvince: 'anpr-lagging-province',
   /** `info`: an ANPR province the municipality belongs to only later in its history (§3.4). */

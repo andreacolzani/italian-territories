@@ -1,9 +1,64 @@
 [
   {
+    "id": "reg-9X12C3",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1947-12-31",
+        "istat_code": "03",
+        "official_name": "Lombardia",
+        "italian_name": "Lombardia",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "03",
+        "official_name": "Lombardia",
+        "italian_name": "Lombardia",
+        "foreign_name": null,
+        "type": "region"
+      }
+    ]
+  },
+  {
+    "id": "reg-6SJM89",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1947-12-31",
+        "istat_code": "09",
+        "official_name": "Toscana",
+        "italian_name": "Toscana",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "09",
+        "official_name": "Toscana",
+        "italian_name": "Toscana",
+        "foreign_name": null,
+        "type": "region"
+      }
+    ]
+  },
+  {
     "id": "reg-15XBF3",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
     "successors": [],
     "current_successors": [],
@@ -29,141 +84,86 @@
     ]
   },
   {
-    "id": "reg-1VWR6N",
+    "id": "reg-KM2Y1Y",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [
-      {
-        "id": "reg-XJVQ9D",
-        "kind": "detached_into",
-        "date": "1948-01-01"
-      }
-    ],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": "2003-07-05",
-        "istat_code": "02",
-        "official_name": "Valle d'Aosta",
-        "italian_name": "Valle d'Aosta",
-        "foreign_name": null,
-        "type": "region"
-      },
-      {
-        "valid_from": "2003-07-06",
-        "valid_until": null,
-        "istat_code": "02",
-        "official_name": "Valle d'Aosta/Vallée d'Aoste",
-        "italian_name": "Valle d'Aosta",
-        "foreign_name": "Vallée d'Aoste",
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-2N7C5Z",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [
-      {
-        "id": "reg-8CMNEX",
-        "kind": "split_into",
-        "date": "1871-12-31"
-      }
-    ],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1871-12-31",
-        "valid_until": "1947-12-31",
-        "istat_code": "17",
-        "official_name": "Basilicata",
-        "italian_name": "Basilicata",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": null,
-        "istat_code": "17",
-        "official_name": "Basilicata",
-        "italian_name": "Basilicata",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-50HQ5N",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [
-      {
-        "id": "reg-8CMNEX",
-        "kind": "split_into",
-        "date": "1871-12-31"
-      }
-    ],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1871-12-31",
-        "valid_until": "1947-12-31",
-        "istat_code": "16",
-        "official_name": "Puglie",
-        "italian_name": "Puglie",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": null,
-        "istat_code": "16",
-        "official_name": "Puglia",
-        "italian_name": "Puglia",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-5EKDNJ",
-    "status": "suppressed",
-    "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
-    "successors": [
-      {
-        "id": "reg-6SJM89",
-        "kind": "split_into",
-        "date": "1871-12-31"
-      },
-      {
-        "id": "reg-HRHWED",
-        "kind": "split_into",
-        "date": "1871-12-31"
-      }
-    ],
-    "current_successors": [
-      "reg-6SJM89",
-      "reg-HRHWED"
-    ],
+    "successors": [],
+    "current_successors": [],
     "versions": [
       {
         "valid_from": "1861-03-17",
-        "valid_until": "1871-12-30",
-        "istat_code": "84",
-        "official_name": "Modena, Reggio e Massa",
-        "italian_name": "Modena, Reggio e Massa",
+        "valid_until": "1947-12-31",
+        "istat_code": "11",
+        "official_name": "Marche",
+        "italian_name": "Marche",
         "foreign_name": null,
         "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "11",
+        "official_name": "Marche",
+        "italian_name": "Marche",
+        "foreign_name": null,
+        "type": "region"
+      }
+    ]
+  },
+  {
+    "id": "reg-XZFCF6",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1947-12-31",
+        "istat_code": "19",
+        "official_name": "Sicilia",
+        "italian_name": "Sicilia",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "19",
+        "official_name": "Sicilia",
+        "italian_name": "Sicilia",
+        "foreign_name": null,
+        "type": "region"
+      }
+    ]
+  },
+  {
+    "id": "reg-MYRFEY",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1947-12-31",
+        "istat_code": "20",
+        "official_name": "Sardegna",
+        "italian_name": "Sardegna",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "20",
+        "official_name": "Sardegna",
+        "italian_name": "Sardegna",
+        "foreign_name": null,
+        "type": "region"
       }
     ]
   },
@@ -171,7 +171,6 @@
     "id": "reg-5WKQVA",
     "status": "suppressed",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
     "successors": [
       {
@@ -202,31 +201,89 @@
     ]
   },
   {
-    "id": "reg-6SJM89",
-    "status": "active",
+    "id": "reg-5EKDNJ",
+    "status": "suppressed",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
-    "successors": [],
-    "current_successors": [],
+    "successors": [
+      {
+        "id": "reg-6SJM89",
+        "kind": "split_into",
+        "date": "1871-12-31"
+      },
+      {
+        "id": "reg-HRHWED",
+        "kind": "split_into",
+        "date": "1871-12-31"
+      }
+    ],
+    "current_successors": [
+      "reg-6SJM89",
+      "reg-HRHWED"
+    ],
     "versions": [
       {
         "valid_from": "1861-03-17",
-        "valid_until": "1947-12-31",
-        "istat_code": "09",
-        "official_name": "Toscana",
-        "italian_name": "Toscana",
+        "valid_until": "1871-12-30",
+        "istat_code": "84",
+        "official_name": "Modena, Reggio e Massa",
+        "italian_name": "Modena, Reggio e Massa",
         "foreign_name": null,
         "type": "compartment"
-      },
+      }
+    ]
+  },
+  {
+    "id": "reg-X0RQAP",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "predecessors": [],
+    "successors": [
       {
-        "valid_from": "1948-01-01",
-        "valid_until": null,
-        "istat_code": "09",
-        "official_name": "Toscana",
-        "italian_name": "Toscana",
+        "id": "reg-HRHWED",
+        "kind": "merged_into",
+        "date": "1871-12-31"
+      }
+    ],
+    "current_successors": [
+      "reg-HRHWED"
+    ],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "85",
+        "official_name": "Parma e Piacenza",
+        "italian_name": "Parma e Piacenza",
         "foreign_name": null,
-        "type": "region"
+        "type": "compartment"
+      }
+    ]
+  },
+  {
+    "id": "reg-VW2J7K",
+    "status": "suppressed",
+    "is_former_italian": false,
+    "predecessors": [],
+    "successors": [
+      {
+        "id": "reg-HRHWED",
+        "kind": "merged_into",
+        "date": "1871-12-31"
+      }
+    ],
+    "current_successors": [
+      "reg-HRHWED"
+    ],
+    "versions": [
+      {
+        "valid_from": "1861-03-17",
+        "valid_until": "1871-12-30",
+        "istat_code": "86",
+        "official_name": "Romagne",
+        "italian_name": "Romagne",
+        "foreign_name": null,
+        "type": "compartment"
       }
     ]
   },
@@ -234,7 +291,6 @@
     "id": "reg-8CMNEX",
     "status": "suppressed",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
     "successors": [
       {
@@ -283,173 +339,9 @@
     ]
   },
   {
-    "id": "reg-8XV2MT",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1871-01-15",
-        "valid_until": "1947-12-31",
-        "istat_code": "12",
-        "official_name": "Lazio",
-        "italian_name": "Lazio",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": null,
-        "istat_code": "12",
-        "official_name": "Lazio",
-        "italian_name": "Lazio",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-8Y96MW",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [
-      {
-        "id": "reg-8CMNEX",
-        "kind": "split_into",
-        "date": "1871-12-31"
-      }
-    ],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1871-12-31",
-        "valid_until": "1947-12-31",
-        "istat_code": "18",
-        "official_name": "Calabrie",
-        "italian_name": "Calabrie",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": null,
-        "istat_code": "18",
-        "official_name": "Calabria",
-        "italian_name": "Calabria",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-9X12C3",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1861-03-17",
-        "valid_until": "1947-12-31",
-        "istat_code": "03",
-        "official_name": "Lombardia",
-        "italian_name": "Lombardia",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": null,
-        "istat_code": "03",
-        "official_name": "Lombardia",
-        "italian_name": "Lombardia",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-AJG85Q",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [
-      {
-        "id": "reg-8CMNEX",
-        "kind": "split_into",
-        "date": "1871-12-31"
-      }
-    ],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1871-12-31",
-        "valid_until": "1947-12-31",
-        "istat_code": "13",
-        "official_name": "Abruzzi e Molise",
-        "italian_name": "Abruzzi e Molise",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": "1964-01-18",
-        "istat_code": "13",
-        "official_name": "Abruzzi e Molise",
-        "italian_name": "Abruzzi e Molise",
-        "foreign_name": null,
-        "type": "region"
-      },
-      {
-        "valid_from": "1964-01-19",
-        "valid_until": null,
-        "istat_code": "13",
-        "official_name": "Abruzzo",
-        "italian_name": "Abruzzo",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-BQ6E9H",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [
-      {
-        "id": "reg-AJG85Q",
-        "kind": "detached_into",
-        "date": "1964-01-19"
-      }
-    ],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1964-01-19",
-        "valid_until": null,
-        "istat_code": "14",
-        "official_name": "Molise",
-        "italian_name": "Molise",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
     "id": "reg-C0WBQT",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
     "successors": [],
     "current_successors": [],
@@ -475,59 +367,96 @@
     ]
   },
   {
-    "id": "reg-GWC1MY",
-    "status": "suppressed",
+    "id": "reg-8XV2MT",
+    "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
-    "successors": [
-      {
-        "id": "reg-HM3T63",
-        "kind": "merged_into",
-        "date": "1948-01-01"
-      }
-    ],
-    "current_successors": [
-      "reg-HM3T63"
-    ],
+    "successors": [],
+    "current_successors": [],
     "versions": [
       {
-        "valid_from": "1921-01-05",
+        "valid_from": "1871-01-15",
         "valid_until": "1947-12-31",
-        "istat_code": "83",
-        "official_name": "Venezia Giulia",
-        "italian_name": "Venezia Giulia",
+        "istat_code": "12",
+        "official_name": "Lazio",
+        "italian_name": "Lazio",
         "foreign_name": null,
         "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "12",
+        "official_name": "Lazio",
+        "italian_name": "Lazio",
+        "foreign_name": null,
+        "type": "region"
       }
     ]
   },
   {
-    "id": "reg-HM3T63",
+    "id": "reg-XJVQ9D",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [
       {
-        "id": "reg-C0WBQT",
-        "kind": "detached_into",
-        "date": "1948-01-01"
-      },
-      {
-        "id": "reg-GWC1MY",
-        "kind": "merged_into",
-        "date": "1948-01-01"
+        "id": "reg-5WKQVA",
+        "kind": "split_into",
+        "date": "1871-12-31"
       }
     ],
     "successors": [],
     "current_successors": [],
     "versions": [
       {
+        "valid_from": "1871-12-31",
+        "valid_until": "1947-12-31",
+        "istat_code": "01",
+        "official_name": "Piemonte",
+        "italian_name": "Piemonte",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
         "valid_from": "1948-01-01",
         "valid_until": null,
-        "istat_code": "06",
-        "official_name": "Friuli-Venezia Giulia",
-        "italian_name": "Friuli-Venezia Giulia",
+        "istat_code": "01",
+        "official_name": "Piemonte",
+        "italian_name": "Piemonte",
+        "foreign_name": null,
+        "type": "region"
+      }
+    ]
+  },
+  {
+    "id": "reg-NKXHR4",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [
+      {
+        "id": "reg-5WKQVA",
+        "kind": "split_into",
+        "date": "1871-12-31"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1947-12-31",
+        "istat_code": "07",
+        "official_name": "Liguria",
+        "italian_name": "Liguria",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "07",
+        "official_name": "Liguria",
+        "italian_name": "Liguria",
         "foreign_name": null,
         "type": "region"
       }
@@ -537,7 +466,6 @@
     "id": "reg-HRHWED",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [
       {
         "id": "reg-5EKDNJ",
@@ -579,29 +507,43 @@
     ]
   },
   {
-    "id": "reg-KM2Y1Y",
+    "id": "reg-AJG85Q",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [],
+    "predecessors": [
+      {
+        "id": "reg-8CMNEX",
+        "kind": "split_into",
+        "date": "1871-12-31"
+      }
+    ],
     "successors": [],
     "current_successors": [],
     "versions": [
       {
-        "valid_from": "1861-03-17",
+        "valid_from": "1871-12-31",
         "valid_until": "1947-12-31",
-        "istat_code": "11",
-        "official_name": "Marche",
-        "italian_name": "Marche",
+        "istat_code": "13",
+        "official_name": "Abruzzi e Molise",
+        "italian_name": "Abruzzi e Molise",
         "foreign_name": null,
         "type": "compartment"
       },
       {
         "valid_from": "1948-01-01",
+        "valid_until": "1964-01-18",
+        "istat_code": "13",
+        "official_name": "Abruzzi e Molise",
+        "italian_name": "Abruzzi e Molise",
+        "foreign_name": null,
+        "type": "region"
+      },
+      {
+        "valid_from": "1964-01-19",
         "valid_until": null,
-        "istat_code": "11",
-        "official_name": "Marche",
-        "italian_name": "Marche",
+        "istat_code": "13",
+        "official_name": "Abruzzo",
+        "italian_name": "Abruzzo",
         "foreign_name": null,
         "type": "region"
       }
@@ -611,7 +553,6 @@
     "id": "reg-KMKKHH",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [
       {
         "id": "reg-8CMNEX",
@@ -643,42 +584,12 @@
     ]
   },
   {
-    "id": "reg-MYRFEY",
+    "id": "reg-50HQ5N",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [],
-    "successors": [],
-    "current_successors": [],
-    "versions": [
-      {
-        "valid_from": "1861-03-17",
-        "valid_until": "1947-12-31",
-        "istat_code": "20",
-        "official_name": "Sardegna",
-        "italian_name": "Sardegna",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
-        "valid_until": null,
-        "istat_code": "20",
-        "official_name": "Sardegna",
-        "italian_name": "Sardegna",
-        "foreign_name": null,
-        "type": "region"
-      }
-    ]
-  },
-  {
-    "id": "reg-NKXHR4",
-    "status": "active",
-    "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [
       {
-        "id": "reg-5WKQVA",
+        "id": "reg-8CMNEX",
         "kind": "split_into",
         "date": "1871-12-31"
       }
@@ -689,18 +600,86 @@
       {
         "valid_from": "1871-12-31",
         "valid_until": "1947-12-31",
-        "istat_code": "07",
-        "official_name": "Liguria",
-        "italian_name": "Liguria",
+        "istat_code": "16",
+        "official_name": "Puglie",
+        "italian_name": "Puglie",
         "foreign_name": null,
         "type": "compartment"
       },
       {
         "valid_from": "1948-01-01",
         "valid_until": null,
-        "istat_code": "07",
-        "official_name": "Liguria",
-        "italian_name": "Liguria",
+        "istat_code": "16",
+        "official_name": "Puglia",
+        "italian_name": "Puglia",
+        "foreign_name": null,
+        "type": "region"
+      }
+    ]
+  },
+  {
+    "id": "reg-2N7C5Z",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [
+      {
+        "id": "reg-8CMNEX",
+        "kind": "split_into",
+        "date": "1871-12-31"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1947-12-31",
+        "istat_code": "17",
+        "official_name": "Basilicata",
+        "italian_name": "Basilicata",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "17",
+        "official_name": "Basilicata",
+        "italian_name": "Basilicata",
+        "foreign_name": null,
+        "type": "region"
+      }
+    ]
+  },
+  {
+    "id": "reg-8Y96MW",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [
+      {
+        "id": "reg-8CMNEX",
+        "kind": "split_into",
+        "date": "1871-12-31"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
+      {
+        "valid_from": "1871-12-31",
+        "valid_until": "1947-12-31",
+        "istat_code": "18",
+        "official_name": "Calabrie",
+        "italian_name": "Calabrie",
+        "foreign_name": null,
+        "type": "compartment"
+      },
+      {
+        "valid_from": "1948-01-01",
+        "valid_until": null,
+        "istat_code": "18",
+        "official_name": "Calabria",
+        "italian_name": "Calabria",
         "foreign_name": null,
         "type": "region"
       }
@@ -710,7 +689,6 @@
     "id": "reg-S1ZEBW",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
     "successors": [],
     "current_successors": [],
@@ -736,120 +714,116 @@
     ]
   },
   {
-    "id": "reg-VW2J7K",
+    "id": "reg-GWC1MY",
     "status": "suppressed",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [],
     "successors": [
       {
-        "id": "reg-HRHWED",
+        "id": "reg-HM3T63",
         "kind": "merged_into",
-        "date": "1871-12-31"
+        "date": "1948-01-01"
       }
     ],
     "current_successors": [
-      "reg-HRHWED"
+      "reg-HM3T63"
     ],
     "versions": [
       {
-        "valid_from": "1861-03-17",
-        "valid_until": "1871-12-30",
-        "istat_code": "86",
-        "official_name": "Romagne",
-        "italian_name": "Romagne",
+        "valid_from": "1921-01-05",
+        "valid_until": "1947-12-31",
+        "istat_code": "83",
+        "official_name": "Venezia Giulia",
+        "italian_name": "Venezia Giulia",
         "foreign_name": null,
         "type": "compartment"
       }
     ]
   },
   {
-    "id": "reg-X0RQAP",
-    "status": "suppressed",
-    "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [],
-    "successors": [
-      {
-        "id": "reg-HRHWED",
-        "kind": "merged_into",
-        "date": "1871-12-31"
-      }
-    ],
-    "current_successors": [
-      "reg-HRHWED"
-    ],
-    "versions": [
-      {
-        "valid_from": "1861-03-17",
-        "valid_until": "1871-12-30",
-        "istat_code": "85",
-        "official_name": "Parma e Piacenza",
-        "italian_name": "Parma e Piacenza",
-        "foreign_name": null,
-        "type": "compartment"
-      }
-    ]
-  },
-  {
-    "id": "reg-XJVQ9D",
+    "id": "reg-1VWR6N",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
     "predecessors": [
       {
-        "id": "reg-5WKQVA",
-        "kind": "split_into",
-        "date": "1871-12-31"
+        "id": "reg-XJVQ9D",
+        "kind": "detached_into",
+        "date": "1948-01-01"
       }
     ],
     "successors": [],
     "current_successors": [],
     "versions": [
       {
-        "valid_from": "1871-12-31",
-        "valid_until": "1947-12-31",
-        "istat_code": "01",
-        "official_name": "Piemonte",
-        "italian_name": "Piemonte",
+        "valid_from": "1948-01-01",
+        "valid_until": "2003-07-05",
+        "istat_code": "02",
+        "official_name": "Valle d'Aosta",
+        "italian_name": "Valle d'Aosta",
         "foreign_name": null,
-        "type": "compartment"
+        "type": "region"
       },
+      {
+        "valid_from": "2003-07-06",
+        "valid_until": null,
+        "istat_code": "02",
+        "official_name": "Valle d'Aosta/Vallée d'Aoste",
+        "italian_name": "Valle d'Aosta",
+        "foreign_name": "Vallée d'Aoste",
+        "type": "region"
+      }
+    ]
+  },
+  {
+    "id": "reg-HM3T63",
+    "status": "active",
+    "is_former_italian": false,
+    "predecessors": [
+      {
+        "id": "reg-C0WBQT",
+        "kind": "detached_into",
+        "date": "1948-01-01"
+      },
+      {
+        "id": "reg-GWC1MY",
+        "kind": "merged_into",
+        "date": "1948-01-01"
+      }
+    ],
+    "successors": [],
+    "current_successors": [],
+    "versions": [
       {
         "valid_from": "1948-01-01",
         "valid_until": null,
-        "istat_code": "01",
-        "official_name": "Piemonte",
-        "italian_name": "Piemonte",
+        "istat_code": "06",
+        "official_name": "Friuli-Venezia Giulia",
+        "italian_name": "Friuli-Venezia Giulia",
         "foreign_name": null,
         "type": "region"
       }
     ]
   },
   {
-    "id": "reg-XZFCF6",
+    "id": "reg-BQ6E9H",
     "status": "active",
     "is_former_italian": false,
-    "partially_ceded": false,
-    "predecessors": [],
+    "predecessors": [
+      {
+        "id": "reg-AJG85Q",
+        "kind": "detached_into",
+        "date": "1964-01-19"
+      }
+    ],
     "successors": [],
     "current_successors": [],
     "versions": [
       {
-        "valid_from": "1861-03-17",
-        "valid_until": "1947-12-31",
-        "istat_code": "19",
-        "official_name": "Sicilia",
-        "italian_name": "Sicilia",
-        "foreign_name": null,
-        "type": "compartment"
-      },
-      {
-        "valid_from": "1948-01-01",
+        "valid_from": "1964-01-19",
         "valid_until": null,
-        "istat_code": "19",
-        "official_name": "Sicilia",
-        "italian_name": "Sicilia",
+        "istat_code": "14",
+        "official_name": "Molise",
+        "italian_name": "Molise",
         "foreign_name": null,
         "type": "region"
       }

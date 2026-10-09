@@ -22,11 +22,8 @@
           ]
         },
         "is_former_italian": {
-          "type": "boolean"
-        },
-        "partially_ceded": {
           "type": "boolean",
-          "description": "Suppressed, and some but not all of its successor paths end in a territory ceded abroad."
+          "description": "True when the entity ceased to exist because it was ceded abroad, directly or because all its successors were. It does not measure losses of territory: partial cessions of entities that continue to exist are not represented."
         },
         "predecessors": {
           "type": "array",
@@ -61,7 +58,6 @@
         "id",
         "status",
         "is_former_italian",
-        "partially_ceded",
         "predecessors",
         "successors",
         "current_successors",

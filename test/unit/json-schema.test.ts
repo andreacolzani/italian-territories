@@ -54,7 +54,8 @@ describe('JSON Schema generation', () => {
 
     const entity = def(provinces, 'Province');
     expect(entity.properties.status?.enum).toEqual(['active', 'suppressed']);
-    expect(entity.properties.partially_ceded?.type).toBe('boolean');
+    expect(Object.keys(entity.properties)).not.toContain('partially_ceded');
+    expect((entity.properties.is_former_italian as { description?: string }).description).toMatch(/ceded abroad/);
     expect(Object.keys(entity.properties)).not.toContain('istat_origin_id');
     expect(def(provinces, 'Link').properties.kind?.enum).toEqual(['merged_into', 'split_into', 'detached_into']);
     expect(Object.keys(def(provinces, 'Link').properties)).toEqual(['id', 'kind', 'date']);

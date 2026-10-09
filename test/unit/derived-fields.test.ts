@@ -95,7 +95,6 @@ describe('deriveFields', () => {
     expect(result.get(M(1))).toMatchObject({
       status: 'suppressed',
       isFormerItalian: false,
-      partiallyCeded: false,
       predecessors: [],
       successors: [{ id: M(2), kind: 'merged_into', date: '1950-01-01' }],
       currentSuccessors: [M(3)],
@@ -150,13 +149,13 @@ describe('deriveFields', () => {
         ),
       ],
     );
-    expect(result.get(M(2))).toMatchObject({ isFormerItalian: true, partiallyCeded: false, currentSuccessors: [M(3)] });
+    expect(result.get(M(2))).toMatchObject({ isFormerItalian: true, currentSuccessors: [M(3)] });
     expect(result.get(M(4))).toMatchObject({ isFormerItalian: true, successors: [], currentSuccessors: [] });
-    expect(result.get(M(1))).toMatchObject({ isFormerItalian: true, partiallyCeded: false, currentSuccessors: [M(3)] });
-    expect(result.get(M(3))).toMatchObject({ isFormerItalian: false, partiallyCeded: false });
+    expect(result.get(M(1))).toMatchObject({ isFormerItalian: true, currentSuccessors: [M(3)] });
+    expect(result.get(M(3))).toMatchObject({ isFormerItalian: false });
   });
 
-  it('is not former Italian when one path ends in an active or a non-ceded entity: partially ceded', () => {
+  it('is not former Italian when one path ends in an active or a non-ceded entity', () => {
     const result = derive(
       [
         entity(1, ['1900-01-01', '1940-01-01']),
@@ -182,13 +181,12 @@ describe('deriveFields', () => {
       ],
     );
     // Occisla-Clanzo (golden-22): one path ends in an active entity, the other in a ceded one.
-    expect(result.get(M(1))).toMatchObject({ isFormerItalian: false, partiallyCeded: true, currentSuccessors: [M(3)] });
+    expect(result.get(M(1))).toMatchObject({ isFormerItalian: false, currentSuccessors: [M(3)] });
     expect(result.get(M(1))?.successors.map((l) => l.kind)).toEqual(['split_into', 'split_into']);
-    expect(result.get(M(5))).toMatchObject({ isFormerItalian: false, partiallyCeded: true, currentSuccessors: [] });
+    expect(result.get(M(5))).toMatchObject({ isFormerItalian: false, currentSuccessors: [] });
     expect(result.get(M(4))).toMatchObject({
       status: 'suppressed',
       isFormerItalian: false,
-      partiallyCeded: false,
       currentSuccessors: [],
     });
   });
@@ -274,7 +272,6 @@ describe('deriveFields', () => {
     expect(result.get(M(1))).toMatchObject({
       status: 'suppressed',
       isFormerItalian: true,
-      partiallyCeded: false,
       successors: [{ id: M(2), kind: 'merged_into', date: '1947-09-16' }],
       currentSuccessors: [M(2)],
     });

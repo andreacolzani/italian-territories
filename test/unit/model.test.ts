@@ -25,7 +25,6 @@ const siamanna = {
   id: 'mun-WJG7J5',
   status: 'active',
   is_former_italian: false,
-  partially_ceded: false,
   predecessors: [{ id: 'mun-3Z4B94', kind: 'detached_into', date: '1947-11-28' }],
   successors: [],
   current_successors: [],
@@ -225,9 +224,8 @@ describe('public entity models (§4.2)', () => {
     expect(entityLinkSchema.safeParse({ ...link, variation_id: 9 }).success).toBe(false);
   });
 
-  it('is_former_italian and partially_ceded are exclusive', () => {
-    const both = { ...siamanna, status: 'suppressed', is_former_italian: true, partially_ceded: true };
-    expect(municipalitySchema.safeParse(both).success).toBe(false);
+  it('has no partially_ceded field', () => {
+    expect(municipalitySchema.safeParse({ ...siamanna, partially_ceded: false }).success).toBe(false);
   });
 });
 

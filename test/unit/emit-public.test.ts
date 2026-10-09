@@ -33,7 +33,6 @@ describe('internal → public model (§4, §6.12)', () => {
       'id',
       'status',
       'is_former_italian',
-      'partially_ceded',
       'predecessors',
       'successors',
       'current_successors',
@@ -81,10 +80,32 @@ describe('internal → public model (§4, §6.12)', () => {
     const gamma = at(data.municipalities, 1);
     expect(gamma).toMatchObject({
       status: 'suppressed',
-      partially_ceded: false,
       successors: [{ id: M(1), kind: 'merged_into', date: '1900-01-01' }],
       current_successors: [M(1)],
     });
+  });
+
+  it('orders entities by internal ISTAT id, nk: entities last by first valid_from then id (§6.12)', () => {
+    const w = world();
+    // Origin ids unrelated to the entity ids: 4 → 10, 3 → 20, 1 → 300, 2 → nk: (null).
+    const origins: Record<number, number | null> = { 1: 300, 2: null, 3: 20, 4: 10 };
+    for (const [n, origin] of Object.entries(origins)) entityOf(w, 'municipality', Number(n)).istatOriginId = origin;
+    const order = (world: typeof w) => toPublicData(world).municipalities.map((e) => e.id);
+    expect(order(w)).toEqual([M(4), M(3), M(1), M(2)]);
+    // Numerically, not as text: 300 after 20.
+    // Whatever the input order.
+    mut(w).entities.municipality.reverse();
+    expect(order(w)).toEqual([M(4), M(3), M(1), M(2)]);
+    // Unchanged when an ISTAT code changes.
+    at(entityOf(w, 'municipality', 4).versions).istatCode = '999999';
+    expect(order(w)).toEqual([M(4), M(3), M(1), M(2)]);
+    // Several nk: entities: by the valid_from of their first version, then by id.
+    entityOf(w, 'municipality', 3).istatOriginId = null;
+    at(entityOf(w, 'municipality', 3).versions).validFrom = '1860-01-01';
+    entityOf(w, 'municipality', 1).istatOriginId = null;
+    expect(order(w)).toEqual([M(4), M(3), M(1), M(2)]);
+    at(entityOf(w, 'municipality', 3).versions).validFrom = START;
+    expect(order(w)).toEqual([M(4), M(1), M(2), M(3)]);
   });
 
   it('sorts entities and versions, and the variation report, whatever the input order', () => {

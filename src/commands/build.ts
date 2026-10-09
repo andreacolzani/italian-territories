@@ -181,9 +181,8 @@ export async function buildDataset(
   };
 
   for (const level of ['region', 'province', 'municipality'] as const) {
-    const list = entities[level] as readonly { partiallyCeded: boolean; successors: { kind: string }[] }[];
+    const list = entities[level] as readonly { successors: { kind: string }[] }[];
     ctx.summary.derived[level] = {
-      partially_ceded: list.filter((e) => e.partiallyCeded).length,
       split_into: list.reduce((n, e) => n + e.successors.filter((l) => l.kind === 'split_into').length, 0),
     };
   }

@@ -3,7 +3,7 @@
  *
  * Public files (D39): inclusive `valid_until` (the only place the conversion happens, §4.1),
  * internal-only fields dropped (`istatOriginId`, `historicalCodes`, §5.5), versions without id
- * (D40), keys in the published order, entities by `id` (ordinal string order), versions by
+ * (D40), keys in the published order, entities in {@link comparePublicOrder}, versions by
  * `valid_from`.
  *
  * Variation report: participations without effect (`role: null`) dropped, participants by
@@ -66,22 +66,38 @@ export function toReportVariations(variations: readonly Variation[]): Reports.Va
 
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The order of the entities in the public files (§6.12): by internal ISTAT id (the root of the
+ * identity component, §5.1), numerically; entities without one (`nk:` keys) last, by the start of
+ * their first version, then by id. Stable when ISTAT codes change; presentation only.
+ */
+export function comparePublicOrder(
+  a: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
+  b: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
+): number {
+  if (a.istatOriginId !== null && b.istatOriginId !== null) {
+    return a.istatOriginId - b.istatOriginId || compareStrings(a.id, b.id);
+  }
+  if (a.istatOriginId !== null) return -1;
+  if (b.istatOriginId !== null) return 1;
+  const first = (e: typeof a): string =>
+    e.versions.reduce((min, v) => (min === '' || compareDates(v.validFrom, min) < 0 ? v.validFrom : min), '');
+  return compareStrings(first(a), first(b)) || compareStrings(a.id, b.id);
+}
+
 function entities<L extends Level, V>(
   list: readonly (Entity<L> & DerivedFields)[],
   version: (v: Entity<L>['versions'][number], entity: Entity<L>) => V,
 ): (Omit<Public.Region, 'versions'> & { versions: V[] })[] {
-  return [...list]
-    .sort((a, b) => compareStrings(a.id, b.id))
-    .map((e) => ({
-      id: e.id,
-      status: e.status,
-      is_former_italian: e.isFormerItalian,
-      partially_ceded: e.partiallyCeded,
-      predecessors: e.predecessors.map(link),
-      successors: e.successors.map(link),
-      current_successors: [...e.currentSuccessors],
-      versions: [...e.versions].sort((a, b) => compareDates(a.validFrom, b.validFrom)).map((v) => version(v, e)),
-    }));
+  return [...list].sort(comparePublicOrder).map((e) => ({
+    id: e.id,
+    status: e.status,
+    is_former_italian: e.isFormerItalian,
+    predecessors: e.predecessors.map(link),
+    successors: e.successors.map(link),
+    current_successors: [...e.currentSuccessors],
+    versions: [...e.versions].sort((a, b) => compareDates(a.validFrom, b.validFrom)).map((v) => version(v, e)),
+  }));
 }
 
 function link(l: EntityLink): Public.EntityLink {

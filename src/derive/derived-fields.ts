@@ -1,7 +1,6 @@
 /**
- * Derived fields (§7): `status`, `predecessors`, `successors`, `current_successors`,
- * `is_former_italian` and `partially_ceded`, computed per level after the overrides from the
- * versions and variations.
+ * Derived fields (§7): `status`, `predecessors`, `successors`, `current_successors` and
+ * `is_former_italian`, computed per level after the overrides from the versions and variations.
  *
  * - Links are taken by date, from every variation of that date (whatever act references the
  *   boundary), `transferred_to` excluded (it is never on the first or last version of an entity),
@@ -21,8 +20,6 @@
  *   former Italian and a terminal point even when it has links (D33); any other suppressed entity is
  *   former Italian iff it has successors and all of them are. A path ending in an active entity or
  *   in a suppressed entity without successors is not former Italian.
- * - `partially_ceded` (D45): a suppressed entity that is not former Italian with at least one path
- *   ending in an entity closed with `ceded` (same terminal rule).
  * - A cycle among the final closures (the successors of suppressed entities) is a `blocking` anomaly
  *   (`successor-cycle`), one per strongly connected component, with the entities involved; their
  *   derived fields are still computed (the build is blocked).
@@ -40,7 +37,7 @@ export const DERIVED_ANOMALIES = {
   successorCycle: 'successor-cycle',
 } as const;
 
-/** Link kinds followed by `current_successors`, `is_former_italian` and `partially_ceded` (§7). */
+/** Link kinds followed by `current_successors` and `is_former_italian` (§7). */
 const SUCCESSION_KINDS: readonly PublicLinkKind[] = ['merged_into', 'split_into', 'detached_into'];
 
 export type DerivedEntity<E> = E & DerivedFields;
@@ -121,47 +118,34 @@ export function deriveFields<L extends Level, E extends Entity<L>>(options: {
     return [...found].sort(compareCodeUnits);
   };
 
-  /**
-   * Whether every (`all`) or some (`some`) terminal path of the successor graph ends in an entity
-   * closed with `ceded` (a terminal point, D33). Memoised; entities on a cycle (already reported)
-   * get `false`, which is then sound to keep.
-   */
-  const endsInCeded = (quantifier: 'all' | 'some'): ((id: EntityId) => boolean) => {
-    const known = new Map<EntityId, boolean>();
-    const inProgress = new Set<EntityId>();
-    const check = (id: EntityId): boolean => {
-      const cached = known.get(id);
-      if (cached !== undefined) return cached;
-      if (inProgress.has(id)) return false;
-      let result: boolean;
-      if (active.has(id)) result = false;
-      else if (ceded.has(id)) result = true;
-      else {
-        const targets = next(id);
-        inProgress.add(id);
-        result = quantifier === 'all' ? targets.length > 0 && targets.every(check) : targets.some(check);
-        inProgress.delete(id);
-      }
-      known.set(id, result);
-      return result;
-    };
-    return check;
+  // Memoised. Entities on a cycle (already reported) get `false`, which is then sound to keep.
+  const formerItalian = new Map<EntityId, boolean>();
+  const inProgress = new Set<EntityId>();
+  const isFormerItalian = (id: EntityId): boolean => {
+    const known = formerItalian.get(id);
+    if (known !== undefined) return known;
+    if (inProgress.has(id)) return false;
+    let result: boolean;
+    if (active.has(id)) result = false;
+    else if (ceded.has(id)) result = true;
+    else {
+      const targets = next(id);
+      inProgress.add(id);
+      result = targets.length > 0 && targets.every(isFormerItalian);
+      inProgress.delete(id);
+    }
+    formerItalian.set(id, result);
+    return result;
   };
-  const isFormerItalian = endsInCeded('all');
-  const reachesCeded = endsInCeded('some');
 
-  return entities.map((entity) => {
-    const formerItalian = isFormerItalian(entity.id);
-    return {
-      ...entity,
-      status: active.has(entity.id) ? 'active' : 'suppressed',
-      isFormerItalian: formerItalian,
-      partiallyCeded: !formerItalian && reachesCeded(entity.id),
-      predecessors: predecessors.get(entity.id) ?? [],
-      successors: successors.get(entity.id) ?? [],
-      currentSuccessors: currentSuccessors(entity.id),
-    };
-  });
+  return entities.map((entity) => ({
+    ...entity,
+    status: active.has(entity.id) ? 'active' : 'suppressed',
+    isFormerItalian: isFormerItalian(entity.id),
+    predecessors: predecessors.get(entity.id) ?? [],
+    successors: successors.get(entity.id) ?? [],
+    currentSuccessors: currentSuccessors(entity.id),
+  }));
 }
 
 function versionRef(entityId: EntityId, validFrom: IsoDate): string {

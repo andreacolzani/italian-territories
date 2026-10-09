@@ -14,7 +14,7 @@
  * - variation: the earlier of the two dates; removed or added → its date;
  * - entity (entity-level fields only; its versions are items of their own): links → the earliest
  *   date among the links added or removed; `status` → the day after the last version's end, old or
- *   new; `is_former_italian`, `partially_ceded` and `current_successors` carry no date (they follow
+ *   new; `is_former_italian` and `current_successors` carry no date (they follow
  *   from dated items, flagged on their own), so with only those `affected_from` is null and the
  *   item is not retroactive; removed → its first `valid_from`; added → retroactive iff its first
  *   `valid_from` is before the reference.

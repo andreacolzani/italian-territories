@@ -278,7 +278,6 @@ describe('I6: per-date uniqueness', () => {
       versions: [municipalityVersion(['1900-01-01', null], '001002', null, 'Riuso')],
       status: 'active' as const,
       isFormerItalian: false,
-      partiallyCeded: false,
       predecessors: [],
       successors: [],
       currentSuccessors: [],
@@ -464,23 +463,20 @@ describe('I10: no zero-length versions, no participation without effect', () => 
 });
 
 describe('I11: derived fields are consistent', () => {
-  it('rejects a stale status, link list, successor list, former-Italian or partially-ceded flag, one violation per field', () => {
+  it('rejects a stale status, link list, successor list or former-Italian flag, one violation per field', () => {
     const world = baseline();
     const m2 = entityOf(world, 'municipality', 2);
     m2.status = 'active';
     m2.currentSuccessors = [M(3)];
     m2.isFormerItalian = true;
-    m2.partiallyCeded = true;
     m2.successors = [];
     entityOf(world, 'municipality', 1).predecessors = [{ id: M(2), kind: 'split_into', date: '1900-01-01' }];
     expect(contexts(checkI11(world)).map((c) => [c.entityId, c.field])).toEqual([
       [M(1), 'predecessors'],
       [M(2), 'status'],
       [M(2), 'isFormerItalian'],
-      [M(2), 'partiallyCeded'],
       [M(2), 'successors'],
       [M(2), 'currentSuccessors'],
-      [M(2), 'partiallyCeded'],
     ]);
   });
 

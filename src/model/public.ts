@@ -136,9 +136,11 @@ function entitySchema<V extends z.ZodType>(versionSchema: V, title: string, pref
     .strictObject({
       id: prefixed(prefix, 'Stable entity id, unique in the dataset, never reused.'),
       status: z.enum(ENTITY_STATUSES),
-      is_former_italian: z.boolean(),
-      partially_ceded: z.boolean().meta({
-        description: 'Suppressed, and some but not all of its successor paths end in a territory ceded abroad.',
+      is_former_italian: z.boolean().meta({
+        description:
+          'True when the entity ceased to exist because it was ceded abroad, directly or because all its ' +
+          'successors were. It does not measure losses of territory: partial cessions of entities that ' +
+          'continue to exist are not represented.',
       }),
       predecessors: z.array(entityLinkSchema),
       successors: z.array(entityLinkSchema),
@@ -147,10 +149,6 @@ function entitySchema<V extends z.ZodType>(versionSchema: V, title: string, pref
         .refine(isStrictlyAscending, 'must be sorted without duplicates')
         .meta({ description: 'Currently active entities of the same level this entity resolves to.' }),
       versions: z.array(versionSchema).min(1),
-    })
-    .refine((e) => !(e.is_former_italian && e.partially_ceded), {
-      message: 'is_former_italian and partially_ceded are exclusive',
-      path: ['partially_ceded'],
     })
     .meta({ id: title });
 }

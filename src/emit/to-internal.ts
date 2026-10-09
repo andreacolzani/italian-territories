@@ -47,7 +47,6 @@ function entity<L extends Level, P extends { versions: readonly unknown[] }>(
   const derived: DerivedFields = {
     status: e.status,
     isFormerItalian: e.is_former_italian,
-    partiallyCeded: e.partially_ceded,
     predecessors: e.predecessors.map(link),
     successors: e.successors.map(link),
     currentSuccessors: [...e.current_successors],

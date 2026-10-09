@@ -122,7 +122,7 @@ describe('Sud Sardegna with several successors (golden-4)', async () => {
 
   it('suppressed, split into Nuoro, Ogliastra, Medio Campidano, Sulcis Iglesiente and Cagliari', () => {
     const successors = ascending(['114', '116', '117', '119', '318'].map((code) => uts(code).id));
-    expect(sudSardegna).toMatchObject({ status: 'suppressed', isFormerItalian: false, partiallyCeded: false });
+    expect(sudSardegna).toMatchObject({ status: 'suppressed', isFormerItalian: false });
     expect(sudSardegna.successors).toEqual(successors.map((id) => ({ id, kind: 'split_into', date: '2026-01-01' })));
     expect(sudSardegna.currentSuccessors).toEqual(successors);
   });
@@ -164,7 +164,7 @@ describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
     const tenda = at('004820', '1947-09-15');
     const brigaAlta = at('004031', '1947-09-16');
     const limone = at('004110', '1947-09-16');
-    expect(tenda).toMatchObject({ status: 'suppressed', isFormerItalian: true, partiallyCeded: false });
+    expect(tenda).toMatchObject({ status: 'suppressed', isFormerItalian: true });
     expect(tenda.successors.map((l) => [l.id, l.kind])).toEqual(
       ascending([brigaAlta.id, limone.id]).map((id) => [id, 'split_into']),
     );

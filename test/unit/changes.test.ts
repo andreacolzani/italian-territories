@@ -203,7 +203,7 @@ describe('changes.json (§9)', () => {
   it('entity fields: links are dated, status by the end of the last version, the others undated', () => {
     const current = published();
     const delta = at(current.municipalities, 2);
-    delta.partially_ceded = true;
+    delta.current_successors = [M(1)];
     const alfa = at(current.municipalities);
     alfa.predecessors = [{ id: M(2), kind: 'merged_into', date: '1900-01-01' }];
     const suppressed = at(current.municipalities, 1);
@@ -212,7 +212,7 @@ describe('changes.json (§9)', () => {
     expect(updated).toEqual([
       { id: M(1), fields: ['predecessors'], affected_from: '1900-01-01', retroactive: true },
       { id: M(2), fields: ['status'], affected_from: '1900-01-01', retroactive: true },
-      { id: M(3), fields: ['partially_ceded'], affected_from: null, retroactive: false },
+      { id: M(3), fields: ['current_successors'], affected_from: null, retroactive: false },
     ]);
   });
 

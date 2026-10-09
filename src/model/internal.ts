@@ -183,8 +183,6 @@ export interface EntityLink {
 export interface DerivedFields {
   status: EntityStatus;
   isFormerItalian: boolean;
-  /** Some, not all, successor paths end in a ceded entity (D45). */
-  partiallyCeded: boolean;
   predecessors: EntityLink[];
   successors: EntityLink[];
   /** Ids of active entities of the same level, sorted (ordinal string order). */

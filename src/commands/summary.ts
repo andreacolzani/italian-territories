@@ -71,8 +71,8 @@ export const runSummarySchema = z.strictObject({
     /** Of those, the suppressed ones (§11.3 golden-14). */
     anpr_missing_suppressed: count.nullable(),
   }),
-  /** Derived fields of the revised model (D44, D45), per level: for the maintainer's review. */
-  derived: z.record(z.string(), z.strictObject({ partially_ceded: count, split_into: count })),
+  /** `split_into` successor links per level (D44): for the maintainer's review. */
+  derived: z.record(z.string(), z.strictObject({ split_into: count })),
   event_lists: z.array(
     z.strictObject({
       pfun: z.int(),

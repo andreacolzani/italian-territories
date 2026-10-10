@@ -27,12 +27,12 @@ export function checkI1(entities: InvariantEntities): Anomaly[] {
         anomalies.push(violation('I1', `${level} entity ${entity.id} has no versions`, { level, entityId: entity.id }));
       }
       versions.forEach((version, i) => {
-        const context = { level, entityId: entity.id, versionId: version.id };
+        const context = { level, entityId: entity.id, versionFrom: version.validFrom };
         if (version.validTo !== null && compareDates(version.validTo, version.validFrom) < 0) {
           anomalies.push(
             violation(
               'I1',
-              `${level} entity ${entity.id}, version ${version.id}: validTo ${version.validTo} precedes validFrom ${version.validFrom}`,
+              `${level} entity ${entity.id}, version from ${version.validFrom}: validTo ${version.validTo} precedes validFrom ${version.validFrom}`,
               { ...context, validFrom: version.validFrom, validTo: version.validTo },
             ),
           );
@@ -41,7 +41,7 @@ export function checkI1(entities: InvariantEntities): Anomaly[] {
         if (previous === undefined) return;
         const pair = {
           ...context,
-          previousVersionId: previous.id,
+          previousVersionFrom: previous.validFrom,
           previous: { validFrom: previous.validFrom, validTo: previous.validTo },
           validFrom: version.validFrom,
           validTo: version.validTo,
@@ -50,7 +50,7 @@ export function checkI1(entities: InvariantEntities): Anomaly[] {
           anomalies.push(
             violation(
               'I1',
-              `${level} entity ${entity.id}: version ${version.id} (from ${version.validFrom}) does not follow version ${previous.id} (from ${previous.validFrom})`,
+              `${level} entity ${entity.id}: version from ${version.validFrom} (from ${version.validFrom}) does not follow version from ${previous.validFrom} (from ${previous.validFrom})`,
               { ...pair, problem: 'unsorted' },
             ),
           );
@@ -58,7 +58,7 @@ export function checkI1(entities: InvariantEntities): Anomaly[] {
           anomalies.push(
             violation(
               'I1',
-              `${level} entity ${entity.id}: version ${previous.id} (until ${previous.validTo ?? 'open'}) overlaps version ${version.id} (from ${version.validFrom})`,
+              `${level} entity ${entity.id}: version from ${previous.validFrom} (until ${previous.validTo ?? 'open'}) overlaps version from ${version.validFrom} (from ${version.validFrom})`,
               { ...pair, problem: 'overlap' },
             ),
           );
@@ -85,13 +85,13 @@ export function checkI2(entities: InvariantEntities, existence: Existence): Anom
           violation(
             'I2',
             known === undefined
-              ? `${level} entity ${entity.id}: gap [${gap.validFrom}, ${gap.validTo}) between versions ${previous.id} and ${version.id} cannot be checked, the entity has no snapshot intervals`
-              : `${level} entity ${entity.id}: gap [${gap.validFrom}, ${gap.validTo}) between versions ${previous.id} and ${version.id} while the entity exists in the snapshots`,
+              ? `${level} entity ${entity.id}: gap [${gap.validFrom}, ${gap.validTo}) between versions from ${previous.validFrom} and ${version.validFrom} cannot be checked, the entity has no snapshot intervals`
+              : `${level} entity ${entity.id}: gap [${gap.validFrom}, ${gap.validTo}) between versions from ${previous.validFrom} and ${version.validFrom} while the entity exists in the snapshots`,
             {
               level,
               entityId: entity.id,
-              previousVersionId: previous.id,
-              versionId: version.id,
+              previousVersionFrom: previous.validFrom,
+              versionFrom: version.validFrom,
               gap,
               existsDuringGap: inside.map((i) => ({ validFrom: i.validFrom, validTo: i.validTo })),
             },
@@ -115,12 +115,12 @@ export function checkI3(entities: InvariantEntities): Anomaly[] {
         anomalies.push(
           violation(
             'I3',
-            `${level} entity ${entity.id}: contiguous versions ${previous.id} and ${version.id} (boundary ${version.validFrom}) have the same published fields`,
+            `${level} entity ${entity.id}: contiguous versions from ${previous.validFrom} and ${version.validFrom} (boundary ${version.validFrom}) have the same published fields`,
             {
               level,
               entityId: entity.id,
-              previousVersionId: previous.id,
-              versionId: version.id,
+              previousVersionFrom: previous.validFrom,
+              versionFrom: version.validFrom,
               date: version.validFrom,
             },
           ),

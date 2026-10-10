@@ -3070,6 +3070,270 @@
       "used_by": [
         "golden-21"
       ]
+    },
+    {
+      "path": "situas-internal/r4-region-events/02_2_valle-d-aosta.json",
+      "source": "situas-internal",
+      "endpoint": "r4:region-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs?&codreg=02&reg=Valle d'Aosta&reg_tipo=2"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r4-region-events/06_2_friuli-venezia-giulia.json",
+      "source": "situas-internal",
+      "endpoint": "r4:region-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs?&codreg=06&reg=Friuli-Venezia Giulia&reg_tipo=2"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r4-region-events/05_1_veneto.json",
+      "source": "situas-internal",
+      "endpoint": "r4:region-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs?&codreg=05&reg=Veneto&reg_tipo=1"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r4-region-events/05_2_veneto.json",
+      "source": "situas-internal",
+      "endpoint": "r4:region-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs?&codreg=05&reg=Veneto&reg_tipo=2"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r4-region-events/83_1_venezia-giulia.json",
+      "source": "situas-internal",
+      "endpoint": "r4:region-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs?&codreg=83&reg=Venezia Giulia&reg_tipo=1"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r7-region-event-details/25_CS_6107.json",
+      "source": "situas-internal",
+      "endpoint": "r7:region-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=2&idprovv=6107&mcrvar=CS&id_regione_origine=25"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r7-region-event-details/29_CS_6107.json",
+      "source": "situas-internal",
+      "endpoint": "r7:region-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=2&idprovv=6107&mcrvar=CS&id_regione_origine=29"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r7-region-event-details/14_CSCT_6107.json",
+      "source": "situas-internal",
+      "endpoint": "r7:region-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=2&idprovv=6107&mcrvar=CSCT&id_regione_origine=14"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r7-region-event-details/12_CSCT_6107.json",
+      "source": "situas-internal",
+      "endpoint": "r7:region-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=2&idprovv=6107&mcrvar=CSCT&id_regione_origine=12"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r7-region-event-details/14_ES_6107.json",
+      "source": "situas-internal",
+      "endpoint": "r7:region-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=1&idprovv=6107&mcrvar=ES&id_regione_origine=14"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r7-region-event-details/12_ES_6107.json",
+      "source": "situas-internal",
+      "endpoint": "r7:region-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=1&idprovv=6107&mcrvar=ES&id_regione_origine=12"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
+    },
+    {
+      "path": "situas-internal/r7-region-event-details/23_ES_6107.json",
+      "source": "situas-internal",
+      "endpoint": "r7:region-event-details",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=1&idprovv=6107&mcrvar=ES&id_regione_origine=23"
+        }
+      },
+      "fetched_at": "2026-10-07",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-15"
+      ]
     }
   ]
 }

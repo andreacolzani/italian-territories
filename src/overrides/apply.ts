@@ -15,6 +15,7 @@
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareDates, overlaps, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
 import type { Dated } from '../model/internal.ts';
+import type { EntityId } from '../model/common.ts';
 import type { Override } from './loader.ts';
 
 /** Stable anomaly codes of the override applier (§8.2). */
@@ -28,7 +29,7 @@ export const OVERRIDE_ANOMALIES = {
 /** The days on which an override replaced a value (contiguous days of one entity, one value before). */
 export interface AppliedOverride {
   key: string;
-  entityId: number;
+  entityId: EntityId;
   validFrom: IsoDate;
   validTo: IsoDate | null;
   field: Override['field'];
@@ -72,7 +73,7 @@ export class OverrideRun {
   }
 
   /** Records that `override` set its value on `range` of `entityId`, where the source had `before`. */
-  record(override: Override, entityId: number, range: HalfOpenInterval, before: string | null): void {
+  record(override: Override, entityId: EntityId, range: HalfOpenInterval, before: string | null): void {
     this.#matched.add(override.key);
     if (before !== override.value) this.#changed.add(override.key);
     const last = this.#applied.at(-1);
@@ -103,14 +104,17 @@ export class OverrideRun {
       else if (!this.#changed.has(override.key)) anomalies.add(obsolete(override, 'already-applied'));
     }
     return [...this.#applied].sort(
-      (a, b) => compareCodeUnits(a.key, b.key) || a.entityId - b.entityId || compareDates(a.validFrom, b.validFrom),
+      (a, b) =>
+        compareCodeUnits(a.key, b.key) ||
+        compareCodeUnits(a.entityId, b.entityId) ||
+        compareDates(a.validFrom, b.validFrom),
     );
   }
 }
 
 /** One `blocking` anomaly for a version boundary that only an override creates. */
 export function boundaryCreated(
-  entityId: number,
+  entityId: EntityId,
   istatCode: string,
   date: IsoDate,
   overrides: readonly Override[],

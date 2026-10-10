@@ -13,7 +13,10 @@
  * 2. **Grouping.** One variation per `(istat_act_id, date)`, across levels (`act:<act>:<date>`).
  *    Facts without act id are grouped per date and level into the connected components of the
  *    entities they mention (subject or related), keyed by the smallest subject entity id
- *    (`nk:<date>:<level>:<entity id>`); they never join a variation with an act id.
+ *    (`nk:<date>:<level>:<entity id>`); they never join a variation with an act id. A fact without
+ *    act id whose links `(date, level, from, to)` all exist already in a fact with an act id is
+ *    explained by that act's variation (D43): it forms no `nk:` variation, its rows are accounted
+ *    to that variation, and the explained rows are one aggregated `info` (`link-explained-by-act`).
  * 3. **Effect**, per fact: a closing event needs the subject's version ending on `D`, an opening
  *    event the version starting on `D`, an attribute change both (a version boundary on `D`); a
  *    territorial event needs the subject to exist around `D`, and claims its version boundary on
@@ -23,7 +26,8 @@
  *    suppressed on that day, golden-6), and its participation keeps `role: null` when nothing else
  *    of the entity has an effect in that variation.
  * 4. **Participants**: one per entity and variation, with the codes of its effective facts (sorted), the
- *    versions they claim and the role of §4.3; `abroad` when a counterpart is a foreign state.
+ *    versions they claim (by `validFrom`, D40) and the role of §4.3; `abroad` when a counterpart is a
+ *    foreign state.
  * 5. **Links**: the territory flows of effective facts between two entities of the same level,
  *    once per `(from, to)`. The kind follows from the effect (§4.3): `merged_into` when `from` no
  *    longer exists on `D`, otherwise `detached_into` when `to` did not exist on `D − 1`, otherwise
@@ -53,6 +57,7 @@ import {
   LEVELS,
   PARTICIPANT_ROLE_RULES,
   participantRoleViolations,
+  type EntityId,
   type IstatEventCode,
   type Level,
   type LinkKind,
@@ -146,6 +151,8 @@ export const VARIATION_ANOMALIES = {
   abbreviationChange: 'abbreviation-change-without-event',
   /** An establishment whose associated territory is the subject itself (`info`, not a predecessor). */
   selfReference: 'self-reference-ignored',
+  /** Public rows without act whose links are already in a variation with an act (`info`, D43). */
+  linkExplainedByAct: 'link-explained-by-act',
 } as const;
 
 const INTERNAL_SOURCES: Readonly<Record<Level, string>> = {
@@ -190,11 +197,11 @@ interface Fact {
   date: IsoDate;
   event: IstatEventCode;
   rule: EventRule;
-  entityId: number;
+  entityId: EntityId;
   actId: number | null;
   description: string | null;
   /** Related entities of the same level, by resolved row. */
-  related: Set<number>;
+  related: Set<EntityId>;
   /**
    * Codes of the associated territories of the internal event's details (r7/r8, r9 for the
    * ambiguous municipality events): they tell the acts of an ambiguous public row apart.
@@ -208,9 +215,9 @@ interface Fact {
 /** Versions and intervals of the entities of one level. */
 class LevelEntities {
   readonly level: Level;
-  readonly #versions = new Map<number, AnyVersion[]>();
-  readonly #byInterval = new Map<string, number>();
-  readonly #byRoot = new Map<number, number>();
+  readonly #versions = new Map<EntityId, AnyVersion[]>();
+  readonly #byInterval = new Map<string, EntityId>();
+  readonly #byRoot = new Map<number, EntityId>();
 
   constructor(level: Level, input: VariationLevelInput<Level>) {
     this.level = level;
@@ -224,29 +231,29 @@ class LevelEntities {
     for (const entity of input.identified) for (const i of entity.intervals) this.#byInterval.set(keyOf(i), entity.id);
   }
 
-  entities(): [number, readonly AnyVersion[]][] {
-    return [...this.#versions].sort(([a], [b]) => a - b);
+  entities(): [EntityId, readonly AnyVersion[]][] {
+    return [...this.#versions].sort(([a], [b]) => compareStrings(a, b));
   }
 
-  ofInterval(key: string): number | undefined {
+  ofInterval(key: string): EntityId | undefined {
     return this.#byInterval.get(key);
   }
 
-  ofRoot(root: number): number | undefined {
+  ofRoot(root: number): EntityId | undefined {
     return this.#byRoot.get(root);
   }
 
   /** The version of `entityId` ending on `date` (`validTo = date`). */
-  ending(entityId: number, date: IsoDate): AnyVersion | undefined {
+  ending(entityId: EntityId, date: IsoDate): AnyVersion | undefined {
     return this.#versions.get(entityId)?.find((v) => v.validTo === date);
   }
 
   /** The version of `entityId` starting on `date`. */
-  starting(entityId: number, date: IsoDate): AnyVersion | undefined {
+  starting(entityId: EntityId, date: IsoDate): AnyVersion | undefined {
     return this.#versions.get(entityId)?.find((v) => v.validFrom === date);
   }
 
-  existsOn(entityId: number, date: IsoDate): boolean {
+  existsOn(entityId: EntityId, date: IsoDate): boolean {
     return this.#versions.get(entityId)?.some((v) => containsDate(v, date)) ?? false;
   }
 }
@@ -286,7 +293,7 @@ export function buildVariations(options: BuildVariationsOptions): VariationBuild
     if (effectOf(fact, entities, explained) !== null) explained.add(boundaryKey(fact));
   }
 
-  const groups = groupFacts(facts);
+  const groups = groupFacts(withoutLinksOfActs(facts, levels, explained, anomalies));
   const drafts: VariationDraft[] = [];
   for (const [key, group] of groups) {
     const draft = buildDraft(key, group, levels, explained, anomalies);
@@ -295,8 +302,10 @@ export function buildVariations(options: BuildVariationsOptions): VariationBuild
   coverBoundaries(drafts, levels, options);
   drafts.sort((a, b) => compareDates(a.date, b.date) || compareStrings(a.key, b.key));
   for (const draft of drafts) {
-    draft.participants.sort((a, b) => compareLevels(a.level, b.level) || a.entityId - b.entityId);
-    draft.links.sort((a, b) => compareLevels(a.level, b.level) || a.from - b.from || a.to - b.to);
+    draft.participants.sort((a, b) => compareLevels(a.level, b.level) || compareStrings(a.entityId, b.entityId));
+    draft.links.sort(
+      (a, b) => compareLevels(a.level, b.level) || compareStrings(a.from, b.from) || compareStrings(a.to, b.to),
+    );
   }
   accounts.sort((a, b) => compareStrings(a.source, b.source) || a.index - b.index);
   return { variations: drafts, accounts };
@@ -333,7 +342,7 @@ function levelFacts(
    * when the code does not exist there, on `D − 1`: it ceases that day (e.g. Tenda gives part of
    * its territory to Limone Piemonte and is ceded abroad on 1947-09-16, §6.6, D33).
    */
-  const entityOf = (query: ResolveQuery, rule: EventRule, context: Record<string, unknown>): number | null => {
+  const entityOf = (query: ResolveQuery, rule: EventRule, context: Record<string, unknown>): EntityId | null => {
     let resolution: Resolution | null;
     try {
       resolution = resolver.resolve(query);
@@ -354,7 +363,7 @@ function levelFacts(
     date: IsoDate,
     cadastralCode: string | null,
     context: Record<string, unknown>,
-  ): number | null => {
+  ): EntityId | null => {
     if (rule.flow === null) return null;
     return entityOf({ level, code, date, side: rule.flow.relatedSide, cadastralCode }, rule, context);
   };
@@ -529,6 +538,52 @@ function matchInternal(
   return undefined;
 }
 
+/**
+ * The facts without the facts without act whose links all exist already in a fact with an act of
+ * the same date and level (D43): their rows are accounted to that act's variation, and reported as
+ * one aggregated `info`. Only facts with an effect and links count on the side of the acts.
+ */
+function withoutLinksOfActs(
+  facts: readonly Fact[],
+  levels: ReadonlyMap<Level, { entities: LevelEntities }>,
+  explained: ReadonlySet<string>,
+  anomalies: AnomalyCollector,
+): Fact[] {
+  const linkKey = (date: IsoDate, link: VariationLink): string => `${date}|${link.level}|${link.from}|${link.to}`;
+  const actOf = new Map<string, string>();
+  for (const fact of facts) {
+    const entities = levels.get(fact.level)?.entities;
+    if (fact.actId === null || entities === undefined || effectOf(fact, entities, explained) === null) continue;
+    const key = `act:${fact.actId}:${fact.date}`;
+    for (const link of factLinks(fact, entities)) {
+      const k = linkKey(fact.date, link);
+      const other = actOf.get(k);
+      if (other === undefined || compareStrings(key, other) < 0) actOf.set(k, key);
+    }
+  }
+  const items: { level: Level; date: IsoDate; event: IstatEventCode; entityId: EntityId; variation: string }[] = [];
+  const kept = facts.filter((fact) => {
+    const entities = levels.get(fact.level)?.entities;
+    if (fact.actId !== null || entities === undefined) return true;
+    const links = factLinks(fact, entities);
+    const acts = links.map((link) => actOf.get(linkKey(fact.date, link)));
+    if (links.length === 0 || acts.some((a) => a === undefined)) return true;
+    const variation = [...(acts as string[])].sort(compareStrings)[0] ?? '';
+    for (const row of fact.rows) row.variation = variation;
+    items.push({ level: fact.level, date: fact.date, event: fact.event, entityId: fact.entityId, variation });
+    return false;
+  });
+  if (items.length > 0) {
+    anomalies.add({
+      level: 'info',
+      code: VARIATION_ANOMALIES.linkExplainedByAct,
+      message: `${items.length} public rows without act repeat links of a variation with an act: explained by it`,
+      context: { count: items.length, items },
+    });
+  }
+  return kept;
+}
+
 /** Facts by variation key: `act:<act>:<date>`, or the connected components of the others. */
 function groupFacts(facts: readonly Fact[]): Map<string, Fact[]> {
   const groups = new Map<string, Fact[]>();
@@ -550,7 +605,7 @@ function groupFacts(facts: readonly Fact[]): Map<string, Fact[]> {
       while (parent[root] !== root) root = parent[root] ?? root;
       return root;
     };
-    const owner = new Map<number, number>();
+    const owner = new Map<EntityId, number>();
     group.forEach((fact, i) => {
       for (const entity of [fact.entityId, ...fact.related]) {
         const other = owner.get(entity);
@@ -566,7 +621,7 @@ function groupFacts(facts: readonly Fact[]): Map<string, Fact[]> {
     for (const component of components.values()) {
       const [first] = component;
       if (first === undefined) continue;
-      const entity = Math.min(...component.map((f) => f.entityId));
+      const entity = component.map((f) => f.entityId).sort(compareStrings)[0];
       for (const fact of component) add(`nk:${first.date}:${first.level}:${entity}`, fact);
     }
   }
@@ -587,7 +642,7 @@ function buildDraft(
 
   interface Claim {
     level: Level;
-    entityId: number;
+    entityId: EntityId;
     events: Set<IstatEventCode>;
     dropped: Set<IstatEventCode>;
     before: AnyVersion | null;
@@ -640,8 +695,8 @@ function buildDraft(
       istatEvents,
       abroad: effective && claim.abroad,
       role: null,
-      versionBeforeId: claim.before?.id ?? null,
-      versionAfterId: claim.after?.id ?? null,
+      versionBefore: claim.before?.validFrom ?? null,
+      versionAfter: claim.after?.validFrom ?? null,
     };
     if (effective) participant.role = roleOf(participant, key, anomalies);
     participants.push(participant);
@@ -696,7 +751,7 @@ function factLinks(fact: Fact, entities: LevelEntities): VariationLink[] {
   const flow = fact.rule.flow;
   if (flow === null) return [];
   const links: VariationLink[] = [];
-  for (const related of [...fact.related].sort((a, b) => a - b)) {
+  for (const related of [...fact.related].sort(compareStrings)) {
     if (related === fact.entityId) continue;
     const [from, to] = flow.direction === 'subject-to-related' ? [fact.entityId, related] : [related, fact.entityId];
     links.push({ level: fact.level, from, to, kind: linkKind(from, to, fact.date, entities) });
@@ -704,7 +759,7 @@ function factLinks(fact: Fact, entities: LevelEntities): VariationLink[] {
   return links;
 }
 
-function linkKind(from: number, to: number, date: IsoDate, entities: LevelEntities): LinkKind {
+function linkKind(from: EntityId, to: EntityId, date: IsoDate, entities: LevelEntities): LinkKind {
   if (!entities.existsOn(from, date)) return 'merged_into';
   if (!entities.existsOn(to, previousDay(date))) return 'detached_into';
   return 'transferred_to';
@@ -712,7 +767,7 @@ function linkKind(from: number, to: number, date: IsoDate, entities: LevelEntiti
 
 /** The role of a participant with effective events (§4.3 role table). */
 function roleOf(participant: Participant, key: string, anomalies: AnomalyCollector): ParticipantRole | null {
-  const { istatEvents: events, versionBeforeId: before, versionAfterId: after } = participant;
+  const { istatEvents: events, versionBefore: before, versionAfter: after } = participant;
   const has = (...codes: IstatEventCode[]): boolean => codes.some((c) => events.includes(c));
   let role: ParticipantRole | null = null;
   if (before === null && after !== null) role = has('CS', 'CSCT') ? 'established' : has('AN') ? 'annexed' : null;
@@ -753,10 +808,12 @@ function coverBoundaries(
   options: BuildVariationsOptions,
 ): void {
   const claimed = new Set<string>();
+  const claim = (level: Level, entityId: EntityId, side: 'before' | 'after', validFrom: IsoDate): string =>
+    `${level}|${entityId}|${side}|${validFrom}`;
   for (const draft of drafts) {
     for (const p of draft.participants) {
-      if (p.versionBeforeId !== null) claimed.add(`${p.level}|before|${p.versionBeforeId}`);
-      if (p.versionAfterId !== null) claimed.add(`${p.level}|after|${p.versionAfterId}`);
+      if (p.versionBefore !== null) claimed.add(claim(p.level, p.entityId, 'before', p.versionBefore));
+      if (p.versionAfter !== null) claimed.add(claim(p.level, p.entityId, 'after', p.versionAfter));
     }
   }
   const byDate = new Map<IsoDate, VariationDraft[]>();
@@ -773,8 +830,8 @@ function coverBoundaries(
         if (version.validFrom !== options.start) {
           const before = contiguous;
           const covered =
-            claimed.has(`${level}|after|${version.id}`) &&
-            (before === undefined || claimed.has(`${level}|before|${before.id}`));
+            claimed.has(claim(level, entityId, 'after', version.validFrom)) &&
+            (before === undefined || claimed.has(claim(level, entityId, 'before', before.validFrom)));
           if (!covered) {
             if (before === undefined) unexplained(level, entityId, version.validFrom, 'opened', options.anomalies);
             else {
@@ -785,8 +842,8 @@ function coverBoundaries(
                 istatEvents: [],
                 abroad: false,
                 role: 'indirect',
-                versionBeforeId: before.id,
-                versionAfterId: version.id,
+                versionBefore: before.validFrom,
+                versionAfter: version.validFrom,
               };
               const parents = parentChange(before, version);
               const target =
@@ -828,7 +885,7 @@ function coverBoundaries(
         }
         const next = versions[i + 1];
         if (version.validTo !== null && next?.validFrom !== version.validTo) {
-          if (!claimed.has(`${level}|before|${version.id}`)) {
+          if (!claimed.has(claim(level, entityId, 'before', version.validFrom))) {
             unexplained(level, entityId, version.validTo, 'closed', options.anomalies);
           }
         }
@@ -845,7 +902,7 @@ function abbreviationOf(version: AnyVersion): string | null {
 /** Two UTS versions that differ in the abbreviation and in no other published field. */
 function onlyAbbreviationChanges(before: AnyVersion, after: AnyVersion): boolean {
   const rest = (version: AnyVersion) =>
-    canonicalJson({ ...version, id: undefined, validFrom: undefined, validTo: undefined, abbreviation: undefined });
+    canonicalJson({ ...version, validFrom: undefined, validTo: undefined, abbreviation: undefined });
   return abbreviationOf(before) !== abbreviationOf(after) && rest(before) === rest(after);
 }
 
@@ -854,21 +911,26 @@ function onlyAbbreviationChanges(before: AnyVersion, after: AnyVersion): boolean
  * otherwise: e.g. a municipality whose province changes region is hosted by the variation of its
  * province.
  */
-function parentChange(before: AnyVersion, after: AnyVersion): [Level, number][] {
+function parentChange(before: AnyVersion, after: AnyVersion): [Level, EntityId][] {
   const fields = [
     ['province', 'provinceId'],
     ['region', 'regionId'],
   ] as const;
-  const value = (version: AnyVersion, name: string): number | null =>
-    name in version ? ((version as unknown as Record<string, number | null>)[name] ?? null) : null;
+  const value = (version: AnyVersion, name: string): EntityId | null =>
+    name in version ? ((version as unknown as Record<string, EntityId | null>)[name] ?? null) : null;
   if (fields.every(([, name]) => value(before, name) === value(after, name))) return [];
   return fields.flatMap(([level, name]) =>
-    [value(before, name), value(after, name)].flatMap((id): [Level, number][] => (id === null ? [] : [[level, id]])),
+    [value(before, name), value(after, name)].flatMap((id): [Level, EntityId][] => (id === null ? [] : [[level, id]])),
   );
 }
 
 /** An ISTAT variation where one of `parents` participates and the entity does not yet. */
-function hosts(draft: VariationDraft, parents: readonly [Level, number][], level: Level, entityId: number): boolean {
+function hosts(
+  draft: VariationDraft,
+  parents: readonly [Level, EntityId][],
+  level: Level,
+  entityId: EntityId,
+): boolean {
   return (
     draft.origin === 'istat' &&
     draft.participants.some((p) => p.role !== null && parents.some(([l, id]) => p.level === l && p.entityId === id)) &&
@@ -889,7 +951,7 @@ function warnedBoundaries(input: VariationLevelInput<Level>, entities: LevelEnti
 
 function unexplained(
   level: Level,
-  entityId: number,
+  entityId: EntityId,
   date: IsoDate,
   side: 'opened' | 'closed' | 'changed',
   anomalies: AnomalyCollector,
@@ -907,7 +969,7 @@ export function registerVariations(
   registry: Registry,
   drafts: readonly VariationDraft[],
   options: AssignOptions,
-): { variations: Variation[]; assignment: Assignment } {
+): { variations: Variation[]; assignment: Assignment<number> } {
   const assignment = registry.assignVariations(
     drafts.map((d) => ({ key: d.key, date: d.date })),
     options,
@@ -920,7 +982,7 @@ export function registerVariations(
   return { variations, assignment };
 }
 
-function factKey(level: Level, date: IsoDate, entityId: number, event: IstatEventCode): string {
+function factKey(level: Level, date: IsoDate, entityId: EntityId, event: IstatEventCode): string {
   return `${level}|${date}|${entityId}|${event}`;
 }
 

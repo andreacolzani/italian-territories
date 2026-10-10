@@ -4,25 +4,27 @@ import {
   dataVersionDate,
   toDataVersion,
   toPublicData,
+  toReportVariations,
   type PreviousRelease,
-  type PublicData,
+  type ReleaseData,
 } from '../../src/emit/index.ts';
-import { changesSchema } from '../../src/model/public.ts';
-import { at, baseline } from '../helpers/invariants.ts';
+import { changesSchema } from '../../src/model/reports.ts';
+import { at, baseline, M, P, R } from '../helpers/invariants.ts';
 
-/** The baseline world, published; the previous release was generated on 2020-06-01. */
-function published(): PublicData {
-  return structuredClone(toPublicData(baseline()));
+/** The baseline world, released; the previous release was generated on 2020-06-01. */
+function published(): ReleaseData {
+  const world = baseline();
+  return structuredClone({ ...toPublicData(world), variations: toReportVariations(world.variations) });
 }
 
 const PREVIOUS_META = { data_version: '2020.06.01', generated_at: '2020-06-01T04:00:00Z' };
 const TO = { data_version: '2020.06.08', generated_at: '2020-06-08T04:00:00Z' };
 
-function previous(data: PublicData = published()): PreviousRelease {
+function previous(data: ReleaseData = published()): PreviousRelease {
   return { ...data, meta: PREVIOUS_META };
 }
 
-function changes(current: PublicData, prev: PreviousRelease | null = previous()) {
+function changes(current: ReleaseData, prev: PreviousRelease | null = previous()) {
   const result = computeChanges(prev, current, TO);
   expect(changesSchema.safeParse(result).success).toBe(true);
   return result;
@@ -41,7 +43,12 @@ describe('changes.json (§9)', () => {
     expect(result.from).toBeNull();
     expect(result.to).toEqual(TO);
     expect(result.retroactive).toBe(false);
-    expect(result.municipalities.entities.added).toEqual([1, 2, 3, 4].map((id) => ({ id, retroactive: false })));
+    expect(result.municipalities.entities.added).toEqual([1, 2, 3, 4].map((n) => ({ id: M(n), retroactive: false })));
+    expect(result.municipalities.versions.added).toContainEqual({
+      entity_id: M(1),
+      valid_from: '1950-01-01',
+      retroactive: false,
+    });
     expect(result.variations.added).toHaveLength(2);
   });
 
@@ -59,7 +66,6 @@ describe('changes.json (§9)', () => {
     at(beta.versions, 1).valid_until = '2020-06-04';
     beta.versions.push({
       ...at(beta.versions, 1),
-      id: 9,
       valid_from: '2020-06-05',
       valid_until: null,
       official_name: 'Zeta',
@@ -74,20 +80,28 @@ describe('changes.json (§9)', () => {
       participants: [
         {
           level: 'municipality',
-          territory_id: 1,
+          territory_id: M(1),
           istat_events: ['CD'],
           abroad: false,
           role: 'changed',
-          version_before_id: 2,
-          version_after_id: 9,
+          version_before: '1950-01-01',
+          version_after: '2020-06-05',
         },
       ],
       links: [],
     });
     const result = changes(current);
     expect(result.municipalities.versions).toEqual({
-      added: [{ id: 9, retroactive: false }],
-      updated: [{ id: 2, fields: ['valid_until'], affected_from: '2020-06-05', retroactive: false }],
+      added: [{ entity_id: M(1), valid_from: '2020-06-05', retroactive: false }],
+      updated: [
+        {
+          entity_id: M(1),
+          valid_from: '1950-01-01',
+          fields: ['valid_until'],
+          affected_from: '2020-06-05',
+          retroactive: false,
+        },
+      ],
       removed: [],
     });
     expect(result.variations.added).toEqual([{ id: 7, retroactive: false }]);
@@ -99,7 +113,13 @@ describe('changes.json (§9)', () => {
     at(at(current.municipalities).versions, 1).valid_until = '2019-12-31';
     const result = changes(current);
     expect(result.municipalities.versions.updated).toEqual([
-      { id: 2, fields: ['valid_until'], affected_from: '2020-01-01', retroactive: true },
+      {
+        entity_id: M(1),
+        valid_from: '1950-01-01',
+        fields: ['valid_until'],
+        affected_from: '2020-01-01',
+        retroactive: true,
+      },
     ]);
     expect(result.retroactive).toBe(true);
   });
@@ -116,19 +136,45 @@ describe('changes.json (§9)', () => {
     at(at(current.municipalities, 3).versions).valid_until = '1900-01-10';
     const updated = changes(current).municipalities.versions.updated;
     expect(updated).toEqual([
-      { id: 3, fields: ['valid_until'], affected_from: '1900-01-01', retroactive: true },
-      { id: 5, fields: ['valid_until'], affected_from: '1900-01-01', retroactive: true },
+      {
+        entity_id: M(2),
+        valid_from: '1861-03-17',
+        fields: ['valid_until'],
+        affected_from: '1900-01-01',
+        retroactive: true,
+      },
+      {
+        entity_id: M(4),
+        valid_from: '1861-03-17',
+        fields: ['valid_until'],
+        affected_from: '1900-01-01',
+        retroactive: true,
+      },
     ]);
   });
 
-  it('any other version field affects the whole version from the earlier valid_from', () => {
+  it('any other version field affects the whole version from its valid_from', () => {
     const current = published();
-    const version = at(at(current.municipalities).versions, 1);
-    version.cadastral_code = 'A009';
-    version.valid_from = '1950-01-02';
+    at(at(current.municipalities).versions, 1).cadastral_code = 'A009';
     expect(changes(current).municipalities.versions.updated).toEqual([
-      { id: 2, fields: ['valid_from', 'cadastral_code'], affected_from: '1950-01-01', retroactive: true },
+      {
+        entity_id: M(1),
+        valid_from: '1950-01-01',
+        fields: ['cadastral_code'],
+        affected_from: '1950-01-01',
+        retroactive: true,
+      },
     ]);
+  });
+
+  it('a version whose start moves is another version: removed and added', () => {
+    const current = published();
+    at(at(current.municipalities).versions, 1).valid_from = '1950-01-02';
+    const versions = changes(current).municipalities.versions;
+    expect(versions.removed).toEqual([
+      { entity_id: M(1), valid_from: '1950-01-01', affected_from: '1950-01-01', retroactive: true },
+    ]);
+    expect(versions.added).toEqual([{ entity_id: M(1), valid_from: '1950-01-02', retroactive: true }]);
   });
 
   it('removed items carry their first affected day', () => {
@@ -136,41 +182,44 @@ describe('changes.json (§9)', () => {
     current.municipalities.splice(3, 1);
     current.variations.splice(1, 1);
     const result = changes(current);
-    expect(result.municipalities.entities.removed).toEqual([{ id: 4, affected_from: '1861-03-17', retroactive: true }]);
-    expect(result.municipalities.versions.removed).toEqual([{ id: 5, affected_from: '1861-03-17', retroactive: true }]);
+    expect(result.municipalities.entities.removed).toEqual([
+      { id: M(4), affected_from: '1861-03-17', retroactive: true },
+    ]);
+    expect(result.municipalities.versions.removed).toEqual([
+      { entity_id: M(4), valid_from: '1861-03-17', affected_from: '1861-03-17', retroactive: true },
+    ]);
     expect(result.variations.removed).toEqual([{ id: 2, affected_from: '1950-01-01', retroactive: true }]);
   });
 
   it('added items are retroactive when they start before the reference', () => {
     const current = published();
-    current.provinces.push({ ...at(current.provinces), id: 3 });
-    at(current.provinces, 2).versions = [{ ...at(at(current.provinces, 2).versions), id: 3, valid_from: '2020-06-01' }];
-    current.regions.push({ ...at(current.regions), id: 2 });
-    expect(changes(current).provinces.entities.added).toEqual([{ id: 3, retroactive: false }]);
-    expect(changes(current).regions.entities.added).toEqual([{ id: 2, retroactive: true }]);
+    current.provinces.push({ ...at(current.provinces), id: P(3) });
+    at(current.provinces, 2).versions = [{ ...at(at(current.provinces, 2).versions), valid_from: '2020-06-01' }];
+    current.regions.push({ ...at(current.regions), id: R(2) });
+    expect(changes(current).provinces.entities.added).toEqual([{ id: P(3), retroactive: false }]);
+    expect(changes(current).regions.entities.added).toEqual([{ id: R(2), retroactive: true }]);
   });
 
   it('entity fields: links are dated, status by the end of the last version, the others undated', () => {
     const current = published();
     const delta = at(current.municipalities, 2);
-    delta.istat_origin_id = 30;
-    delta.is_former_italian = false;
+    delta.current_successors = [M(1)];
     const alfa = at(current.municipalities);
-    alfa.predecessors = [{ id: 2, kind: 'merged_into', date: '1900-01-01', variation_id: 1 }];
+    alfa.predecessors = [{ id: M(2), kind: 'merged_into', date: '1900-01-01' }];
     const suppressed = at(current.municipalities, 1);
     suppressed.status = 'active';
     const updated = changes(current).municipalities.entities.updated;
     expect(updated).toEqual([
-      { id: 1, fields: ['predecessors'], affected_from: '1900-01-01', retroactive: true },
-      { id: 2, fields: ['status'], affected_from: '1900-01-01', retroactive: true },
-      { id: 3, fields: ['istat_origin_id'], affected_from: null, retroactive: false },
+      { id: M(1), fields: ['predecessors'], affected_from: '1900-01-01', retroactive: true },
+      { id: M(2), fields: ['status'], affected_from: '1900-01-01', retroactive: true },
+      { id: M(3), fields: ['current_successors'], affected_from: null, retroactive: false },
     ]);
   });
 
   it('a new version alone does not update the entity record', () => {
     const current = published();
     const beta = at(current.municipalities);
-    beta.versions.push({ ...at(beta.versions, 1), id: 9 });
+    beta.versions.push({ ...at(beta.versions, 1), valid_from: '2021-01-01' });
     expect(changes(current).municipalities.entities.updated).toEqual([]);
   });
 

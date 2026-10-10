@@ -14,8 +14,10 @@
  *   municipalities of the UTS on each date, which must be unanimous. Non-conforming values (e.g.
  *   `Venezia Giulia`) are kept: overrides come later (Step 12) and I8 checks the result. A missing
  *   `SIGLA_AUTOMOBILISTICA` stays null without an anomaly here, for the same reason.
- * - Regions and UTS: a name containing `/` is split into Italian and foreign part (§4.2);
- *   municipalities take `COMUNE`, `COMUNE_IT` and `COMUNE_A` as they are.
+ * - Regions and UTS: a denomination with `/` takes its Italian and foreign names from the closed
+ *   table of `bilingual-names.ts` (§4.2); one missing from the table has null names and is a
+ *   `blocking` `bilingual-name-unknown`, one per level and denomination, with the decomposition
+ *   the rule suggests. Municipalities take `COMUNE`, `COMUNE_IT` and `COMUNE_A` as they are.
  *
  * A field that cannot be determined (a parent code identifying no entity, pre-1948 abbreviations
  * missing or not unanimous) is null in the version and a `blocking` anomaly, one per version and
@@ -24,7 +26,7 @@
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareDates, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
 import { canonicalJson } from '../http/index.ts';
-import type { Level } from '../model/common.ts';
+import type { EntityId, Level } from '../model/common.ts';
 import type {
   Dated,
   EntityByLevel,
@@ -33,7 +35,6 @@ import type {
   UtsSnapshotRow,
   VersionByLevel,
 } from '../model/internal.ts';
-import { versionKey, type AssignOptions, type Assignment, type Registry } from '../identity/index.ts';
 import { boundaryCreated, type OverrideRun } from '../overrides/apply.ts';
 import type { IntervalIndex, SnapshotInterval } from '../resolve/index.ts';
 import { REGIME_1948_START } from '../sources/situas-public/pfun.ts';
@@ -46,14 +47,7 @@ import {
   valueAt,
   type IdentifiedEntity,
 } from './timeline.ts';
-
-/** A version before its registry id (§5.3). */
-export type VersionDraft<L extends Level = Level> = Omit<VersionByLevel[L], 'id'>;
-
-/** An entity whose versions have no registry id yet. */
-export type EntityDraft<L extends Level = Level> = Omit<EntityByLevel[L], 'versions'> & {
-  versions: VersionDraft<L>[];
-};
+import { decomposeBilingual, isUnknownBilingual, regionalNames } from './bilingual-names.ts';
 
 /** Stable anomaly codes of the version builder (§8.2). */
 export const VERSION_ANOMALIES = {
@@ -61,6 +55,8 @@ export const VERSION_ANOMALIES = {
   parentUnresolved: 'version-parent-unresolved',
   /** The municipalities of a pre-1948 UTS report no abbreviation, or more than one. */
   abbreviationUnderived: 'abbreviation-underived',
+  /** A region or UTS denomination with `/` missing from the bilingual name table (§4.2). */
+  bilingualNameUnknown: 'bilingual-name-unknown',
 } as const;
 
 /** Why a field of a piece is null; becomes one anomaly per version. */
@@ -71,7 +67,7 @@ interface Note {
   detail: Record<string, unknown>;
 }
 
-type Fields<L extends Level> = Omit<VersionDraft<L>, keyof HalfOpenInterval>;
+type Fields<L extends Level> = Omit<VersionByLevel[L], keyof HalfOpenInterval>;
 
 interface Piece<L extends Level> extends HalfOpenInterval {
   fields: Fields<L>;
@@ -81,15 +77,17 @@ interface Piece<L extends Level> extends HalfOpenInterval {
 export function buildRegionVersions(options: {
   entities: readonly IdentifiedEntity<'region'>[];
   anomalies: AnomalyCollector;
-}): EntityDraft<'region'>[] {
-  return options.entities.map((entity) =>
+}): EntityByLevel['region'][] {
+  const regions = options.entities.map((entity) =>
     draft('region', entity, options.anomalies, (interval) => {
       const row: RegionSnapshotRow = interval.row;
       return [
-        { ...range(interval), fields: { istatCode: row.code, ...splitName(row.name), type: row.type }, notes: [] },
+        { ...range(interval), fields: { istatCode: row.code, ...regionalNames(row.name), type: row.type }, notes: [] },
       ];
     }),
   );
+  reportUnknownBilingual('region', regions, options.anomalies);
+  return regions;
 }
 
 export function buildProvinceVersions(options: {
@@ -100,10 +98,10 @@ export function buildProvinceVersions(options: {
   /** Curated corrections, applied to the values of every day before the merge (§6.10). */
   overrides?: OverrideRun;
   anomalies: AnomalyCollector;
-}): EntityDraft<'province'>[] {
+}): EntityByLevel['province'][] {
   const abbreviations = municipalityAbbreviations(options.municipalities.all());
   const run = options.overrides;
-  return options.entities.map((entity) => {
+  const provinces = options.entities.map((entity) => {
     const overridden =
       run === undefined
         ? undefined
@@ -148,7 +146,7 @@ export function buildProvinceVersions(options: {
           }
           const fields: Fields<'province'> = {
             istatCode: row.code,
-            ...splitName(row.name),
+            ...regionalNames(row.name),
             type: row.type,
             abbreviation,
             regionId,
@@ -164,6 +162,8 @@ export function buildProvinceVersions(options: {
     );
     return { ...built, historicalCodes };
   });
+  reportUnknownBilingual('province', provinces, options.anomalies);
+  return provinces;
 }
 
 export function buildMunicipalityVersions(options: {
@@ -171,7 +171,7 @@ export function buildMunicipalityVersions(options: {
   provinces: EntityTimeline;
   regions: EntityTimeline;
   anomalies: AnomalyCollector;
-}): EntityDraft<'municipality'>[] {
+}): EntityByLevel['municipality'][] {
   return options.entities.map((entity) =>
     draft('municipality', entity, options.anomalies, (interval) => {
       const row: MunicipalitySnapshotRow = interval.row;
@@ -199,14 +199,44 @@ export function buildMunicipalityVersions(options: {
 }
 
 /**
- * `official_name` of a region or UTS with its Italian and foreign parts: split on the first `/`
- * (`Bolzano/Bozen`), never on `-` (§4.2).
+ * One `blocking` `bilingual-name-unknown` per denomination with `/` missing from the table (§4.2),
+ * with the codes and periods using it and the decomposition the rule suggests.
  */
-export function splitName(name: string): { officialName: string; italianName: string; foreignName: string | null } {
-  const slash = name.indexOf('/');
-  if (slash < 0) return { officialName: name, italianName: name, foreignName: null };
-  const foreign = name.slice(slash + 1).trim();
-  return { officialName: name, italianName: name.slice(0, slash).trim(), foreignName: foreign === '' ? null : foreign };
+function reportUnknownBilingual(
+  level: 'region' | 'province',
+  entities: readonly EntityByLevel['region' | 'province'][],
+  anomalies: AnomalyCollector,
+): void {
+  interface Use {
+    entityId: EntityId;
+    istatCode: string;
+    validFrom: IsoDate;
+    validTo: IsoDate | null;
+  }
+  const uses = new Map<string, Use[]>();
+  for (const entity of entities) {
+    for (const v of entity.versions) {
+      if (!isUnknownBilingual(v.officialName)) continue;
+      const list = uses.get(v.officialName) ?? [];
+      list.push({ entityId: entity.id, istatCode: v.istatCode, validFrom: v.validFrom, validTo: v.validTo });
+      uses.set(v.officialName, list);
+    }
+  }
+  for (const [name, versions] of [...uses].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const suggested = decomposeBilingual(name);
+    const suggestion =
+      suggested === null
+        ? 'the decomposition rule suggests nothing'
+        : `the decomposition rule suggests ${JSON.stringify(suggested.italianName)} / ${JSON.stringify(suggested.foreignName)}`;
+    anomalies.add({
+      level: 'blocking',
+      code: VERSION_ANOMALIES.bilingualNameUnknown,
+      message:
+        `${level} denomination ${JSON.stringify(name)} is not in the bilingual name table; ${suggestion}, ` +
+        'to be checked against a source before adding the entry',
+      context: { level, officialName: name, suggested, versions },
+    });
+  }
 }
 
 /**
@@ -219,12 +249,12 @@ function draft<L extends Level>(
   anomalies: AnomalyCollector,
   pieces: (interval: SnapshotInterval<L>) => Piece<L>[],
   transform: (pieces: Piece<L>[]) => Piece<L>[] = (p) => p,
-): { level: L; id: number; istatOriginId: number | null; versions: VersionDraft<L>[] } {
+): { level: L; id: EntityId; istatOriginId: number | null; versions: VersionByLevel[L][] } {
   const all = [...entity.intervals].sort((a, b) => compareDates(a.validFrom, b.validFrom)).flatMap(pieces);
   const merged = merge(transform(all));
   const versions = merged.map((piece) => {
     report(level, entity, piece, anomalies);
-    return { validFrom: piece.validFrom, validTo: piece.validTo, ...piece.fields } as VersionDraft<L>;
+    return { validFrom: piece.validFrom, validTo: piece.validTo, ...piece.fields } as VersionByLevel[L];
   });
   return { level, id: entity.id, istatOriginId: entity.istatOriginId, versions };
 }
@@ -256,7 +286,7 @@ function boundaries(versions: readonly HalfOpenInterval[]): IsoDate[] {
  * A UTS piece with the abbreviation overrides of its code applied on the days they cover; the
  * abbreviation an override supplies is no longer undetermined.
  */
-function overridePiece(run: OverrideRun, entityId: number, piece: Piece<'province'>): Piece<'province'>[] {
+function overridePiece(run: OverrideRun, entityId: EntityId, piece: Piece<'province'>): Piece<'province'>[] {
   return run.abbreviationOverrides(piece.fields.istatCode, piece).map((sub) => {
     const range = { validFrom: sub.validFrom, validTo: sub.validTo };
     const override = sub.value;
@@ -300,7 +330,7 @@ function report<L extends Level>(
   }
 }
 
-function parentPieces(timeline: EntityTimeline, code: string, interval: HalfOpenInterval): Dated<number | null>[] {
+function parentPieces(timeline: EntityTimeline, code: string, interval: HalfOpenInterval): Dated<EntityId | null>[] {
   return timeline.over(code, range(interval));
 }
 
@@ -319,27 +349,4 @@ function range(interval: HalfOpenInterval): HalfOpenInterval {
 
 function sameFields(a: object, b: object): boolean {
   return canonicalJson(a) === canonicalJson(b);
-}
-
-/** The entities with the registry ids of their versions (§5.3: `<entity id>:<validFrom>`). */
-export function registerVersions<L extends Level>(
-  registry: Registry,
-  level: L,
-  drafts: readonly EntityDraft<L>[],
-  options: AssignOptions,
-): { entities: EntityByLevel[L][]; assignment: Assignment } {
-  const assignment = registry.assignVersions(
-    level,
-    drafts.flatMap((e) => e.versions.map((v) => ({ entityId: e.id, validFrom: v.validFrom, validTo: v.validTo }))),
-    options,
-  );
-  const entities = drafts.map((e) => {
-    const versions = e.versions.map((v) => {
-      const id = assignment.ids.get(versionKey(e.id, v.validFrom));
-      if (id === undefined) throw new Error(`no id for version ${versionKey(e.id, v.validFrom)}`);
-      return { id, ...v };
-    });
-    return { ...e, versions } as unknown as EntityByLevel[L];
-  });
-  return { entities, assignment };
 }

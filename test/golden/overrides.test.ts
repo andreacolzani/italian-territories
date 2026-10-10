@@ -9,8 +9,6 @@
  */
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { AnomalyCollector } from '../../src/anomalies.ts';
-import { registerVersions } from '../../src/build/index.ts';
 import type { IsoDate } from '../../src/dates/index.ts';
 import { checkI8 } from '../../src/invariants/index.ts';
 import { canonicalJson } from '../../src/http/index.ts';
@@ -35,16 +33,11 @@ describe('golden-7: Venezia Giulia 1921', async () => {
   };
   const plain = await buildWorld(world);
   const built = await buildWorld({ ...world, overrides: await loadOverrides(OVERRIDES_DIR) });
-  const register = (drafts: typeof built.province) =>
-    registerVersions(built.registry, 'province', drafts, {
-      recordedOn: '2026-10-05',
-      anomalies: new AnomalyCollector(),
-    }).entities;
-  const provinces = register(built.province);
+  const provinces = built.province;
 
   it('fails I8 without the override, on UTS 801 only', () => {
     expect(plain.anomalies.list()).toEqual([]);
-    const violations = checkI8(register(plain.province));
+    const violations = checkI8(plain.province);
     expect(violations.map((a) => [a.code, a.context.istatCode, a.context.abbreviation])).toEqual([
       ['invariant-i8', '801', 'Venezia Giulia'],
     ]);

@@ -202,6 +202,30 @@ function staticDownloads(): Download[] {
     internal(reportUrls.regionEvents({ code: '04', name: 'Trentino-Alto Adige/Südtirol', type: 'region' }), [
       'golden-15',
     ]),
+    // golden-15: the pfun 106 `ESCT` rows Piemonte → Valle d'Aosta and Veneto → Friuli-Venezia Giulia
+    // repeat links of act 6107 (D43): the records and the details of that act of the regions involved.
+    ...(
+      [
+        ['02', "Valle d'Aosta", 'region'],
+        ['06', 'Friuli-Venezia Giulia', 'region'],
+        ['05', 'Veneto', 'compartment'],
+        ['05', 'Veneto', 'region'],
+        ['83', 'Venezia Giulia', 'compartment'],
+      ] as const
+    ).map(([code, name, type]) => internal(reportUrls.regionEvents({ code, name, type }), ['golden-15'])),
+    ...(
+      [
+        ['region', 'CS', 25],
+        ['region', 'CS', 29],
+        ['region', 'CSCT', 14],
+        ['region', 'CSCT', 12],
+        ['compartment', 'ES', 14],
+        ['compartment', 'ES', 12],
+        ['compartment', 'ES', 23],
+      ] as const
+    ).map(([regionType, event, originId]) =>
+      internal(reportUrls.regionEventDetails({ regionType, actId: 6107, event, originId }), ['golden-15']),
+    ),
     // golden-20: Caserta, suppressed in 1927 and reconstituted in 1945 with the same origin.
     ...(['Terra del Lavoro', 'Caserta'] as const).map((name) =>
       internal(reportUrls.utsEvents({ code: '061', name, type: 'province' }), ['golden-20']),

@@ -12,7 +12,7 @@ import { z } from 'zod';
 import type { IsoDate } from '../dates/index.ts';
 import type { InvariantReport } from '../invariants/index.ts';
 import type { Anomaly } from '../model/internal.ts';
-import type { Changes } from '../model/public.ts';
+import type { Changes } from '../model/reports.ts';
 import { isoDateSchema } from '../model/public.ts';
 import { toJsonDocument, writeFileAtomic } from '../store/index.ts';
 import type { ExitCode } from './exit-codes.ts';
@@ -71,6 +71,8 @@ export const runSummarySchema = z.strictObject({
     /** Of those, the suppressed ones (§11.3 golden-14). */
     anpr_missing_suppressed: count.nullable(),
   }),
+  /** `split_into` successor links per level (D44): for the maintainer's review. */
+  derived: z.record(z.string(), z.strictObject({ split_into: count })),
   event_lists: z.array(
     z.strictObject({
       pfun: z.int(),
@@ -122,6 +124,7 @@ export class SummaryBuilder {
   i12: number | null = null;
   sourceSummaries: number | null = null;
   golden14: RunSummary['golden14'] = { anpr_missing_entity: null, anpr_missing_suppressed: null };
+  derived: RunSummary['derived'] = {};
   readonly eventLists: RunSummary['event_lists'] = [];
   snapshots: RunSummary['snapshots'] = null;
   audit: RunSummary['audit'] = null;
@@ -189,6 +192,7 @@ export class SummaryBuilder {
         source_summaries: this.sourceSummaries,
       },
       golden14: this.golden14,
+      derived: this.derived,
       event_lists: [...this.eventLists],
       snapshots: this.snapshots,
       refreshed_snapshots: this.refreshedSnapshots,

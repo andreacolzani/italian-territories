@@ -1,5 +1,7 @@
 lib/
 dist/
+reports/
+registry/
 coverage/
 .cache/
 test/fixtures/

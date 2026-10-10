@@ -38,7 +38,7 @@ async function bootstrapped(...args: Parameters<typeof sandbox>): Promise<Sandbo
 
 /** Every file of a directory with its modification time and content. */
 async function files(dir: string): Promise<Map<string, string>> {
-  const entries = await readdir(dir, { recursive: true, withFileTypes: true });
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []);
   const result = new Map<string, string>();
   for (const e of entries.filter((x) => x.isFile())) {
     const path = join(e.parentPath, e.name);
@@ -54,8 +54,13 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
+/** The files of the release: `dist/` and `reports/`. */
+async function releaseFiles(box: Sandbox): Promise<Map<string, string>> {
+  return new Map([...(await files(box.config.paths.dist)), ...(await files(box.config.paths.releaseReports))]);
+}
+
 async function published(box: Sandbox): Promise<PublishedDataset> {
-  const dataset = await loadPublishedDataset(box.config.paths.dist);
+  const dataset = await loadPublishedDataset({ dist: box.config.paths.dist, reports: box.config.paths.releaseReports });
   if (dataset === null) throw new Error('nothing published');
   return dataset;
 }
@@ -101,9 +106,9 @@ describe('bootstrap', () => {
 
   it('leaves dist/ untouched when nothing changed (no commit)', async () => {
     const box = await bootstrapped(baseWorld());
-    const before = await files(box.config.paths.dist);
+    const before = await releaseFiles(box);
     expect(await box.run('update', '--today', '2026-10-08')).toBe(0);
-    expect(await files(box.config.paths.dist)).toEqual(before);
+    expect(await releaseFiles(box)).toEqual(before);
     expect(await box.summary()).toMatchObject({ exit_code: 0, release: { kind: 'unchanged', changes: null } });
   });
 });
@@ -142,12 +147,12 @@ describe('update', () => {
   it('blocks when the stored snapshots to refresh exceed the limit (exit 1)', async () => {
     const box = await bootstrapped(baseWorld(), { update: { maxRefreshSnapshots: 0 } });
     box.world.world = withSettevilleFusion(box.world.world, '2026-06-01');
-    const before = await files(box.config.paths.dist);
+    const before = await releaseFiles(box);
     const registry = await files(box.config.paths.registry);
     expect(await box.run('update', '--today', '2026-10-08')).toBe(1);
     expect((await box.summary()).anomalies.by_code['refresh-too-large']).toMatchObject({ level: 'blocking' });
     expect(box.err).toContain('rebuild --refetch');
-    expect(await files(box.config.paths.dist)).toEqual(before);
+    expect(await releaseFiles(box)).toEqual(before);
     expect(await files(box.config.paths.registry)).toEqual(registry);
   });
 
@@ -162,7 +167,7 @@ describe('update', () => {
 describe('lost internal history', () => {
   it('every request succeeded but the history of a registered entity is absent: exit 1, no id change', async () => {
     const box = await bootstrapped(baseWorld());
-    const dist = await files(box.config.paths.dist);
+    const dist = await releaseFiles(box);
     const registry = await files(box.config.paths.registry);
     // ISTAT no longer lists Alghero in r3, and no stored history covers it.
     const url = reportUrls.municipalityEvents({ code: '090003', name: 'Alghero' });
@@ -178,7 +183,7 @@ describe('lost internal history', () => {
     expect(summary.anomalies.by_code['internal-data-required']).toMatchObject({ level: 'blocking', anomalies: 1 });
     expect(summary.anomalies.by_code['internal-data-unavailable']).toBeUndefined();
     expect(box.err).toMatch(/"code":"internal-data-required","cause":"absent"/);
-    expect(await files(box.config.paths.dist)).toEqual(dist);
+    expect(await releaseFiles(box)).toEqual(dist);
     expect(await files(box.config.paths.registry)).toEqual(registry);
   });
 });
@@ -186,12 +191,12 @@ describe('lost internal history', () => {
 describe('rebuild', () => {
   it('without --refetch is offline: same data from the store, I13 and ANPR included (exit 0)', async () => {
     const box = await bootstrapped(baseWorld());
-    const before = await files(box.config.paths.dist);
+    const before = await releaseFiles(box);
     // The network works: the run still sends nothing.
     const sent = box.world.requests.length;
     expect(await box.run('rebuild')).toBe(0);
     expect(box.world.requests.length).toBe(sent);
-    expect(await files(box.config.paths.dist)).toEqual(before);
+    expect(await releaseFiles(box)).toEqual(before);
     const summary = await box.summary();
     expect(summary).toMatchObject({ today: '2026-10-01', release: { kind: 'unchanged' }, anomalies: { blocking: 0 } });
     expect(summary.invariants.every((i) => i.status === 'passed')).toBe(true);
@@ -200,7 +205,7 @@ describe('rebuild', () => {
 
   it('without --refetch never fetches a missing internal report, and never re-keys the entity (exit 3)', async () => {
     const box = await bootstrapped(baseWorld());
-    const dist = await files(box.config.paths.dist);
+    const dist = await releaseFiles(box);
     const registry = await files(box.config.paths.registry);
     const url = reportUrls.municipalityEvents({ code: '090003', name: 'Alghero' });
     await rm(join(box.config.paths.store, 'internal', 'reports', 'r6', `${internalReportKey(6, url)}.json`));
@@ -214,7 +219,7 @@ describe('rebuild', () => {
     expect(summary.anomalies.by_code['internal-data-unavailable']).toMatchObject({ level: 'warning', anomalies: 1 });
     expect(summary.anomalies.by_code['internal-data-required']).toMatchObject({ level: 'blocking', anomalies: 1 });
     expect(box.err).toContain('run update or rebuild --refetch');
-    expect(await files(box.config.paths.dist)).toEqual(dist);
+    expect(await releaseFiles(box)).toEqual(dist);
     expect(await files(box.config.paths.registry)).toEqual(registry);
   });
 
@@ -331,7 +336,7 @@ describe('failures', () => {
     const box = await fresh(baseWorld());
     box.world.failing = (r) => r.url.includes('pfun=61&pdata=');
     expect(await box.run('bootstrap', '--today', '2026-10-01')).toBe(3);
-    expect(await exists(join(box.config.paths.dist, 'meta.json'))).toBe(false);
+    expect(await exists(join(box.config.paths.releaseReports, 'meta.json'))).toBe(false);
     expect(await exists(box.config.paths.registry)).toBe(false);
     expect(await loadCalendar(box.config.paths.store)).toBeDefined();
     const summary = await box.summary();
@@ -354,7 +359,7 @@ describe('failures', () => {
         : response;
     expect(await box.run('bootstrap', '--today', '2026-10-01')).toBe(1);
     expect((await box.summary()).anomalies.by_code['snapshot-schema-violation']).toMatchObject({ level: 'blocking' });
-    expect(await exists(join(box.config.paths.dist, 'meta.json'))).toBe(false);
+    expect(await exists(join(box.config.paths.releaseReports, 'meta.json'))).toBe(false);
   });
 
   it('an event list unavailable is exit 3, a rejected one exit 1', async () => {
@@ -374,10 +379,10 @@ describe('failures', () => {
 describe('audit', () => {
   it('reports discrepancies without publishing (exit 2); the next update builds on them', async () => {
     const box = await bootstrapped(baseWorld());
-    const before = await files(box.config.paths.dist);
+    const before = await releaseFiles(box);
     box.world.world = withSilentCadastralChange(baseWorld(), '028060', '2015-05-01', 'G225');
     expect(await box.run('audit', '--samples', '30', '--today', '2026-10-08')).toBe(2);
-    expect(await files(box.config.paths.dist)).toEqual(before);
+    expect(await releaseFiles(box)).toEqual(before);
     const summary = await box.summary();
     expect(summary.audit?.samples).toHaveLength(30);
     // The hidden change is placed on its own date by a fresh bisection, not on the sampled dates.
@@ -414,16 +419,18 @@ describe('validate and diff', () => {
   it('diff computes changes.json between two published directories', async () => {
     const box = await bootstrapped(baseWorld());
     const previous = join(box.dir, 'previous');
-    await cp(box.config.paths.dist, previous, { recursive: true });
+    await cp(box.config.paths.dist, join(previous, 'dist'), { recursive: true });
+    await cp(box.config.paths.releaseReports, join(previous, 'reports'), { recursive: true });
     box.world.world = withSettevilleFusion(box.world.world, '2026-10-10');
     expect(await box.run('update', '--today', '2026-10-15')).toBe(0);
-    const changes = await readFile(join(box.config.paths.dist, 'changes.json'), 'utf8');
-    expect(await box.run('diff', previous, box.config.paths.dist)).toBe(0);
+    const changes = await readFile(join(box.config.paths.releaseReports, 'changes.json'), 'utf8');
+    // The sandbox root holds dist/ and reports/, like a checkout.
+    expect(await box.run('diff', previous, box.dir)).toBe(0);
     expect(box.out).toBe(changes);
     const out = join(box.dir, 'diff.json');
-    expect(await box.run('diff', previous, box.config.paths.dist, '--out', out)).toBe(0);
+    expect(await box.run('diff', previous, box.dir, '--out', out)).toBe(0);
     expect(await readFile(out, 'utf8')).toBe(changes);
-    expect(await box.run('diff', join(box.dir, 'missing'), box.config.paths.dist)).toBe(1);
+    expect(await box.run('diff', join(box.dir, 'missing'), box.dir)).toBe(1);
   });
 });
 

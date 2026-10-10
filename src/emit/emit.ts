@@ -1,39 +1,41 @@
 /**
- * Emit (§6.12, §9, Step 16): writes the published dataset into `dir`.
+ * Emit (§6.12, §9, Step 16): writes a release, the public files into `dist/` and the internal
+ * reports into `reports/` (D39).
  *
- * - Every file is built in the public model and validated against it before anything is written
- *   (`EmitError` otherwise).
- * - `unchanged`: the four data files (regions, provinces, municipalities, variations) and the JSON
- *   Schemas are identical to the previous release: nothing is written; `anomalies.json` stays the one
- *   of the build that produced the release and `generated_at` is not renewed; the caller reports the
- *   current anomalies (run summary, Step 17).
- * - `schemas`: same data files, different JSON Schemas (a generator change): `schema/*.schema.json`,
- *   an empty, non-retroactive `changes.json` and `meta.json` are written, so the published schemas
- *   never lag behind the generator. The data files and `anomalies.json` stay those of the previous
- *   release, and so does its meta (`data_version` identifies the data content) except
- *   `schema_version` and `generated_at`.
- * - `data`: the data files, `anomalies.json`, `changes.json` and the schemas are written.
+ * - Every file is built in its model and validated before anything is written (`EmitError`
+ *   otherwise).
+ * - Whether a release happens is decided by the **public** files only:
+ *   - `unchanged`: the three data files (regions, provinces, municipalities) and the JSON Schemas are
+ *     identical to the previous release: nothing is written, the reports included (they describe
+ *     the build of the published release, even when, e.g., only the description of an act changed);
+ *     the caller reports the current anomalies (run summary, Step 17).
+ *   - `schemas`: same data files, different JSON Schemas (a generator change): `schema/*.schema.json`,
+ *     an empty, non-retroactive `reports/changes.json` and `reports/meta.json` are written, so the
+ *     published schemas never lag behind the generator. The data files and the other reports stay
+ *     those of the previous release, and so does its meta (`data_version` identifies the data
+ *     content) except `schema_version` and `generated_at`.
+ *   - `data`: the data files, the schemas and every report are written.
  *
- * `meta.json` is always written last (each file atomically), so a directory with a new `meta.json`
+ * `reports/meta.json` is always written last (each file atomically), so a release with a new meta
  * is complete. `generatedAt` is passed in: the emitter never reads the clock (§12.0).
  */
 import { join } from 'node:path';
 import type { IsoDate } from '../dates/index.ts';
 import { generateJsonSchemas } from '../model/json-schema.ts';
 import type { Anomaly as InternalAnomaly } from '../model/internal.ts';
-import type { Anomaly, Changes, Meta } from '../model/public.ts';
+import type { Anomaly, Changes, Meta, Variation } from '../model/reports.ts';
 import { writeFileAtomic } from '../store/index.ts';
 import { computeChanges } from './changes.ts';
-import { parsePublicFile, type PublishedDataset } from './dataset.ts';
+import { parseReleaseFile, type PublishedDataset, type ReleaseDirs } from './dataset.ts';
 import { serialize } from './format.ts';
 import { buildMeta, SCHEMA_VERSION, type SourceSummaries } from './meta.ts';
-import { toPublicAnomalies, toPublicData, type EmitWorld, type PublicData } from './public.ts';
+import { toPublicData, toReportAnomalies, toReportVariations, type EmitWorld, type PublicData } from './public.ts';
 
-const DATA_FILES = ['regions', 'provinces', 'municipalities', 'variations'] as const satisfies (keyof PublicData)[];
+const DATA_FILES = ['regions', 'provinces', 'municipalities'] as const satisfies (keyof PublicData)[];
 
 export interface EmitOptions {
-  /** Output directory (`paths.dist`). */
-  dir: string;
+  /** Output directories (`paths.dist`, `paths.releaseReports`). */
+  dirs: ReleaseDirs;
   world: EmitWorld;
   /** Every anomaly of the run; a blocking one is an `EmitError`. */
   anomalies: readonly InternalAnomaly[];
@@ -49,21 +51,24 @@ export interface EmitOptions {
 export type ReleaseKind = 'unchanged' | 'schemas' | 'data';
 
 export type EmitResult =
-  | { kind: 'unchanged'; data: PublicData; anomalies: Anomaly[] }
+  | { kind: 'unchanged'; data: PublicData; variations: Variation[]; anomalies: Anomaly[] }
   | {
       kind: 'schemas' | 'data';
       data: PublicData;
+      variations: Variation[];
       anomalies: Anomaly[];
       changes: Changes;
       meta: Meta;
+      /** Written files, relative to `dist/` or `reports/` (`reports/<name>`). */
       files: string[];
     };
 
 export async function emitDataset(options: EmitOptions): Promise<EmitResult> {
-  const { dir, previous } = options;
+  const { dirs, previous } = options;
   const data = toPublicData(options.world);
-  const anomalies = parsePublicFile('anomalies', toPublicAnomalies(options.anomalies));
-  for (const name of DATA_FILES) parsePublicFile(name, data[name]);
+  const variations = parseReleaseFile('variations', toReportVariations(options.world.variations));
+  const anomalies = parseReleaseFile('anomalies', toReportAnomalies(options.anomalies));
+  for (const name of DATA_FILES) parseReleaseFile(name, data[name]);
   const texts = Object.fromEntries(DATA_FILES.map((name) => [name, serialize(data[name])])) as Record<
     (typeof DATA_FILES)[number],
     string
@@ -76,17 +81,18 @@ export async function emitDataset(options: EmitOptions): Promise<EmitResult> {
   const sameData = previous !== null && DATA_FILES.every((name) => serialize(previous[name]) === texts[name]);
   const sameSchemas =
     previous !== null && schemas.every(([path, text]) => previous.schemas[path.slice('schema/'.length)] === text);
-  if (sameData && sameSchemas) return { kind: 'unchanged', data, anomalies };
+  if (sameData && sameSchemas) return { kind: 'unchanged', data, variations, anomalies };
 
   // A schema release keeps the meta of the release that produced the data (`data_version`, sources,
   // counts, anomalies): only `schema_version` and `generated_at` change.
   const schemasOnly = sameData ? previous : null;
   const kind = schemasOnly === null ? 'data' : 'schemas';
-  const meta = parsePublicFile(
+  const meta = parseReleaseFile(
     'meta',
     schemasOnly === null
       ? buildMeta({
           data,
+          variations,
           anomalies,
           generatedAt: options.generatedAt,
           today: options.today,
@@ -95,19 +101,32 @@ export async function emitDataset(options: EmitOptions): Promise<EmitResult> {
       : { ...schemasOnly.meta, schema_version: SCHEMA_VERSION, generated_at: options.generatedAt },
   );
   const to = { data_version: meta.data_version, generated_at: meta.generated_at };
-  const changes = parsePublicFile('changes', computeChanges(previous, data, to));
+  const current = schemasOnly ?? { ...data, variations };
+  const changes = parseReleaseFile('changes', computeChanges(previous, current, to));
 
-  const files: [string, string][] = [
+  const dist: [string, string][] = [
+    ...(kind === 'data' ? DATA_FILES.map((name): [string, string] => [`${name}.json`, texts[name]]) : []),
+    ...schemas,
+  ];
+  const reports: [string, string][] = [
     ...(kind === 'data'
       ? [
-          ...DATA_FILES.map((name): [string, string] => [`${name}.json`, texts[name]]),
+          ['variations.json', serialize(variations)] as [string, string],
           ['anomalies.json', serialize(anomalies)] as [string, string],
         ]
       : []),
     ['changes.json', serialize(changes)],
-    ...schemas,
     ['meta.json', serialize(meta)],
   ];
-  for (const [path, text] of files) await writeFileAtomic(join(dir, path), text);
-  return { kind, data, anomalies, changes, meta, files: files.map(([path]) => path) };
+  for (const [path, text] of dist) await writeFileAtomic(join(dirs.dist, path), text);
+  for (const [path, text] of reports) await writeFileAtomic(join(dirs.reports, path), text);
+  return {
+    kind,
+    data,
+    variations,
+    anomalies,
+    changes,
+    meta,
+    files: [...dist.map(([path]) => path), ...reports.map(([path]) => `reports/${path}`)],
+  };
 }

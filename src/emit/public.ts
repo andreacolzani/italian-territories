@@ -1,12 +1,17 @@
 /**
- * Internal → public model (§4, §6.12): inclusive `valid_until` (the only place the conversion
- * happens, §4.1), internal-only fields dropped (`historicalCodes`, §5.5), participations without
- * effect (`role: null`) dropped, keys in the published order, deterministic sorting:
- * entities by `id`, versions by `valid_from`, participants by `(level, territory_id)`, links by
- * `(level, from, to)` (levels in the order of `LEVELS`), `istat_events` alphabetically.
+ * Internal → release model (§4, §6.12): the public entity files and the internal reports.
  *
- * A field the public model does not admit as null but the builder left null (Step 10) stops the
- * emitter with an `EmitError`, whatever the anomalies; so does a variation left without
+ * Public files (D39): inclusive `valid_until` (the only place the conversion happens, §4.1),
+ * internal-only fields dropped (`istatOriginId`, `historicalCodes`, §5.5), versions without id
+ * (D40), keys in the published order, entities in {@link comparePublicOrder}, versions by
+ * `valid_from`.
+ *
+ * Variation report: participations without effect (`role: null`) dropped, participants by
+ * `(level, territory_id)`, links by `(level, from, to)` (levels in the order of `LEVELS`),
+ * `istat_events` alphabetically, versions referenced by `valid_from`.
+ *
+ * A field the public model does not admit as null but the builder left null (Step 10, §4.2 names)
+ * stops the emitter with an `EmitError`, whatever the anomalies; so does a variation left without
  * participations and a blocking anomaly (a blocking run never publishes, §8.2).
  */
 import { compareDates, toInclusive } from '../dates/index.ts';
@@ -23,6 +28,7 @@ import type {
   Variation,
 } from '../model/internal.ts';
 import type * as Public from '../model/public.ts';
+import type * as Reports from '../model/reports.ts';
 import { EmitError } from './errors.ts';
 
 /** The world to publish: the derived entities of every level (after overrides) and the variations. */
@@ -31,12 +37,11 @@ export interface EmitWorld {
   variations: readonly Variation[];
 }
 
-/** The four data files (§9). */
+/** The three published data files (§9). */
 export interface PublicData {
   regions: Public.Region[];
   provinces: Public.Province[];
   municipalities: Public.Municipality[];
-  variations: Public.Variation[];
 }
 
 /** Data file name (without extension) of each level. */
@@ -46,56 +51,84 @@ export const LEVEL_FILES = {
   municipality: 'municipalities',
 } as const satisfies Record<Level, keyof PublicData>;
 
-export function toPublicData(world: EmitWorld): PublicData {
+export function toPublicData(world: Pick<EmitWorld, 'entities'>): PublicData {
   return {
     regions: entities(world.entities.region, regionVersion),
     provinces: entities(world.entities.province, provinceVersion),
-    municipalities: entities(world.entities.municipality, municipalityVersion),
-    variations: [...world.variations].sort((a, b) => a.id - b.id).map(variation),
+    municipalities: entities(world.entities.municipality, municipalityVersion) as Public.Municipality[],
   };
+}
+
+/** The variation report (`reports/variations.json`), by id. */
+export function toReportVariations(variations: readonly Variation[]): Reports.Variation[] {
+  return [...variations].sort((a, b) => a.id - b.id).map(variation);
 }
 
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The order of the entities in the public files (§6.12): by internal ISTAT id (the root of the
+ * identity component, §5.1), numerically; entities without one (`nk:` keys) last, by the start of
+ * their first version, then by id. Stable when ISTAT codes change; presentation only.
+ */
+export function comparePublicOrder(
+  a: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
+  b: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
+): number {
+  if (a.istatOriginId !== null && b.istatOriginId !== null) {
+    return a.istatOriginId - b.istatOriginId || compareStrings(a.id, b.id);
+  }
+  if (a.istatOriginId !== null) return -1;
+  if (b.istatOriginId !== null) return 1;
+  const first = (e: typeof a): string =>
+    e.versions.reduce((min, v) => (min === '' || compareDates(v.validFrom, min) < 0 ? v.validFrom : min), '');
+  return compareStrings(first(a), first(b)) || compareStrings(a.id, b.id);
+}
+
+/**
+ * The entities of a level in the published order and key order; `current_successors` only for
+ * municipalities (D46), between `successors` and `versions`.
+ */
 function entities<L extends Level, V>(
   list: readonly (Entity<L> & DerivedFields)[],
   version: (v: Entity<L>['versions'][number], entity: Entity<L>) => V,
-): (Omit<Public.Region, 'versions'> & { versions: V[] })[] {
-  return [...list]
-    .sort((a, b) => a.id - b.id)
-    .map((e) => ({
-      id: e.id,
-      istat_origin_id: e.istatOriginId,
-      status: e.status,
-      is_former_italian: e.isFormerItalian,
-      predecessors: e.predecessors.map(link),
-      successors: e.successors.map(link),
-      current_successors: [...e.currentSuccessors],
-      versions: [...e.versions].sort((a, b) => compareDates(a.validFrom, b.validFrom)).map((v) => version(v, e)),
-    }));
+): (Omit<Public.Region, 'versions'> & { current_successors?: string[]; versions: V[] })[] {
+  return [...list].sort(comparePublicOrder).map((e) => ({
+    id: e.id,
+    status: e.status,
+    is_former_italian: e.isFormerItalian,
+    predecessors: e.predecessors.map(link),
+    successors: e.successors.map(link),
+    ...(e.level === 'municipality' ? { current_successors: [...(e.currentSuccessors ?? [])] } : {}),
+    versions: [...e.versions].sort((a, b) => compareDates(a.validFrom, b.validFrom)).map((v) => version(v, e)),
+  }));
 }
 
 function link(l: EntityLink): Public.EntityLink {
-  return { id: l.id, kind: l.kind, date: l.date, variation_id: l.variationId };
+  return { id: l.id, kind: l.kind, date: l.date };
 }
 
 function common(v: RegionVersion | ProvinceVersion | MunicipalityVersion) {
   const { valid_from, valid_until } = toInclusive(v);
-  return { id: v.id, valid_from, valid_until, istat_code: v.istatCode };
+  return { valid_from, valid_until, istat_code: v.istatCode };
 }
 
-function names(v: RegionVersion | ProvinceVersion | MunicipalityVersion) {
-  return { official_name: v.officialName, italian_name: v.italianName, foreign_name: v.foreignName };
+function names(v: RegionVersion | ProvinceVersion | MunicipalityVersion, level: Level, e: Entity) {
+  return {
+    official_name: v.officialName,
+    italian_name: required(v.italianName, 'italian_name', level, e, v),
+    foreign_name: v.foreignName,
+  };
 }
 
-function regionVersion(v: RegionVersion): Public.RegionVersion {
-  return { ...common(v), ...names(v), type: v.type };
+function regionVersion(v: RegionVersion, e: Entity<'region'>): Public.RegionVersion {
+  return { ...common(v), ...names(v, 'region', e), type: v.type };
 }
 
 function provinceVersion(v: ProvinceVersion, e: Entity<'province'>): Public.ProvinceVersion {
   return {
     ...common(v),
-    ...names(v),
+    ...names(v, 'province', e),
     type: v.type,
     abbreviation: required(v.abbreviation, 'abbreviation', 'province', e, v),
     region_id: required(v.regionId, 'region_id', 'province', e, v),
@@ -106,15 +139,17 @@ function municipalityVersion(v: MunicipalityVersion, e: Entity<'municipality'>):
   return {
     ...common(v),
     cadastral_code: v.cadastralCode,
-    ...names(v),
+    ...names(v, 'municipality', e),
     province_id: required(v.provinceId, 'province_id', 'municipality', e, v),
     region_id: required(v.regionId, 'region_id', 'municipality', e, v),
   };
 }
 
-function required<T>(value: T | null, field: string, level: Level, e: Entity, v: { id: number }): T {
+function required<T>(value: T | null, field: string, level: Level, e: Entity, v: { validFrom: string }): T {
   if (value === null) {
-    throw new EmitError(`${level} ${e.id} version ${v.id}: ${field} is undetermined and cannot be published`);
+    throw new EmitError(
+      `${level} ${e.id} version from ${v.validFrom}: ${field} is undetermined and cannot be published`,
+    );
   }
   return value;
 }
@@ -123,28 +158,30 @@ function required<T>(value: T | null, field: string, level: Level, e: Entity, v:
 
 const levelRank = (level: Level) => LEVELS.indexOf(level);
 
-function variation(v: Variation): Public.Variation {
+function variation(v: Variation): Reports.Variation {
   const participants = [...v.participants]
-    .sort((a, b) => levelRank(a.level) - levelRank(b.level) || a.entityId - b.entityId)
-    .flatMap((p): Public.Participant[] =>
+    .sort((a, b) => levelRank(a.level) - levelRank(b.level) || compareStrings(a.entityId, b.entityId))
+    .flatMap((p): Reports.Participant[] =>
       p.role === null
         ? []
         : [
             {
               level: p.level,
               territory_id: p.entityId,
-              istat_events: [...p.istatEvents].sort() as Public.Participant['istat_events'],
+              istat_events: [...p.istatEvents].sort() as Reports.Participant['istat_events'],
               abroad: p.abroad,
               role: p.role,
-              version_before_id: p.versionBeforeId,
-              version_after_id: p.versionAfterId,
+              version_before: p.versionBefore,
+              version_after: p.versionAfter,
             },
           ],
     );
   if (participants.length === 0) throw new EmitError(`variation ${v.id} (${v.date}) has no participation with effect`);
   const links = [...v.links]
-    .sort((a, b) => levelRank(a.level) - levelRank(b.level) || a.from - b.from || a.to - b.to)
-    .map((l): Public.VariationLink => ({ level: l.level, from: l.from, to: l.to, kind: l.kind }));
+    .sort(
+      (a, b) => levelRank(a.level) - levelRank(b.level) || compareStrings(a.from, b.from) || compareStrings(a.to, b.to),
+    )
+    .map((l): Reports.VariationLink => ({ level: l.level, from: l.from, to: l.to, kind: l.kind }));
   return {
     id: v.id,
     date: v.date,
@@ -159,11 +196,11 @@ function variation(v: Variation): Public.Variation {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The anomalies of `anomalies.json` (§8.2): warnings, then infos, by code, then by the canonical
- * JSON of message and context, so that the order never depends on the order stages ran in.
- * Contexts are reduced to plain JSON (`undefined` properties dropped).
+ * The anomalies of `reports/anomalies.json` (§8.2): warnings, then infos, by code, then by the
+ * canonical JSON of message and context, so that the order never depends on the order stages ran
+ * in. Contexts are reduced to plain JSON (`undefined` properties dropped).
  */
-export function toPublicAnomalies(anomalies: readonly Anomaly[]): Public.Anomaly[] {
+export function toReportAnomalies(anomalies: readonly Anomaly[]): Reports.Anomaly[] {
   const blocking = anomalies.filter((a) => a.level === 'blocking');
   if (blocking.length > 0) {
     throw new EmitError(`${blocking.length} blocking anomalies: a blocking run never publishes`);

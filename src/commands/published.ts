@@ -1,15 +1,18 @@
 /**
- * Commands on published datasets (§10.1): `validate` runs the invariants on `dist/`, `diff`
- * computes `changes.json` between two published datasets. Neither reads a source.
+ * Commands on releases (§10.1): `validate` runs the invariants on a release (`dist/` and
+ * `reports/variations.json`), `diff` computes `changes.json` between two releases. Neither reads a
+ * source.
  */
+import { join } from 'node:path';
 import type { IsoDate } from '../dates/index.ts';
 import {
   computeChanges,
   dataVersionDate,
   loadPublishedDataset,
-  parsePublicFile,
+  parseReleaseFile,
   serialize,
   toInternalData,
+  type ReleaseDirs,
 } from '../emit/index.ts';
 import { checkInvariants, type InvariantReport } from '../invariants/index.ts';
 import { writeFileAtomic } from '../store/index.ts';
@@ -21,18 +24,19 @@ export interface PublishedIo {
 }
 
 /**
- * `validate`: the published files read back into the internal model and checked with every
- * invariant. I2, I7, I12, I13 and I14 need unpublished data (snapshot existence, historical UTS
- * codes, snapshots, counts, event accounts) and are reported as `skipped`, never as passed.
+ * `validate`: the release (public files and variation report) read back into the internal model
+ * and checked with every invariant. I2, I7, I12, I13 and I14 need data a release does not hold
+ * (snapshot existence, historical UTS codes, snapshots, counts, event accounts) and are reported as
+ * `skipped`, never as passed.
  */
 export async function runValidate(
-  dist: string,
+  dirs: ReleaseDirs,
   start: IsoDate,
   io: PublishedIo,
 ): Promise<{ exitCode: ExitCode; report: InvariantReport | null }> {
-  const dataset = await loadPublishedDataset(dist);
+  const dataset = await loadPublishedDataset(dirs);
   if (dataset === null) {
-    io.err(`validate: no release in ${dist} (meta.json missing)\n`);
+    io.err(`validate: no release in ${dirs.dist} and ${dirs.reports} (reports/meta.json missing)\n`);
     return { exitCode: EXIT_CODES.blocking, report: null };
   }
   const { entities, variations } = toInternalData(dataset);
@@ -55,20 +59,31 @@ export async function runValidate(
   return { exitCode: failed ? EXIT_CODES.blocking : EXIT_CODES.success, report };
 }
 
-/** `diff <from> <to>`: `changes.json` from the release in `from` to the one in `to` (directories). */
+/** The release of a directory holding `dist/` and `reports/` (e.g. a checkout). */
+export function releaseIn(dir: string): ReleaseDirs {
+  return { dist: join(dir, 'dist'), reports: join(dir, 'reports') };
+}
+
+/**
+ * `diff <from> <to>`: `changes.json` from the release in `from` to the one in `to`, each a
+ * directory holding `dist/` and `reports/`.
+ */
 export async function runDiff(from: string, to: string, out: string | undefined, io: PublishedIo): Promise<ExitCode> {
-  const [previous, current] = await Promise.all([loadPublishedDataset(from), loadPublishedDataset(to)]);
+  const [previous, current] = await Promise.all([
+    loadPublishedDataset(releaseIn(from)),
+    loadPublishedDataset(releaseIn(to)),
+  ]);
   for (const [dir, dataset] of [
     [from, previous],
     [to, current],
   ] as const) {
     if (dataset === null) {
-      io.err(`diff: no release in ${dir} (meta.json missing)\n`);
+      io.err(`diff: no release in ${dir} (reports/meta.json missing)\n`);
       return EXIT_CODES.blocking;
     }
   }
   if (previous === null || current === null) return EXIT_CODES.blocking;
-  const changes = parsePublicFile(
+  const changes = parseReleaseFile(
     'changes',
     computeChanges(previous, current, {
       data_version: current.meta.data_version,

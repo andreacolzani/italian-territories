@@ -10,11 +10,12 @@
  */
 import { compareEnds, cover } from '../build/timeline.ts';
 import { compareDates, type HalfOpenInterval } from '../dates/index.ts';
+import type { EntityId } from '../model/common.ts';
 import type { Anomaly, Entity } from '../model/internal.ts';
 import { describeRange, intersection, range, violation } from './anomaly.ts';
 import type { InvariantEntities } from './world.ts';
 
-type Referencing = HalfOpenInterval & { id: number };
+type Referencing = HalfOpenInterval;
 
 /** The parts of `interval` not covered by the versions of `parent`. */
 function uncovered(interval: HalfOpenInterval, parent: Entity | undefined): HalfOpenInterval[] {
@@ -31,20 +32,20 @@ function uncovered(interval: HalfOpenInterval, parent: Entity | undefined): Half
 
 export function checkI4(entities: InvariantEntities): Anomaly[] {
   const anomalies: Anomaly[] = [];
-  const regions = new Map<number, Entity>(entities.region.map((e) => [e.id, e]));
-  const provinces = new Map<number, Entity>(entities.province.map((e) => [e.id, e]));
+  const regions = new Map<EntityId, Entity>(entities.region.map((e) => [e.id, e]));
+  const provinces = new Map<EntityId, Entity>(entities.province.map((e) => [e.id, e]));
   const check = (
     level: 'province' | 'municipality',
     entity: Entity,
     version: Referencing,
     field: 'regionId' | 'provinceId',
-    target: number | null,
+    target: EntityId | null,
   ): void => {
     const parentLevel = field === 'regionId' ? 'region' : 'province';
-    const context = { level, entityId: entity.id, versionId: version.id, field, parentLevel };
+    const context = { level, entityId: entity.id, versionFrom: version.validFrom, field, parentLevel };
     if (target === null) {
       anomalies.push(
-        violation('I4', `${level} entity ${entity.id}, version ${version.id}: ${field} is undetermined`, {
+        violation('I4', `${level} entity ${entity.id}, version from ${version.validFrom}: ${field} is undetermined`, {
           ...context,
           target,
         }),
@@ -58,8 +59,8 @@ export function checkI4(entities: InvariantEntities): Anomaly[] {
       violation(
         'I4',
         parent === undefined
-          ? `${level} entity ${entity.id}, version ${version.id}: ${field} ${target} references no ${parentLevel} entity`
-          : `${level} entity ${entity.id}, version ${version.id}: ${parentLevel} entity ${target} has no version over ${missing.map(describeRange).join(', ')}`,
+          ? `${level} entity ${entity.id}, version from ${version.validFrom}: ${field} ${target} references no ${parentLevel} entity`
+          : `${level} entity ${entity.id}, version from ${version.validFrom}: ${parentLevel} entity ${target} has no version over ${missing.map(describeRange).join(', ')}`,
         { ...context, target, validFrom: version.validFrom, validTo: version.validTo, uncovered: missing },
       ),
     );
@@ -90,15 +91,22 @@ export function checkI5(entities: InvariantEntities): Anomaly[] {
         .filter((p) => p.regionId !== null && p.regionId !== regionId)
         .flatMap((p) => {
           const common = intersection(version, p);
-          return common === null ? [] : [{ ...common, provinceVersionId: p.id, provinceRegionId: p.regionId }];
+          return common === null ? [] : [{ ...common, provinceVersionFrom: p.validFrom, provinceRegionId: p.regionId }];
         })
         .sort((a, b) => compareDates(a.validFrom, b.validFrom) || compareEnds(a.validTo, b.validTo));
       if (conflicts.length === 0) continue;
       anomalies.push(
         violation(
           'I5',
-          `municipality entity ${entity.id}, version ${version.id}: regionId ${regionId} differs from the region of its province ${provinceId} over ${conflicts.map(describeRange).join(', ')}`,
-          { level: 'municipality', entityId: entity.id, versionId: version.id, provinceId, regionId, conflicts },
+          `municipality entity ${entity.id}, version from ${version.validFrom}: regionId ${regionId} differs from the region of its province ${provinceId} over ${conflicts.map(describeRange).join(', ')}`,
+          {
+            level: 'municipality',
+            entityId: entity.id,
+            versionFrom: version.validFrom,
+            provinceId,
+            regionId,
+            conflicts,
+          },
         ),
       );
     }

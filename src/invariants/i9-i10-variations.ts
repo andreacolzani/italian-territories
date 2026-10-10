@@ -2,7 +2,7 @@
  * Invariants on how the variations refer to the versions (§8.1):
  *
  * - **I9** every version boundary is referenced by a participant of a variation dated on it
- *   (`versionAfterId` for an opened version, `versionBeforeId` for a closed one); the only
+ *   (`versionAfter` for an opened version, `versionBefore` for a closed one, both by `validFrom`); the only
  *   exception are the versions starting on the first calendar date (`PV`). Every referenced entity
  *   and version exists, belongs to the participant's entity and has the variation's date as its
  *   start (after) or end (before).
@@ -10,13 +10,13 @@
  *   with a role is consistent with the role table (§4.3), and every variation has at least one.
  *   Participants with `role: null` are the no-effect ones the emitter drops (§6.12).
  */
-import { LEVELS, participantRoleViolations, type Level } from '../model/common.ts';
+import { LEVELS, participantRoleViolations, type EntityId, type Level } from '../model/common.ts';
 import type { Anomaly, Entity, Participant, Variation } from '../model/internal.ts';
 import { violation } from './anomaly.ts';
 import type { InvariantEntities } from './world.ts';
 import type { IsoDate } from '../dates/index.ts';
 
-type Index = Map<number, Entity>;
+type Index = Map<EntityId, Entity>;
 
 function indexByLevel(entities: InvariantEntities): Record<Level, Index> {
   return {
@@ -34,8 +34,10 @@ export function checkI9(options: {
   const { entities, variations, start } = options;
   const anomalies: Anomaly[] = [];
   const index = indexByLevel(entities);
-  /** `<level>|before|<version id>` / `<level>|after|<version id>` referenced by a variation of the boundary date. */
+  /** `<level>|<entity>|<side>|<validFrom>` of the versions referenced by a variation of the boundary date. */
   const referenced = new Set<string>();
+  const ref = (level: Level, entityId: EntityId, side: 'before' | 'after', validFrom: IsoDate): string =>
+    `${level}|${entityId}|${side}|${validFrom}`;
 
   for (const variation of variations) {
     const context = { variationId: variation.id, date: variation.date };
@@ -53,25 +55,25 @@ export function checkI9(options: {
       }
       if (p.role === null) continue;
       for (const [side, id] of [
-        ['before', p.versionBeforeId],
-        ['after', p.versionAfterId],
+        ['before', p.versionBefore],
+        ['after', p.versionAfter],
       ] as const) {
         if (id === null) continue;
-        const version = entity.versions.find((v) => v.id === id);
+        const version = entity.versions.find((v) => v.validFrom === id);
         const boundary = version === undefined ? undefined : side === 'before' ? version.validTo : version.validFrom;
         if (version === undefined || boundary !== variation.date) {
           anomalies.push(
             violation(
               'I9',
               version === undefined
-                ? `variation ${variation.id}: ${p.level} entity ${p.entityId} has no version ${id}`
-                : `variation ${variation.id}: ${p.level} version ${id} does not ${side === 'before' ? 'end' : 'start'} on ${variation.date}`,
-              { ...context, level: p.level, entityId: p.entityId, side, versionId: id },
+                ? `variation ${variation.id}: ${p.level} entity ${p.entityId} has no version from ${id}`
+                : `variation ${variation.id}: ${p.level} version from ${id} does not ${side === 'before' ? 'end' : 'start'} on ${variation.date}`,
+              { ...context, level: p.level, entityId: p.entityId, side, versionFrom: id },
             ),
           );
           continue;
         }
-        referenced.add(`${p.level}|${side}|${id}`);
+        referenced.add(ref(p.level, p.entityId, side, id));
       }
     }
     for (const link of variation.links) {
@@ -92,12 +94,12 @@ export function checkI9(options: {
   for (const level of LEVELS) {
     for (const entity of entities[level] as readonly Entity[]) {
       for (const version of entity.versions) {
-        const context = { level, entityId: entity.id, versionId: version.id };
-        if (version.validFrom !== start && !referenced.has(`${level}|after|${version.id}`)) {
+        const context = { level, entityId: entity.id, versionFrom: version.validFrom };
+        if (version.validFrom !== start && !referenced.has(ref(level, entity.id, 'after', version.validFrom))) {
           anomalies.push(
             violation(
               'I9',
-              `${level} entity ${entity.id}: version ${version.id} starting on ${version.validFrom} is opened by no variation`,
+              `${level} entity ${entity.id}: version from ${version.validFrom} is opened by no variation`,
               {
                 ...context,
                 side: 'after',
@@ -106,11 +108,11 @@ export function checkI9(options: {
             ),
           );
         }
-        if (version.validTo !== null && !referenced.has(`${level}|before|${version.id}`)) {
+        if (version.validTo !== null && !referenced.has(ref(level, entity.id, 'before', version.validFrom))) {
           anomalies.push(
             violation(
               'I9',
-              `${level} entity ${entity.id}: version ${version.id} ending on ${version.validTo} is closed by no variation`,
+              `${level} entity ${entity.id}: version from ${version.validFrom} ending on ${version.validTo} is closed by no variation`,
               {
                 ...context,
                 side: 'before',
@@ -133,16 +135,12 @@ export function checkI10(options: { entities: InvariantEntities; variations: rea
       for (const version of entity.versions) {
         if (version.validFrom !== version.validTo) continue;
         anomalies.push(
-          violation(
-            'I10',
-            `${level} entity ${entity.id}: version ${version.id} has zero length (${version.validFrom})`,
-            {
-              level,
-              entityId: entity.id,
-              versionId: version.id,
-              date: version.validFrom,
-            },
-          ),
+          violation('I10', `${level} entity ${entity.id}: version from ${version.validFrom} has zero length`, {
+            level,
+            entityId: entity.id,
+            versionFrom: version.validFrom,
+            date: version.validFrom,
+          }),
         );
       }
     }
@@ -182,8 +180,8 @@ function participantContext(variation: Variation, p: Participant, problems: stri
     entityId: p.entityId,
     role: p.role,
     istatEvents: p.istatEvents,
-    versionBeforeId: p.versionBeforeId,
-    versionAfterId: p.versionAfterId,
+    versionBefore: p.versionBefore,
+    versionAfter: p.versionAfter,
     problems,
   };
 }

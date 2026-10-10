@@ -107,7 +107,7 @@ async function worldOf(
     extraUtsCodes: await knownUtsCodes(),
     overrides: applied,
     accounts: built.accounts,
-    variationIdOf: (key) => built.registry.get('variation', key),
+    variationIdOf: (key) => built.registry.variationId(key),
   };
   return { world, anomalies, applied };
 }

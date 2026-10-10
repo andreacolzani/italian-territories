@@ -1,7 +1,7 @@
 /**
  * Derived fields on real SITUAS fixtures (§7, Step 13): the Quero → Quero Vas → Setteville chain,
- * Sud Sardegna with several successors, Fiume (golden-9), partial cessions abroad (golden-18), Tenda
- * (golden-19) and Sassofeltrio active after a gap (golden-2).
+ * Sud Sardegna split into several successors (golden-4), Fiume (golden-9), partial cessions abroad
+ * (golden-18), Tenda (golden-19) and Sassofeltrio active after a gap (golden-2).
  *
  * The worlds are those of the variation tests (`fixtureWorld`); worlds of non-consecutive dates are
  * reduced to the codes of the case.
@@ -31,16 +31,23 @@ function derive(built: BuiltVariations): DerivedWorld {
   return world;
 }
 
-/** I11 (second part): every suppressed entity that is not former Italian has current successors. */
+/**
+ * I11 (second part): every suppressed municipality that is not former Italian has current successors;
+ * regions and provinces have none (D46).
+ */
 function withoutCurrentSuccessors(world: DerivedWorld): string[] {
   return LEVELS.flatMap((level) =>
     world[level]
-      .filter((e) => e.status === 'suppressed' && !e.isFormerItalian && e.currentSuccessors.length === 0)
+      .filter((e) =>
+        level === 'municipality'
+          ? e.status === 'suppressed' && !e.isFormerItalian && (e.currentSuccessors ?? []).length === 0
+          : e.currentSuccessors !== null,
+      )
       .map((e) => `${level} ${e.id} (${e.versions.at(-1)?.istatCode})`),
   );
 }
 
-const ascending = (ids: number[]) => [...ids].sort((a, b) => a - b);
+const ascending = (ids: string[]) => [...ids].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
 describe('Quero → Quero Vas → Setteville', async () => {
   const built = await fixtureWorld(['2013-12-27', '2013-12-28', '2024-01-21', '2024-01-22'], {
@@ -67,7 +74,7 @@ describe('Quero → Quero Vas → Setteville', async () => {
     expect(quero).toMatchObject({
       status: 'suppressed',
       isFormerItalian: false,
-      successors: [{ id: queroVas.id, kind: 'merged_into', date: '2013-12-28', variationId: merger?.id }],
+      successors: [{ id: queroVas.id, kind: 'merged_into', date: '2013-12-28' }],
       currentSuccessors: [setteville.id],
     });
     expect(vas.currentSuccessors).toEqual([setteville.id]);
@@ -76,10 +83,7 @@ describe('Quero → Quero Vas → Setteville', async () => {
   it('Quero Vas comes from Quero and Vas and resolves to Setteville', () => {
     expect(queroVas.status).toBe('suppressed');
     expect(queroVas.predecessors.map((l) => [l.id, l.kind, l.date])).toEqual(
-      [
-        [quero.id, 'merged_into', '2013-12-28'],
-        [vas.id, 'merged_into', '2013-12-28'],
-      ].sort((a, b) => (a[0] as number) - (b[0] as number)),
+      ascending([quero.id, vas.id]).map((id) => [id, 'merged_into', '2013-12-28']),
     );
     expect(queroVas.successors.map((l) => [l.id, l.kind, l.date])).toEqual([
       [setteville.id, 'merged_into', '2024-01-22'],
@@ -123,26 +127,24 @@ describe('Sud Sardegna with several successors (golden-4)', async () => {
   const uts = (code: string) => entityAt(world.province, code, '2026-01-01');
   const sudSardegna = entityAt(world.province, '111', '2025-12-31');
 
-  it('suppressed, merged into Nuoro, Ogliastra, Medio Campidano, Sulcis Iglesiente and Cagliari', () => {
+  it('suppressed, split into Nuoro, Ogliastra, Medio Campidano, Sulcis Iglesiente and Cagliari', () => {
     const successors = ascending(['114', '116', '117', '119', '318'].map((code) => uts(code).id));
-    const act = built.variations.find((v) => v.istatActId === 6151);
     expect(sudSardegna).toMatchObject({ status: 'suppressed', isFormerItalian: false });
-    expect(sudSardegna.successors).toEqual(
-      successors.map((id) => ({ id, kind: 'merged_into', date: '2026-01-01', variationId: act?.id })),
-    );
-    expect(sudSardegna.currentSuccessors).toEqual(successors);
+    expect(sudSardegna.successors).toEqual(successors.map((id) => ({ id, kind: 'split_into', date: '2026-01-01' })));
+    // A province: no current successors (D46).
+    expect(sudSardegna.currentSuccessors).toBeNull();
   });
 
   it('the entities renumbered or changed in type stay active without predecessors', () => {
     for (const code of ['114', '115', '312', '318']) {
-      expect(uts(code)).toMatchObject({ status: 'active', successors: [], currentSuccessors: [], predecessors: [] });
+      expect(uts(code)).toMatchObject({ status: 'active', successors: [], currentSuccessors: null, predecessors: [] });
     }
   });
 
   it('a new province lists the entities it was detached from or merged from', () => {
     const ogliastra = uts('116');
     expect(ogliastra.predecessors.map((l) => [l.id, l.kind])).toContainEqual([uts('114').id, 'detached_into']);
-    expect(ogliastra.predecessors.map((l) => [l.id, l.kind])).toContainEqual([sudSardegna.id, 'merged_into']);
+    expect(ogliastra.predecessors.map((l) => [l.id, l.kind])).toContainEqual([sudSardegna.id, 'split_into']);
     expect(withoutCurrentSuccessors(world)).toEqual([]);
   });
 });
@@ -172,10 +174,10 @@ describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
     const limone = at('004110', '1947-09-16');
     expect(tenda).toMatchObject({ status: 'suppressed', isFormerItalian: true });
     expect(tenda.successors.map((l) => [l.id, l.kind])).toEqual(
-      ascending([brigaAlta.id, limone.id]).map((id) => [id, 'merged_into']),
+      ascending([brigaAlta.id, limone.id]).map((id) => [id, 'split_into']),
     );
     expect(tenda.currentSuccessors).toEqual(ascending([brigaAlta.id, limone.id]));
-    expect(brigaAlta.predecessors.map((l) => [l.id, l.kind])).toContainEqual([tenda.id, 'merged_into']);
+    expect(brigaAlta.predecessors.map((l) => [l.id, l.kind])).toContainEqual([tenda.id, 'split_into']);
   });
 
   it('every municipality ceded abroad is former Italian; nothing else is suppressed without successors', () => {

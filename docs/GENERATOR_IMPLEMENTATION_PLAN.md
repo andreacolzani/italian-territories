@@ -2,7 +2,7 @@
 
 > **Audience:** Claude Code (and human maintainers).
 > **Purpose:** complete specification and step-by-step plan to implement the *generator* package, which builds a historically complete, day-accurate dataset of Italian regions, supra-municipal territorial units (UTS/provinces) and municipalities from 17 March 1861 to today, and keeps it up to date through GitHub Actions.
-> The Laravel consumer package is **out of scope** here; this document only defines the data contract it will consume.
+> The published dataset is **self-contained**: it describes the territories only, independently of how and by whom it is used and of any database structure (D39).
 
 ---
 
@@ -20,7 +20,7 @@
 ### 1.1 Goals
 
 1. For each territorial level (region, UTS/province, municipality), produce the full history of every entity as a list of **versions** with validity dates, so that a consumer can answer: *which regions / provinces / municipalities existed on date D, with which names, codes and memberships?*
-2. Link entities through **variations** (suppressions, establishments, mergers, splits, territory transfers, cessions abroad, annexations) so that a consumer can move a stored reference (e.g. an address or a birthplace) to the **currently valid** entity.
+2. Link entities through **predecessors and successors**, derived from the variations (suppressions, establishments, mergers, splits, territory transfers, cessions abroad, annexations), so that a consumer can move a stored reference (e.g. an address or a birthplace) to the **currently valid** entity. Variations themselves are internal (§9).
 3. Guarantee **consistency and completeness** through machine-checked invariants.
 4. Keep the dataset **up to date automatically** (weekly), fetching only what changed, while detecting retroactive corrections made by ISTAT.
 
@@ -36,7 +36,8 @@
 
 - No geometry/boundaries.
 - No street-level or *frazione*-level data.
-- No Laravel/DB code (separate package).
+- No code or published structure shaped for a particular use, application or database (D39).
+- No ISTAT history (acts, variations, ISTAT ids) and no synchronisation tools (diffs between releases) in the published dataset: they stay internal reports of the generator (§9).
 
 ---
 
@@ -48,7 +49,7 @@
 | **Version** | A maximal period during which *all* published attributes of an entity are constant. |
 | **Variation** | An ISTAT act (*provvedimento*) applied on a given date, with N participants and M links. |
 | **Participant** | An entity affected by a variation, with the ISTAT event codes it received and the versions it closed/opened. |
-| **Link** | A territory flow between two entities of the same level inside a variation (`merged_into`, `detached_into`, `transferred_to`). |
+| **Link** | A territory flow between two entities of the same level inside a variation (`merged_into`, `detached_into`, `transferred_to`); published only through the derived `predecessors`/`successors` (§7), where a `merged_into` towards several destinations becomes `split_into`. |
 | **Snapshot** | The complete list of territories of one level existing on one date, as returned by SITUAS public "existing at date" APIs. |
 | **Breakpoint** | A date on which at least one snapshot may differ from the previous day. |
 | **Regime** | A period for which SITUAS exposes a specific snapshot function (`pfun`): ≤1927-01-11, 1927-01-12…1947-12-31, ≥1948-01-01. |
@@ -186,53 +187,67 @@ Common entity fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | positive integer | Our stable id, per level, from the registry (§5). Never reused. |
-| `istat_origin_id` | integer \| null | ISTAT `id_regione_origine` / `id_uts_origine` / `id_comune_origine`. |
+| `id` | string | Our stable id `<prefix>-<code>`: prefix `reg`, `prv` or `mun`, code of 6 Crockford base32 characters (e.g. `mun-WJG7J5`), from the registry (§5.3). Never reused, never changed. |
 | `status` | `"active"` \| `"suppressed"` | Derived: `active` iff the last version has `valid_until = null`. |
 | `is_former_italian` | boolean | Derived, §7. |
 | `predecessors` | Link[] | Derived, §7. |
 | `successors` | Link[] | Derived, §7. |
-| `current_successors` | integer[] | Derived, §7. Ids of currently active entities of the same level. |
+| `current_successors` | string[] | Municipalities only (D46). Derived, §7. Ids of currently active municipalities. |
 | `versions` | Version[] | Sorted by `valid_from`. |
 
-`Link = { "id": <entity id>, "kind": "merged_into" | "detached_into" | "transferred_to", "date": "YYYY-MM-DD", "variation_id": <int> }`
+`Link = { "id": <entity id>, "kind": "merged_into" | "split_into" | "detached_into", "date": "YYYY-MM-DD" }`
 
-Common version fields: `id` (stable integer, per level), `valid_from`, `valid_until`, `istat_code`, `official_name`, `italian_name`, `foreign_name` (nullable).
+No ISTAT identifier is published (D41): origin ids, act ids and variations stay internal (§5.5, §9).
+
+Common version fields: `valid_from`, `valid_until`, `istat_code`, `official_name`, `italian_name`, `foreign_name` (nullable). A version has **no id of its own**: it is identified by `(entity id, valid_from)` (D40); versions have no id anywhere, internal reports and registry included (§5.3).
 
 Level-specific version fields:
 
 | Level | Fields |
 |---|---|
 | Region | `type`: `"compartment"` \| `"region"` |
-| UTS | `type`: `"province"` \| `"autonomous_province"` \| `"metropolitan_city"` \| `"free_municipal_consortium"` \| `"non_administrative_unit"` (ISTAT 1..5); `abbreviation`: string matching `^[A-Z]{2}$` (never null); `region_id` |
-| Municipality | `cadastral_code`: string \| null; `province_id`; `region_id` (denormalised, must equal the province's region) |
+| UTS | `type`: `"province"` \| `"autonomous_province"` \| `"metropolitan_city"` \| `"free_municipal_consortium"` \| `"non_administrative_unit"` (ISTAT 1..5); `abbreviation`: string matching `^[A-Z]{2}$` (never null); `region_id` (string, a region entity id) |
+| Municipality | `cadastral_code`: string \| null; `province_id` (string, a UTS entity id); `region_id` (string, denormalised, must equal the province's region) |
 
 **Version split rule** (all levels): a new version starts whenever **any** published version field changes, including `province_id`/`region_id` (entity references). Attribute changes of a parent (rename, abbreviation, type, code of the province) do **not** split child versions. Consecutive identical states are always collapsed (maximal versions).
 
 Names:
 - Municipalities: `official_name` ← `COMUNE`, `italian_name` ← `COMUNE_IT`, `foreign_name` ← `COMUNE_A` (null if absent). Never split strings.
-- Regions and UTS: `official_name` ← denomination; if it contains `/`, `italian_name` is the part before and `foreign_name` the part after (e.g. `Valle d'Aosta/Vallée d'Aoste`, `Trentino-Alto Adige/Südtirol`, `Bolzano/Bozen`); otherwise `italian_name = official_name`, `foreign_name = null`. Never split on `-`.
+- Regions and UTS: `official_name` ← denomination. Without `/`, `italian_name = official_name` and `foreign_name = null`. A denomination with `/` is bilingual: `italian_name` and `foreign_name` come from a **closed table** (D7), one entry per denomination, valid at every level that uses it. Every entry has a source: a normative reference is required only where the decomposition is not the trivial split of the two sides of the `/` (`Trentino-Alto Adige/Südtirol` → `Trentino-Südtirol`); otherwise the ISTAT official denomination is sufficient (a normative reference may be added when found, it never blocks the table):
+
+  | `official_name` | `italian_name` | `foreign_name` | Source |
+  |---|---|---|---|
+  | `Trentino-Alto Adige/Südtirol` | `Trentino-Alto Adige` | `Trentino-Südtirol` | statute of autonomy (D.P.R. 31 August 1972, n. 670) |
+  | `Valle d'Aosta/Vallée d'Aoste` | `Valle d'Aosta` | `Vallée d'Aoste` | ISTAT official denomination |
+  | `Bolzano/Bozen` | `Bolzano` | `Bozen` | ISTAT official denomination |
+
+  - **Decomposition rule**, a check only: `-` separates territories, `/` separates the languages of one territory; every territory gives its Italian form (or its only form) to `italian_name` and its foreign form (or its only form) to `foreign_name`, joined again with `-` (`Trentino` + `Alto Adige/Südtirol` → `Trentino-Alto Adige` / `Trentino-Südtirol`). Its result must coincide with every entry of the table: an entry that differs is a defect of the repository and the table refuses to load (an error, like an invalid override file, §6.10).
+  - A denomination with `/` that is not in the table is `blocking` (`bilingual-name-unknown`, one per denomination, with the level, codes and dates using it); the message reports the decomposition suggested by the rule, to be checked against a source before the entry is added. Its names stay null internally, like an undetermined field (§6.9): the emitter refuses to publish them.
+  - Verified on the full run of 2026-10-08: the only denominations with `/` are the four uses of the three entries above (regions `04` and `02`, UTS `007` and `021`).
 - All strings are Unicode NFC, trimmed, ISTAT casing preserved.
 
 ### 4.3 Variations
 
+Variations are **internal** (D39): the generator builds them to derive the published links (§7), check the invariants (§8) and classify retroactive changes (§10.2), and writes them to the internal report `reports/variations.json` (§9), never to the published dataset. Participants reference versions by their identity `(territory_id, valid_from)`: `version_before` and `version_after` hold the `valid_from` of the closed and opened version (D40).
+
 ```jsonc
 {
-  "id": 1843,                       // stable integer from registry
+  // ids and version dates are illustrative
+  "id": 1843,                       // internal integer from the registry
   "date": "2026-01-01",             // first day of the new state
   "istat_act_id": 6151,             // null if unknown / inferred
   "origin": "istat",                // "istat" | "inferred"
   "description": "ISTITUITE LA CITTA' METROPOLITANA DI SASSARI ...",  // ISTAT text, nullable
   "participants": [
-    { "level": "province", "territory_id": 95, "istat_events": ["AQES", "CECS", "RN"], "abroad": false,
-      "role": "changed", "version_before_id": 812, "version_after_id": 813 },
-    { "level": "province", "territory_id": 146, "istat_events": ["CS"], "abroad": false,
-      "role": "established", "version_before_id": null, "version_after_id": 901 },
-    { "level": "municipality", "territory_id": 10704, "istat_events": ["RN"], "abroad": false,
-      "role": "changed", "version_before_id": 3, "version_after_id": 4 }
+    { "level": "province", "territory_id": "prv-K2M8VT", "istat_events": ["AQES", "CECS", "RN"], "abroad": false,
+      "role": "changed", "version_before": "1974-08-20", "version_after": "2026-01-01" },
+    { "level": "province", "territory_id": "prv-8ZQ1KD", "istat_events": ["CS"], "abroad": false,
+      "role": "established", "version_before": null, "version_after": "2026-01-01" },
+    { "level": "municipality", "territory_id": "mun-WJG7J5", "istat_events": ["RN"], "abroad": false,
+      "role": "changed", "version_before": "1974-09-13", "version_after": "2026-01-01" }
   ],
   "links": [
-    { "level": "province", "from": 126, "to": 146, "kind": "merged_into" }
+    { "level": "province", "from": "prv-1D7R3M", "to": "prv-8ZQ1KD", "kind": "merged_into" }
   ]
 }
 ```
@@ -241,9 +256,9 @@ Participant `role` is derived from the participant's **effect**, not from event 
 
 | Role | Condition |
 |---|---|
-| `established` | `version_before_id = null`, `version_after_id ≠ null`, own event `CS`/`CSCT` |
+| `established` | `version_before = null`, `version_after ≠ null`, own event `CS`/`CSCT` |
 | `annexed` | as above, own event `AN` |
-| `suppressed` | `version_before_id ≠ null`, `version_after_id = null`, own event `ES`/`ESCT` |
+| `suppressed` | `version_before ≠ null`, `version_after = null`, own event `ES`/`ESCT` |
 | `ceded` | as above, own event `AS` |
 | `changed` | both non-null, entity has own events |
 | `territory_changed` | both null; only territorial events (`AQ`, `CE`, `AQES`, `CECS`) and no attribute change |
@@ -251,7 +266,7 @@ Participant `role` is derived from the participant's **effect**, not from event 
 
 Participant `abroad` (boolean): `true` when the counterpart of one of its events is a foreign state (`AS`, `AN`, `CE` or `AQ` with `Stato estero`, §3.5 item 15), otherwise `false`. It requires one of those events. A foreign counterpart never produces a link (D31).
 
-Participations with **no effect** (no version change, no link, not territorial) are dropped from public output and logged at `info` level (e.g. the same-day `AP` of a municipality suppressed on that day). An event without effect is dropped even when the same participant has other events with effect in the variation (golden-6: Finalborgo's `AP` and `ES` share act 2767; the participant is `["ES"]` and the `AP` row is dropped).
+Participations with **no effect** (no version change, no link, not territorial) are dropped from the variations and logged at `info` level (e.g. the same-day `AP` of a municipality suppressed on that day). An event without effect is dropped even when the same participant has other events with effect in the variation (golden-6: Finalborgo's `AP` and `ES` share act 2767; the participant is `["ES"]` and the `AP` row is dropped).
 
 Version boundaries without an own event of the entity (I9):
 - a boundary between contiguous versions where the province or region changes gets an `indirect` participant in the variation of that date in which an old or new parent (province or region) participates; with several, the first by natural key;
@@ -269,36 +284,38 @@ Link kinds (same level only; each link appears once even if ISTAT reports it fro
 
 Cessions abroad and annexations are expressed by roles (`ceded`, `annexed`) and have no link.
 
+These are the kinds of the (internal) variation links. The published `predecessors`/`successors` (§7) turn the `merged_into` links of one origin towards several destinations on the same date into `split_into`, and never contain `transferred_to` (its `from` survives and its `to` already existed, so it is neither on the last version end of a suppressed entity nor on the first version start of an entity).
+
 The kind follows from the effect: `merged_into` when `from` no longer exists on the date, otherwise `detached_into` when `to` did not exist the day before, otherwise `transferred_to`. Territory flows: subject → related for `ES`, `ESCT`, `AS`, `CE`, `CECS`; related → subject for `CS`, `CSCT`, `AN`, `AQES`, `AQ`; none for changes of attribute. A link between two states of the same entity is not a link (e.g. `ESCT` Sassari `090` → `312`).
 
-Grouping: one variation per `(istat_act_id, date)`, across levels. When the act id is unknown (public rows without a matching internal event), the rows of one date and level are grouped into the **connected components** of the entities they mention (subject or related territory), with `istat_act_id = null`; such a group never joins a variation with an act id, whose events are exactly those matched to that act. `PV` never produces a variation: versions starting on 1861-03-17 with `PV` have no opening variation.
+Grouping: one variation per `(istat_act_id, date)`, across levels. When the act id is unknown (public rows without a matching internal event), the rows of one date and level are grouped into the **connected components** of the entities they mention (subject or related territory), with `istat_act_id = null`; such a group never joins a variation with an act id, whose events are exactly those matched to that act. A public row without act whose link `(date, level, from, to)`, the kind aside, already exists in a variation with an act is **explained by that variation** (D43): it forms no `nk:` variation and takes no part in the connected components, its account (I14) is that variation, and the rows explained this way are one aggregated `info` (`link-explained-by-act`, count and items in `context`). Verified on the full run of 2026-10-08: the two `ESCT` rows of pfun 106 of 1948-01-01, Piemonte → Valle d'Aosta and Veneto → Friuli-Venezia Giulia, repeat the `detached_into` links of act 6107 (Piemonte and Veneto have `ES` + `CSCT` there, §6.7) and formed two `nk:` variations, the only ones of this kind; they gave Valle d'Aosta and Friuli-Venezia Giulia duplicated predecessors (golden-15). `PV` never produces a variation: versions starting on 1861-03-17 with `PV` have no opening variation.
 
 ### 4.4 Published example (abridged)
 
 ```jsonc
 // municipalities.json — current Siamanna (born 1947 as Siamanna-Siapiccia)
 {
-  "id": 10704, "istat_origin_id": 10704, "status": "active", "is_former_italian": false,
-  "predecessors": [ { "id": 11020, "kind": "detached_into", "date": "1947-11-28", "variation_id": 5856 } ],
+  "id": "mun-WJG7J5", "status": "active", "is_former_italian": false,
+  "predecessors": [ { "id": "mun-3Z4B94", "kind": "detached_into", "date": "1947-11-28" } ],
   "successors": [], "current_successors": [],
   "versions": [
-    { "id": 1, "valid_from": "1947-11-28", "valid_until": "1974-08-19", "istat_code": "092128", "cadastral_code": "I719",
+    { "valid_from": "1947-11-28", "valid_until": "1974-08-19", "istat_code": "092128", "cadastral_code": "I719",
       "official_name": "Siamanna-Siapiccia", "italian_name": "Siamanna-Siapiccia", "foreign_name": null,
-      "province_id": 92, "region_id": 20 },
-    { "id": 2, "valid_from": "1974-08-20", "valid_until": "1974-09-12", "istat_code": "095057", "cadastral_code": "I719",
+      "province_id": "prv-2KA4XZ", "region_id": "reg-0W14C8" },
+    { "valid_from": "1974-08-20", "valid_until": "1974-09-12", "istat_code": "095057", "cadastral_code": "I719",
       "official_name": "Siamanna-Siapiccia", "italian_name": "Siamanna-Siapiccia", "foreign_name": null,
-      "province_id": 95, "region_id": 20 },
-    { "id": 3, "valid_from": "1974-09-13", "valid_until": "2025-12-31", "istat_code": "095057", "cadastral_code": "I718",
+      "province_id": "prv-ZY50X3", "region_id": "reg-0W14C8" },
+    { "valid_from": "1974-09-13", "valid_until": "2025-12-31", "istat_code": "095057", "cadastral_code": "I718",
       "official_name": "Siamanna", "italian_name": "Siamanna", "foreign_name": null,
-      "province_id": 95, "region_id": 20 },
-    { "id": 4, "valid_from": "2026-01-01", "valid_until": null, "istat_code": "115064", "cadastral_code": "I718",
+      "province_id": "prv-ZY50X3", "region_id": "reg-0W14C8" },
+    { "valid_from": "2026-01-01", "valid_until": null, "istat_code": "115064", "cadastral_code": "I718",
       "official_name": "Siamanna", "italian_name": "Siamanna", "foreign_name": null,
-      "province_id": 95, "region_id": 20 }
+      "province_id": "prv-ZY50X3", "region_id": "reg-0W14C8" }
   ]
 }
 ```
 
-(Ids are illustrative. Note version 4: only `istat_code` changes because the Oristano province entity was renumbered; `province_id` is unchanged.)
+(Ids are illustrative. Note the version starting on 2026-01-01: only `istat_code` changes because the Oristano province entity was renumbered; `province_id` is unchanged.)
 
 ---
 
@@ -307,7 +324,7 @@ Grouping: one variation per `(istat_act_id, date)`, across levels. When the act 
 ### 5.1 Entity identity
 
 - **Regions**: entity = `id_regione_origine` (compartment and region with the same origin id are the same entity; e.g. Piemonte, id 14).
-- **UTS**: entity = connected component of the graph whose nodes are `id_uts` values and whose edges are `id_uts → id_uts_origine` (union-find over all internal event rows). The entity's canonical ISTAT id (`istat_origin_id`) is the **root** of the chain, i.e. the `id_uts` of the oldest record (Milano: 9; Cagliari: 59; Sassari: 58). A type change (`ESCT`/`CSCT`) creates a new `id_uts` within the same entity; `RN` keeps the same `id_uts`. Reconstituted provinces with new, unlinked ISTAT ids are **new entities** (Ogliastra 146, Medio Campidano 144).
+- **UTS**: entity = connected component of the graph whose nodes are `id_uts` values and whose edges are `id_uts → id_uts_origine` (union-find over all internal event rows). The entity's canonical ISTAT id (internal, the registry key `istat:<root>`, §5.3) is the **root** of the chain, i.e. the `id_uts` of the oldest record (Milano: 9; Cagliari: 59; Sassari: 58). A type change (`ESCT`/`CSCT`) creates a new `id_uts` within the same entity; `RN` keeps the same `id_uts`. Reconstituted provinces with new, unlinked ISTAT ids are **new entities** (Ogliastra 146, Medio Campidano 144).
 - The same union-find approach is applied to regions (`id_regione_origine`) and municipalities (`id_comune_origine`) for uniformity, even where ISTAT currently exposes a single id per entity.
 - **Municipalities**: entity = `id_comune_origine`. Reconstituted municipalities with the same id are the **same entity** with a gap (Sassofeltrio). The cadastral code is a version attribute (it can change inside an entity: Siamanna I719 → I718 on 1974-09-13).
 - Identity is **never** inferred from names, abbreviations or codes across non-consecutive snapshots.
@@ -318,26 +335,31 @@ Municipality structure (versions, links) is buildable from public data alone (§
 
 ### 5.3 Registry
 
-Files committed in `registry/`, one per kind: entities (`regions.json`, `provinces.json`, `municipalities.json`), versions (`region-versions.json`, `province-versions.json`, `municipality-versions.json`) and `variations.json`. Each maps a **natural key** to a stable integer id, plus a `next_id` counter per kind; `remaps.json` records the keys that changed (Step 9).
+Files committed in `registry/`, one per kind: entities (`regions.json`, `provinces.json`, `municipalities.json`) and `variations.json`. Each maps a **natural key** to a stable id; `remaps.json` records the keys that changed (Step 9). The registry is internal: only the entity ids are published.
+
+- **Entity ids** (D42) are strings `<prefix>-<code>`: prefix `reg`, `prv` or `mun` by level; code of 6 characters in Crockford base32 (alphabet `0123456789ABCDEFGHJKMNPQRSTVWXYZ`, uppercase), i.e. 30 bits of the SHA-256 of the UTF-8 string `<level>|<natural key>` (`region`, `province` or `municipality`, e.g. `region|istat:9`), the natural key being the one with which the entity **first enters the registry**: the level in the hashed string makes the codes of different levels differ even without the prefix. Window `k` (`k = 0, 1, …, 7`) is bits `[30k, 30k + 30)` of the digest, most significant bit first, 5 bits per character; window 0 is used unless its id is already taken in the level's registry by another key (collisions are checked per level) (an entry of any time, whatever its current key), in which case the next window is used, deterministically. All eight windows taken is an error of the registry (never expected: about 10⁹ codes for about 10⁴ entities per level). The registry keeps the correspondence: the id **never changes**, also when the natural key changes (remap, re-keying): it is never recomputed from the current key. Pattern `^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$`.
+- **Variation ids** stay positive integers with a `next_id` counter; they are internal (§9).
+- **Versions** have no id and no registry (D40): a version is `(entity id, valid_from)` everywhere, internal model and reports included. A version whose `valid_from` moves is a different version; the change is classified by `changes.json` (removed and added, retroactive when the days are before the previous `data_version`, §10.2).
 
 | Object | Natural key |
 |---|---|
 | Entity | `istat:<root origin id>` (root of the union-find chain, §5.1); fallback `nk:<level>:<first istat_code>:<first valid_from>` when no origin id is available yet (re-keyed when it becomes available) |
-| Version | `<entity id>:<validFrom>` |
 | Variation | `act:<istat_act_id>:<date>`; fallback `nk:<date>:<level>:<entity id>` (the smallest subject entity id of the group, §4.3); inferred `inferred:<date>:<level>:<entity id>` |
 
 Rules:
-- Ids are assigned on first appearance and **never reused or renumbered**.
-- If a retroactive correction changes a natural key (e.g. a `validFrom` moves), the build does not silently create a new id: the remap is applied and recorded in `remaps.json`; a retroactive run reaches `main` only through a PR (§10.2).
-- An `nk:` entity that gains its ISTAT origin id is re-keyed to `istat:<root>` with the same id; the correspondence goes into `remaps.json`, but it is **not** retroactive (only `istat_origin_id` changes, which is not a dated field).
-- Re-keying goes from `nk:` to `istat:` only, **never back**: missing internal data must never change the id of a registered entity. A registered `istat:<root>` entity whose internal history is absent from the run (its key is not produced and none of its members is in any identity component of the run, e.g. an r6 missing from the store in an offline `rebuild`) is `internal-data-required` (`blocking`): the run never gives it an `nk:` key with a new id, and `dist/` and `registry/` are not written. The anomaly carries `cause`: `unavailable` when the history is missing because a request of the level could not be obtained (network, exhausted retries, open circuit, a report missing from the store in an offline `rebuild`), exit 3 when nothing else blocks; `absent` when every request succeeded and the history is not there, exit 1 (Step 17).
+- Ids are assigned on first appearance and **never reused or renumbered**. New entity keys of one run are assigned in the total order of Step 9 (first `validFrom`, first ISTAT code, natural key), which decides the windows when two new keys collide.
+- If a retroactive correction changes the natural key of an entity (e.g. its root changes), the build does not silently create a new id: the remap is applied and recorded in `remaps.json`; a retroactive run reaches `main` only through a PR (§10.2).
+- An `nk:` entity that gains its ISTAT origin id is re-keyed to `istat:<root>` with the same id; the correspondence goes into `remaps.json`, but it is **not** retroactive (no published field changes: the id was derived from the `nk:` key and stays).
+- Re-keying goes from `nk:` to `istat:` only, **never back**: missing internal data must never change the id of a registered entity. A registered `istat:<root>` entity whose internal history is absent from the run (its key is not produced and none of its members is in any identity component of the run, e.g. an r6 missing from the store in an offline `rebuild`) is `internal-data-required` (`blocking`): the run never gives it an `nk:` key with a new id, and `dist/`, `reports/` and `registry/` are not written. The anomaly carries `cause`: `unavailable` when the history is missing because a request of the level could not be obtained (network, exhausted retries, open circuit, a report missing from the store in an offline `rebuild`), exit 3 when nothing else blocks; `absent` when every request succeeded and the history is not there, exit 1 (Step 17).
 - Registry changes are part of the data commit and are reviewed like data.
 
 ### 5.4 Ids and database friendliness
 
-All public ids are positive integers, unique per level (entities, versions) and globally unique for variations. Consumers can use them as primary keys.
+The only public ids are the entity ids: strings unique across the whole dataset (the prefix tells the level), stable forever and independent of ISTAT numbering. A version is identified by `(entity id, valid_from)`, which is unique by I1. The dataset prescribes no database structure (D39): consumers choose their own keys.
 
 ### 5.5 Internal-only fields
+
+Not published (D39–D41): the ISTAT origin ids (`id_regione_origine`, `id_uts_origine`, `id_comune_origine`, kept in the registry keys and entries), the variation ids, the variations themselves with their ISTAT acts and events, and the `transferred_to` links.
 
 `COD_PROV_STORICO` (UTS "historical code", i.e. the municipality code prefix) is kept in the internal model only and used by invariant I7. It is **not** published. Where SITUAS omits it (§3.5 item 16) the historical code falls back to the UTS code (`COD_UTS` of the row); before 1948 it is the UTS code. The fallback is not assumed correct: I7 verifies it.
 
@@ -554,8 +576,9 @@ Classify discrepancies (never blocking). Warnings are one anomaly per divergence
 
 ### 6.12 Emit
 
-- Convert to the public model (§4): inclusive `valid_until`, drop internal-only fields, drop no-effect participations.
-- Deterministic output: entities sorted by `id`, versions by `valid_from`, participants by `(level, territory_id)`, links by `(level, from, to)`; fixed key order; 2-space indentation; trailing newline; UTF-8 without BOM.
+- Convert to the public model (§4): inclusive `valid_until`, drop internal-only fields (§5.5).
+- Write the public files to `dist/` and the internal reports (variations without no-effect participations, anomalies, changes, meta) to `reports/` (§9).
+- Deterministic output: entities sorted by their internal ISTAT id (the root of their identity component, §5.1, i.e. the `istat:<root>` key of the registry), numerically ascending, at every level; entities without ISTAT id (`nk:` keys) come last, by the `valid_from` of their first version, then by `id`. The order is stable between releases also when an ISTAT code changes (the root does not change with codes); it is presentation only, not part of the contract (Step 19). Versions sorted by `valid_from`, participants by `(level, territory_id)`, links by `(level, from, to)`; fixed key order; 2-space indentation; trailing newline; UTF-8 without BOM.
 
 ---
 
@@ -564,21 +587,23 @@ Classify discrepancies (never blocking). Warnings are one anomaly per divergence
 Computed after overrides, per level:
 
 - **`status`**: `active` iff the last version is open.
-- **Source of the links**: by date, from **every** variation of that date (same level only), whatever act references the version boundary: a cession (`AS`) and a partial transfer (`CE`) of the same day in different acts both count. The links of all those variations are joined without duplicates and sorted by linked entity id, then kind, then variation id. Participants without effect are ignored; participants matter only to read the role that closed the last version (below).
+- **Source of the links**: by date, from **every** variation of that date (same level only), whatever act references the version boundary: a cession (`AS`) and a partial transfer (`CE`) of the same day in different acts both count. The links of all those variations are joined, `transferred_to` excluded (§4.3), as public links `{ id, kind, date }`, without duplicates (the same `(id, kind, date)` from several variations is one link) and sorted by linked entity id, then kind. Participants without effect are ignored; participants matter only to read the role that closed the last version (below).
+- **`split_into`** (D44): for one origin and one date, the `merged_into` links of all the variations of that date are counted by distinct destination; with **two or more** destinations each of them becomes `split_into`, with one it stays `merged_into`. The kind is the same in the origin's `successors` and in each destination's `predecessors`. `detached_into` is unchanged. E.g. Sud Sardegna 2026 (five destinations), Tenda 1947 (Limone Piemonte and Briga Alta, golden-19); Quero Vas 2024 stays `merged_into` Setteville. The internal variations keep `merged_into` (§4.3).
 - **`predecessors`**: links whose `to` is this entity, from the variations dated on `valid_from` of the entity's **first** version.
 - **`successors`**: links whose `from` is this entity, from the variations dated on the day after `valid_until` of the entity's **last** version. Empty for active entities. Intermediate closures (gaps such as Sassofeltrio 1929–1947) are ignored: an entity that is active again has no successors.
-- **`current_successors`**: transitive closure over `successors` (following `merged_into` and `detached_into`) until reaching **active** entities of the same level; ids sorted ascending; entities already visited are not followed again. Empty for active entities.
+- **`current_successors`** (municipalities only, D46): transitive closure over `successors` (following `merged_into`, `split_into` and `detached_into`) until reaching **active** municipalities; ids sorted (ordinal string order); entities already visited are not followed again. Empty for active entities.
   - Example: Quero (1866–2013) → Quero Vas (2013–2024) → Setteville ⇒ Quero's `current_successors = [Setteville]`.
-- **`is_former_italian`**: `true` iff the entity is suppressed and every terminal path of its successor graph ends in an entity whose last version was closed with role `ceded` (cession abroad). An entity closed with `ceded` is a terminal point of the transitive computation even when it has links (D33): it is former Italian itself, and an entity merged into it is former Italian if all its paths end in ceded entities. Partial cessions of surviving entities do not count. `current_successors` is computed as above, regardless of this flag (Tenda, 1947: `is_former_italian = true`, `current_successors = [Briga Alta, Limone Piemonte]`, golden-19). Whether the last version was closed with `ceded` is read from the entity's participants whose `version_before_id` is that version.
-- **Cycles**: a cycle among final closures (the `merged_into`/`detached_into` successors of suppressed entities) is a `blocking` anomaly `successor-cycle`, one per strongly connected component, with the entities involved; it is never treated as a path that does not end in a ceded entity.
+- **`is_former_italian`**: `true` when the entity ceased to exist because it was ceded abroad, directly or because all its successors were; it does not measure losses of territory (partial cessions of entities that continue to exist are not represented in the public files, D39). Formally: `true` iff the entity is suppressed and every terminal path of its successor graph ends in an entity whose last version was closed with role `ceded` (cession abroad). An entity closed with `ceded` is a terminal point of the transitive computation even when it has links (D33): it is former Italian itself, and an entity merged into it is former Italian if all its paths end in ceded entities. Partial cessions of surviving entities do not count. `current_successors` is computed as above, regardless of this flag (Tenda, 1947: `is_former_italian = true`, `current_successors = [Briga Alta, Limone Piemonte]`, golden-19). Whether the last version was closed with `ceded` is read from the entity's participants whose `version_before` is that version.
+- **Cycles**: a cycle among final closures (the `merged_into`/`split_into`/`detached_into` successors of suppressed entities) is a `blocking` anomaly `successor-cycle`, one per strongly connected component, with the entities involved; it is never treated as a path that does not end in a ceded entity.
 
-Consumer contract (for the Laravel package): `is_former_italian` is evaluated first. Moving a stored reference to the current territory is
-- impossible if `is_former_italian = true`: never migrated automatically; its `current_successors`, if any, are the parts of its territory that stayed Italian and may only be proposed under user supervision;
+Resolution to the current territory (the semantics of the derived fields, D45). For a municipality, moving a stored reference to the current territory is
 - the entity's current version if `status = active`;
-- the only element of `current_successors` if it has exactly one;
-- ambiguous (user supervision required) if it has more than one.
+- automatic for a suppressed entity **only** if `is_former_italian = false`, `current_successors` has exactly one element and no successor of the entity, direct or indirect (following `successors` transitively), has `is_former_italian = true`: the reference moves to that element;
+- otherwise left to user supervision: a former Italian entity (its `current_successors`, if any, are the parts of its territory that stayed Italian), an entity with several current successors, or one with a former Italian successor somewhere on its paths (Occisla-Clanzo, 1923: one current successor, San Dorligo della Valle-Dolina, but also Erpelle-Cosina, ceded in 1947, among its successors; golden-22).
 
-For provinces, consumers should prefer resolving through the municipality, whose current version carries the current `province_id`.
+Everything this rule needs is in the public files.
+
+For provinces and regions there is no such rule and no `current_successors` (D46): their `predecessors`, `successors` and `is_former_italian` describe their own history, but the closure of their links does not say where their territory went. A reference to a province or region is resolved through the municipalities: every municipality version carries its `province_id` and `region_id`, so the current province and region of a place are those of the current version of its municipality (resolved as above).
 
 ---
 
@@ -594,9 +619,9 @@ For provinces, consumers should prefer resolving through the municipality, whose
 - **I6** Per-date uniqueness within a level: `istat_code`; non-null `cadastral_code` among municipalities; `abbreviation` among UTS.
 - **I7** The municipality `istat_code` prefix equals the internal historical code of its UTS on the same dates (pre-1948: the UTS code), for codes with suffix < 800, at any date. Codes with suffix ≥ 800 (§3.5 item 17, D30): the prefix must be the code of a UTS that existed at some time in the dataset, otherwise blocking; a prefix different from the historical code of the UTS of membership is an `info` anomaly, one per version.
 - **I8** `abbreviation` matches `^[A-Z]{2}$`.
-- **I9** Every version boundary is referenced by at least one participant of a variation with the matching date: `version_after_id` for opened versions, `version_before_id` for closed ones. The only exception is versions starting on `1861-03-17` via `PV`. Every referenced version and entity exists and dates are coherent.
+- **I9** Every version boundary is referenced by at least one participant of a variation with the matching date: `version_after` for opened versions, `version_before` for closed ones. The only exception is versions starting on `1861-03-17` via `PV`. Every referenced version and entity exists and dates are coherent.
 - **I10** No zero-length versions; no published participation without effect.
-- **I11** Derived fields are consistent with versions and variations. A suppressed entity that is not former Italian has a non-empty `current_successors`.
+- **I11** Derived fields (the `split_into` kind included) are consistent with versions and variations. A suppressed municipality that is not former Italian has a non-empty `current_successors`; regions and provinces have no `current_successors` (D46).
 - **I12** Reconstruction equals SITUAS: for every snapshot in the store (and every audit sample), the set of versions valid on that date, projected, equals the snapshot projection (after applying overrides).
 - **I13** Today's reconstructed counts equal the SITUAS count endpoints for the three levels.
 - **I14** Every event row from public lists and internal events is either represented in a variation or explicitly classified as dropped (no-effect), with a reason.
@@ -604,13 +629,13 @@ For provinces, consumers should prefer resolving through the municipality, whose
 
 ### 8.2 Anomaly levels
 
-Anomalies go to `anomalies.json` with `level`, `code` (stable machine identifier), `message`, `context` (entity/version/variation ids, codes, dates, source rows).
+Anomalies go to the internal report `reports/anomalies.json` (§9) with `level`, `code` (stable machine identifier), `message`, `context` (entity/version/variation ids, codes, dates, source rows).
 
 | Level | Examples |
 |---|---|
-| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); version boundary created by an override (`override-creates-boundary`, §6.10); version boundary explained by no event, parent change or upstream warning (§4.3); cycle among the successors of suppressed entities (`successor-cycle`, §7) |
+| `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); version boundary created by an override (`override-creates-boundary`, §6.10); version boundary explained by no event, parent change or upstream warning (§4.3); cycle among the successors of suppressed entities (`successor-cycle`, §7); bilingual denomination missing from the table (`bilingual-name-unknown`, §4.2) |
 | `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; abbreviation change without event (`abbreviation-change-without-event`, §4.3); type change not confirmed by the public lists (`type-change-unconfirmed`, §6.7); obsolete override; relevant ANPR divergences (ISTAT code, province or name never in the municipality's history, cadastral code never in its history on a stretch joined by ISTAT code, ANPR covering more than SITUAS in no known case, `EX` on an entity that is not former Italian, §6.11); current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
-| `info` | Dropped no-effect participations; establishments listing the subject itself as associated territory (`self-reference-ignored`, one aggregated anomaly, golden-20); ANPR gaps (ANPR covering less), ANPR covering more in a known case (a key of another time, after a cession, within 365 days of an establishment or suppression) and off-by-one dates, split or ambiguous rows, names differing only in diacritics, lagging or anachronistic ISTAT codes, cadastral codes, provinces and names, missing `EX` on former Italian entities (§6.11); historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
+| `info` | Dropped no-effect participations; establishments listing the subject itself as associated territory (`self-reference-ignored`, one aggregated anomaly, golden-20); public rows without act whose link is already in a variation with an act (`link-explained-by-act`, one aggregated anomaly, §4.3); ANPR gaps (ANPR covering less), ANPR covering more in a known case (a key of another time, after a cession, within 365 days of an establishment or suppression) and off-by-one dates, split or ambiguous rows, names differing only in diacritics, lagging or anachronistic ISTAT codes, cadastral codes, provinces and names, missing `EX` on former Italian entities (§6.11); historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
 A run with any `blocking` anomaly never publishes and never commits data to `main`.
 
@@ -623,18 +648,27 @@ A run with any `blocking` anomaly never publishes and never commits data to `mai
 | `dist/regions.json` | Array of region entities |
 | `dist/provinces.json` | Array of UTS entities |
 | `dist/municipalities.json` | Array of municipality entities |
-| `dist/variations.json` | Array of variations |
-| `dist/anomalies.json` | Non-blocking anomalies of the build that produced this release |
-| `dist/changes.json` | Diff vs the previous release: added/updated/removed entities, versions and variations by id, each flagged `retroactive: true` when it changes the published state of a day before the previous release's `data_version`; updated and removed items carry `affected_from`, the first such day (Step 16) |
-| `dist/meta.json` | `schema_version` (semver), `data_version` (`YYYY.MM.DD`, the today of the build that produced the data files: it identifies the data content), `generated_at`, per source family (§6.1) fetch time, content hash and number of stored responses, counts per level (entities, active, versions) and of variations, anomaly counts per level |
-| `dist/schema/*.schema.json` | JSON Schemas of all files above |
+| `dist/schema/regions.schema.json`, `provinces.schema.json`, `municipalities.schema.json` | JSON Schemas of the three files above |
+
+Nothing else is published (D39): the dataset carries no date, no ISTAT history and no synchronisation file. The date of the data is in the npm version and in the README (Step 19).
+
+**Internal reports** (`reports/`, committed with the data, reviewed in PRs, never in the npm package nor attached to the GitHub Release): the generator still produces them, for the invariants, the classification of retroactive changes and the PRs.
+
+| File | Content |
+|---|---|
+| `reports/variations.json` | Array of variations (§4.3) |
+| `reports/anomalies.json` | Non-blocking anomalies of the build that produced the release |
+| `reports/changes.json` | Diff vs the previous release: added/updated/removed entities (by id), versions (by `(entity id, valid_from)`) and variations (by internal id), each flagged `retroactive: true` when it changes the published state of a day before the previous release's `data_version`; updated and removed items carry `affected_from`, the first such day (Step 16) |
+| `reports/meta.json` | `schema_version` (semver), `data_version` (`YYYY.MM.DD`, the today of the build that produced the data files: it identifies the data content), `generated_at`, per source family (§6.1) fetch time, content hash and number of stored responses, counts per level (entities, active, versions) and of variations, anomaly counts per level |
+
+The reports are zod-validated before writing, like the public files, but no JSON Schema is published for them.
 
 Releases:
 - git tag `data-YYYY.MM.DD`;
 - GitHub Release with the `dist/` files attached;
-- npm package with `dist/` (version `MAJOR.YYYYMMDD.PATCH`, where MAJOR follows `schema_version`).
+- npm package with `dist/` (version `MAJOR.YYYYMMDD.PATCH`, where MAJOR follows `schema_version` and `YYYYMMDD` is the `data_version` of `reports/meta.json`).
 
-A release is either a **data** release (new data files) or a **schemas** release (same data files, new JSON Schemas after a generator change, Step 16): a schemas release keeps the previous `data_version`, data files, `anomalies.json` and meta, changes only `schema_version` and `generated_at` and publishes an empty, non-retroactive `changes.json`. It increments the npm PATCH; its git tag must be distinguishable from the data release with the same `data_version` (Step 18).
+A release is either a **data** release (new public data files) or a **schemas** release (same public data files, new JSON Schemas after a generator change, Step 16): a schemas release keeps the previous `data_version`, data files and internal reports except `reports/meta.json`, where only `schema_version` and `generated_at` change, and writes an empty, non-retroactive `reports/changes.json`. It increments the npm PATCH; its git tag must be distinguishable from the data release with the same `data_version` (Step 18). Whether a release happens is decided by the **public** files only: when they are unchanged, nothing is written, the internal reports included (they always describe the build of the published release, even if, e.g., only the description of an act changed).
 
 ---
 
@@ -648,8 +682,8 @@ A release is either a **data** release (new data files) or a **schemas** release
 | `update` | Incremental update (below). |
 | `rebuild [--refetch]` | Full rebuild from the store, offline: without `--today` the reference date is the `today` of `calendar.json` (it reproduces the last run with the current code). Without `--refetch` the run never goes to the network, structurally: its transport refuses every request with a programming error, and every stage reads only the store; a source missing from the store is unavailable (snapshots, event lists, counts and lists r1–r3 → exit 3; reports r4–r9 → `internal-data-unavailable`, `warning`; ANPR → `anpr-unavailable`), with a message asking for `update` or `rebuild --refetch`. `--refetch` refreshes all sources, every stored snapshot included, for the current date; what was already downloaded from that date on is reused (§6.1 `fetchedSince`), so an interrupted refetch run again the same day resumes where it stopped. |
 | `audit --samples N` | Compare N random historical dates with fresh SITUAS snapshots; never publishes (exit 2 on discrepancies). |
-| `validate` | Run all invariants on `dist/` (those needing unpublished data are `skipped`). |
-| `diff <from> <to> [--out FILE]` | Produce `changes.json` between two published datasets (directories). |
+| `validate` | Run all invariants on the release: `dist/` plus `reports/variations.json` (those needing data that neither holds are `skipped`). |
+| `diff <from> <to> [--out FILE]` | Produce `changes.json` between two releases: each argument is a directory holding `dist/` and `reports/` (e.g. two checkouts). |
 
 ### 10.2 Incremental update
 
@@ -662,12 +696,12 @@ Every update runs the whole pipeline (offline from the store wherever a source n
    - a sampled calendar date whose content changed is replaced in the store (`history`, D32);
    - a sampled date outside the calendar that differs from the stored snapshot of the previous calendar date `p` means ISTAT changed the history after it was stored: `p` is fetched again (a change is a correction on a calendar date, as above); if the fresh `p` still differs, `(p, d]` is bisected with fresh snapshots (as in Step 6) and the first differing date becomes `inferred`, stored. The sampled date itself never becomes a breakpoint.
 5. Late events and audit corrections make the stored snapshots after them obsolete: every stored snapshot (calendar dates and probes, every level) from the earliest date of the added or removed event-list rows, of the changed calendar dates and of the `p` of the audit corrections, up to the previous run's today, is fetched again with `refresh` (same content → nothing written; different → `history`). Corrections and refreshes share `update.maxRefreshSnapshots`: above it nothing more is fetched and the run blocks (`refresh-too-large`, exit 1) asking for `rebuild --refetch`.
-6. Fetch today's snapshots, verify completeness (stored intervals are read from the store, new ones fetched), rebuild, validate, emit. "Nothing changed" means the emitter finds the published files identical (`unchanged`): `dist/` is not touched and there is nothing to commit.
+6. Fetch today's snapshots, verify completeness (stored intervals are read from the store, new ones fetched), rebuild, validate, emit. "Nothing changed" means the emitter finds the public files identical (`unchanged`): `dist/` and `reports/` are not touched and there is nothing to commit.
 7. Classify the result:
    - **additive** (only new versions/variations after the previous generation date, closing of open versions, new entities) → commit and publish;
    - **retroactive** (anything touching earlier dates, registry remaps, audit discrepancies) → open a PR, **no publish** until merged.
 
-   Events ISTAT publishes late (dated before the previous release's `data_version`) change days already published, so they make the run retroactive (PR), closings of open versions included (Step 16).
+   Events ISTAT publishes late (dated before the previous release's `data_version`) change days already published, so they make the run retroactive (PR), closings of open versions included (Step 16). The previous release is `dist/` plus `reports/` (its `data_version` is in `reports/meta.json`); the classification is in `reports/changes.json`.
 
 ### 10.3 Workflows
 
@@ -676,7 +710,7 @@ Every update runs the whole pipeline (offline from the store wherever a source n
 | `ci.yml` | push, PR | typecheck, lint, unit and integration tests, schema validation of `dist/`, `validate` |
 | `weekly-update.yml` | cron weekly (e.g. Monday 04:00 UTC) + manual | restore `data-cache` → `update` → commit + release, or PR per §10.2 → push updated cache |
 | `rebuild.yml` | manual + quarterly cron | `rebuild` (optionally `--refetch`) → always a PR |
-| `release.yml` | push to `main` touching `dist/` | tag, GitHub Release, npm publish |
+| `release.yml` | push to `main` touching `dist/` | tag, GitHub Release, npm publish (version from `reports/meta.json`) |
 
 Secrets: npm token only. Concurrency groups prevent overlapping data runs. Jobs must stay well under the 6-hour runner limit; bootstrap can resume across runs thanks to the cache.
 
@@ -768,6 +802,7 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | r4 for Piemonte: every record listed by r1 with that name (compartment and region) | golden-15 |
 | r5 for the province records of Sassari (090, type 1), Cagliari (092, type 1), Milano (015, type 1) | golden-4, golden-5 |
 | r7 `reg_tipo=1&idprovv=6109&mcrvar=CS&id_regione_origine=14` | golden-15 |
+| r4 for Valle d'Aosta (02, type 2), Friuli-Venezia Giulia (06, type 2), Veneto (05, types 1 and 2), Venezia Giulia (83, type 1); r7 of act 6107: `CS` of 25 and 29, `CSCT` of 14 and 12 (type 2), `ES` of 14, 12 and 23 (type 1) (revision of the published model, D43) | golden-15 |
 | r8 `id_uts_origine=126&idprovv=6151&uts_tipo=1&mcrvar=ES` (Sud Sardegna 2026) | golden-4 |
 | r8 `id_uts_origine=9&idprovv=6029&uts_tipo=1&mcrvar=ESCT` (Milano 2015) | golden-5 |
 
@@ -785,7 +820,7 @@ If a request in this table returns something that contradicts the expectations o
    - `successors` empty (active).
 3. **Siamanna** (`id_comune_origine` 10704; internal 6). Expect exactly the four versions of §4.4. The 1861–1928 Siamanna (095809, cadastral `null`) is a **different** entity. The SITUAS start date (1947-11-28) wins over ANPR (1947-12-13): ANPR covers less → `info` (`anpr-missing-period`).
 4. **Sardinia 2026** (pfun 64 on 2025-12-31 and 2026-01-01; pfun 112/113 for 2026; internal 5 for Sud Sardegna, Sulcis Iglesiente, Nuoro, Ogliastra, Medio Campidano; pfun 105 RNAPUTS rows):
-   - Sud Sardegna (origin 126, 111, SU): suppressed, last `valid_until = 2025-12-31`, successors Nuoro, Ogliastra (146), Medio Campidano (144), Sulcis Iglesiente (145), Cagliari metropolitan city.
+   - Sud Sardegna (origin 126, 111, SU): suppressed, last `valid_until = 2025-12-31`, successors Nuoro, Ogliastra (146), Medio Campidano (144), Sulcis Iglesiente (145), Cagliari metropolitan city, all `split_into` (§7); in the internal variation the links stay `merged_into`; no `current_successors` (a province, D46).
    - Nuoro (origin 95): same entity, new version `114` from 2026-01-01 (internal `RN`).
    - Cagliari: one entity (root 59) with versions province `092` … 2016-04-27, metropolitan city `292` from 2016-04-28 (`CSCT`, `id_uts` 127), metropolitan city `318` from 2026-01-01 (`RN`, same `id_uts` 127).
    - Oristano 095 → 115 and Cagliari metropolitan city 292 → 318: same entities, new versions (renumbering detected by snapshot diff, confirmed by internal data).
@@ -805,19 +840,24 @@ If a request in this table returns something that contradicts the expectations o
 11. **Bolzano/Bozen** (internal 6): `official_name = "Bolzano/Bozen"`, `italian_name = "Bolzano"`, `foreign_name = "Bozen"` from 1920-10-16 (`AN`, code 802039).
 12. **Bilingual chronology**: rename rows from 2009-01-29 (e.g. Duino Aurisina → Duino Aurisina-Devin Nabrežina, `COMUNE_A_REL` Devin Nabrežina) produce new versions with `foreign_name` set from that date.
 13. **Name/snapshot consistency**: the 1921 snapshot agrees with the last preceding pfun 104 rename for all 1,725 matched municipalities.
-14. **ANPR classification**: suppressed municipalities absent from ANPR (§3.4: about 490 at design time, mostly 1866–1873 and 1924) → `info` (`anpr-missing-entity`), never blocking. Fixed by the first full run (Step 17, 2026-10-06): 493; **491**, all suppressed, since the ISTAT-code join of ANPR rows without a cadastral code and the retry by ISTAT code (§6.11, 2026-10-08: San Siro and Quintosole are joined); asserted on the published release (`test/golden/golden-14.test.ts`, skipped while `dist/` holds no release).
+14. **ANPR classification**: suppressed municipalities absent from ANPR (§3.4: about 490 at design time, mostly 1866–1873 and 1924) → `info` (`anpr-missing-entity`), never blocking. Fixed by the first full run (Step 17, 2026-10-06): 493; **491**, all suppressed, since the ISTAT-code join of ANPR rows without a cadastral code and the retry by ISTAT code (§6.11, 2026-10-08: San Siro and Quintosole are joined); asserted on the release (`test/golden/golden-14.test.ts`, on `reports/anomalies.json` and `dist/municipalities.json`, skipped while the repository holds no release).
 15. **1948 regime boundary**: compartments on 1947-12-31 and regions on 1948-01-01 with the same origin are the same entities with a new version (`type` compartment → region). The regions of 1871 (e.g. Piemonte, origin 14, `CS` act 6109) are linked to their predecessor compartment through r7 details.
    - The internal events of the compartments do not always carry `ESCT`: Piemonte has `ES` (compartment) and `CSCT` (region), Venezia Tridentina (`82`, origin 22) has no event on 1948-01-01 and becomes Trentino-Alto Adige/Südtirol (`04`, `CSCT`, origin 22). Both are type changes of one entity (§6.7): a link between the two intervals, no `transition-unexplained`, no `identity-public-internal-mismatch`, and the `ESCT` rows of pfun 106 of that day are explained (no `identity-public-event-unmatched`).
+   - The `ESCT` rows of pfun 106 Piemonte → Valle d'Aosta and Veneto → Friuli-Venezia Giulia (no act) repeat links of act 6107: they are explained by its variation (§4.3, `link-explained-by-act`) and form no `nk:` variation; Valle d'Aosta has one predecessor (Piemonte, `detached_into`), Friuli-Venezia Giulia two (Veneto `detached_into`, Venezia Giulia `merged_into`), none duplicated. Asserted on the fixtures of these regions (§11.2).
+   - Trentino-Alto Adige/Südtirol has `italian_name = "Trentino-Alto Adige"`, `foreign_name = "Trentino-Südtirol"` (§4.2, golden-23).
 16. **1927 regime boundary**: crossing from pfun 51/48/44 to pfun 50/49/46 does not create spurious versions. Only real changes of 1927-01-12 (new provinces, same-day suppressions of golden-6) produce versions.
 17. **Counts (I13)**: reconstructed counts for the download date equal the three count fixtures.
 18. **Partial cessions abroad (1947-09-16)**: the 17 `CE` rows of pfun 103 whose counterpart is `Stato estero` (e.g. Gorizia 031007, Trieste 032006, Bardonecchia 001022) produce participations with role `territory_changed`, `abroad: true` and no link; the municipalities stay `is_former_italian: false`.
 19. **Cession with partial transfers on the same day (1947-09-16)**: Tenda (004820) gives part of its territory to Limone Piemonte (004110, `CE`/`AQ`) and to the new Briga Alta (004031, `CECS`/`CS`) and is ceded to France (`AS`) the same day (D33).
-   - Expect: Tenda has role `ceded`, `abroad: true`, events `["AS", "CE", "CECS"]`, links `merged_into` Limone Piemonte and Briga Alta; `is_former_italian: true`, `current_successors = [Briga Alta, Limone Piemonte]`.
+   - Expect: Tenda has role `ceded`, `abroad: true`, events `["AS", "CE", "CECS"]`, links `merged_into` Limone Piemonte and Briga Alta in the variations, published as `split_into` in its `successors` and in their `predecessors` (§7); `is_former_italian: true`, `current_successors = [Briga Alta, Limone Piemonte]`.
    - None of the six municipalities ceded that day with same-day transfers (Tenda, Briga Marittima, Castel Dobra, Merna, Opacchiasella, San Martino Quisca) produces `code-unresolved` (§6.6).
 20. **Caserta (1945)**: the province of Terra del Lavoro, renamed Caserta in 1881 (`061`, origin 35), suppressed on 1927-01-12 and reconstituted on 1945-09-01 (`CS`, act 5390, record `id_uts` 98, origin 35), is one entity with an uncovered period, like Sassofeltrio (§3.5 item 10).
-   - Expect: versions until 1927-01-11, no version from 1927-01-12 to 1945-08-31, `061 Caserta` from 1945-09-01; `istat_origin_id = 35`.
+   - Expect: versions until 1927-01-11, no version from 1927-01-12 to 1945-08-31, `061 Caserta` from 1945-09-01; registry key `istat:35` (internal).
    - The r8 details of the 1945 `CS` list Caserta itself among the associated territories: in an establishment, an associated territory equal to the subject (same code, same identity component) is not a predecessor: it is not resolved, produces no link and is listed in the build's single aggregated `info` (`self-reference-ignored`, with the count and the items in `context`; 53 in the full run of 2026-10-06, mostly the `CSCT` of the regions of 1948 whose r7 details list the compartment with the same code); no `code-unresolved`. The 1945 variation links Napoli, Benevento and Campobasso (`CECS`) to Caserta.
 21. **Ambiguous acts (Riola Sardo, 1946-02-07)**: Riola Sardo (`092092`, origin 7543) has two `CECS` of the same day in r6, acts 5831 (Baratili San Pietro reconstituted) and 5841 (Nurachi reconstituted), and pfun 103 has two `CECS` rows with related Baratili San Pietro (`092014`) and Nurachi (`092074`). The r9 details of the two events (crawled only because they are ambiguous, §6.8) list the associated territory of each act: each public row joins the act whose details contain its related code; no `variation-act-ambiguous`.
+22. **A single current successor next to a former Italian one (1923, 1947)**: Occisla-Clanzo (`801136`, suppressed on 1923-02-08, `split_into` San Dorligo della Valle-Dolina and Erpelle-Cosina, the latter ceded on 1947-09-16).
+   - Expect: `is_former_italian: false`, `current_successors = [San Dorligo della Valle-Dolina]`, and Erpelle-Cosina among its successors with `is_former_italian: true`: by the rule of §7, computed from the public files only, the reference is **not** migrated automatically. Asserted on the release like golden-14; the rule itself on a synthetic world.
+23. **Bilingual names of regions and UTS** (§4.2): `Trentino-Alto Adige/Südtirol` → `Trentino-Alto Adige` / `Trentino-Südtirol`; `Valle d'Aosta/Vallée d'Aoste` (region `02` and UTS `007`) → `Valle d'Aosta` / `Vallée d'Aoste`; `Bolzano/Bozen` (UTS `021`) → `Bolzano` / `Bozen`. The decomposition rule reproduces every entry of the table; a denomination with `/` not in the table (synthetic) is `bilingual-name-unknown` (`blocking`) and its message carries the suggested decomposition.
 
 ---
 
@@ -849,14 +889,15 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
 |---|---|---|
 | `src/` | Generator sources | committed |
 | `lib/` | Compiled generator code | ignored |
-| `dist/` | Published data and schemas | committed |
+| `dist/` | Published data and schemas (§9) | committed |
+| `reports/` | Internal reports of the release: variations, anomalies, changes, meta (§9) | committed |
 | `registry/` | Id registry | committed |
 | `overrides/` | Curated corrections | committed |
 | `.cache/http/` | Response cache | ignored |
 | `.cache/store/` | Snapshot store; in CI it is the checkout of the `data-cache` branch | ignored |
 | `.cache/reports/` | Build reports that are neither data nor sources (e.g. `event-codes.json`, Step 7) | ignored |
 
-**npm package**: publishes only `dist/` (data and JSON Schemas), `README.md` and `LICENSE`. The generator code is not published.
+**npm package**: publishes only `dist/` (data and JSON Schemas), `README.md` and `LICENSE`. The generator code and the internal reports (`reports/`) are not published.
 
 **Determinism**: build logic never reads the clock. "Today" comes from config (`dates.today`, set by `--today YYYY-MM-DD`, default the current date in `Europe/Rome`) and is passed explicitly. Only `generated_at` and `fetched_at` hold real timestamps. The `--today` flag is a Step 5 deliverable.
 
@@ -1050,15 +1091,14 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Entities without root** (key `nk:`):
   - regions and UTS: always `blocking` (`identity-origin-missing` with internal data complete, `internal-data-required` otherwise);
   - municipalities: `identity-origin-missing` (`warning`) when the municipality crawl is complete; with internal data incomplete, `internal-data-required` (`blocking`) only for an entity starting with `CS`/`AN` after the first calendar date (a possible reconstitution, §6.1), no anomaly otherwise.
-- **Registry file format**: one file per kind (§5.3), `{ "kind", "next_id", "entries": { "<natural key>": <entry> } }`, keys sorted. Entries: entities `{ id, members }` (the ISTAT ids of the identity component, ascending; empty for `nk:` keys), versions `{ id, valid_to }` (half-open end), variations `{ id }`. New keys of one call get ids in a total, deterministic order independent of the input order: entities by first `validFrom`, then first ISTAT code, then natural key; versions by `validFrom`, then entity id; variations by date, then natural key. A natural key given twice in one call is a bug (error). Kinds: `region`, `province`, `municipality`, `<level>-version`, `variation`.
-- **Remaps**: a key that changes keeps its id, the entry moves to the new key and the correspondence is appended to `registry/remaps.json` (`{ kind, from_key, to_key, id, reason, recorded_on }`, `recorded_on` = `dates.today`; the remaps of one run sorted by `kind`, then `from_key`). Reasons: `origin-id-available` (§5.3, not retroactive, `info`), `root-changed` and `key-moved` (retroactive, `warning`).
-- **Moved-key rule**: when an existing version key disappears and the same entity gets a new key whose interval overlaps it (the old interval from the key and `valid_to`), **reuse the old id** (the earliest overlapping old key), record the remap, log a `warning` and mark the run as retroactive (§10.2).
-- **Changed root**: when an identity component (Step 7) changes root between two runs but shares members with a registered entity whose key disappeared, **reuse its id** (the lowest when several), record the remap and mark the run as retroactive.
+- **Registry file format**: one file per kind (§5.3), `{ "kind", "entries": { "<natural key>": <entry> } }` (variations also `"next_id"`), keys sorted. Entries: entities `{ id, members }` (the ISTAT ids of the identity component, ascending; empty for `nk:` keys), variations `{ id }`. New keys of one call get ids in a total, deterministic order independent of the input order: entities by first `validFrom`, then first ISTAT code, then natural key; variations by date, then natural key. A natural key given twice in one call is a bug (error). Kinds: `region`, `province`, `municipality`, `variation` (the version kinds were removed in the revision of the published model, D40).
+- **Remaps**: a key that changes keeps its id, the entry moves to the new key and the correspondence is appended to `registry/remaps.json` (`{ kind, from_key, to_key, id, reason, recorded_on }`, `recorded_on` = `dates.today`; the remaps of one run sorted by `kind`, then `from_key`). Reasons: `origin-id-available` (§5.3, not retroactive, `info`) and `root-changed` (retroactive, `warning`).
+- **Changed root**: when an identity component (Step 7) changes root between two runs but shares members with a registered entity whose key disappeared, **reuse its id** (the first by natural key when several: hashed ids have no order, D42), record the remap and mark the run as retroactive.
 - **Missing internal data**: an `internal-data-unavailable` gap (Step 7) becomes `blocking` here only when a decision needs it (§6.1): `internal-data-required` above, and for every registered `istat:` entity whose history is absent from the run (no key produced, no member in any component; §5.3): one `blocking` `internal-data-required` per level listing `{ key, id, members }` of each, instead of an `nk:` key with a new id (changed in Step 17). Every `internal-data-required` (this one and the rootless entities above) has `context.cause`: `unavailable` when some internal request of the level (lists, events, details) failed because the source was unavailable (network, exhausted retries, open circuit, `NotInStoreError` in an offline `rebuild`), `absent` otherwise (every request succeeded, or failed with its own blocking `*-request-rejected`/`*-schema-violation`). The cause decides the exit code (Step 17). Re-keying is only `nk:` → `istat:` (`origin-id-available`); a root change keeps the id through the shared members (`root-changed`).
 - **Acceptance**:
   - golden 1–5 (identity parts);
   - two builds on the same store produce identical ids;
-  - moved-key scenario reuses the id and is classified retroactive.
+  - moved-key scenario reuses the id and is classified retroactive (removed with the version registry in the revision of the published model, D40).
 
 ### Step 10 — Versions — DONE
 
@@ -1068,7 +1108,6 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Parents**: the parent code of a row (`COD_PROV`/`COD_UTS`, `COD_COMP`/`COD_REG`) is resolved, on every date of the row, to the entity that code identifies at the parent level (from the Step 9 entities), so a version also splits where the parent entity behind an unchanged code changes. Regions are built first, then UTS, then municipalities.
 - **Abbreviations**: `SIGLA_AUTOMOBILISTICA` from 1948; before, the `SIGLA_UTS` of the municipalities of the UTS on each date (null values ignored), which must be unanimous. A missing `SIGLA_AUTOMOBILISTICA` stays null without an anomaly here: an override may supply it, and I8 checks the result.
 - **Undetermined fields**: a parent code identifying no entity (`version-parent-unresolved`) or a pre-1948 abbreviation missing or not unanimous (`abbreviation-underived`) is a `blocking` anomaly, one per version and cause. The field is null in the internal model (`provinceId`, `regionId`, `abbreviation` are nullable there) and the version is kept, so later stages still run.
-- **Version ids**: assigned through the registry (`<entity id>:<validFrom>`, Step 9) after building.
 - **Acceptance**: golden 2, 3, 5, 10, 11, 12, 15, 16; I1–I3 unit tests.
 
 ### Step 11 — Variations and links — DONE
@@ -1129,33 +1168,55 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 
 ### Step 16 — Emitters, meta and changes — DONE
 
+Implemented on the first published model, reopened by its revision (2026-10-08, D39–D45; deliverables below) and completed again on the revised model.
+
 - **Deliverables**:
-  - public emitters (§6.12, §9) with inclusive dates and deterministic formatting;
-  - `meta.json`;
+  - public emitters (§6.12, §9) with inclusive dates and deterministic formatting: `dist/` holds only the three entity files and their JSON Schemas;
+  - internal reports in `reports/` (§9): `variations.json`, `anomalies.json`, `changes.json`, `meta.json`, zod-validated, without JSON Schemas;
   - JSON Schemas in `dist/schema/`;
   - `changes.json`: diff against the previous release. An item is `retroactive` if it changes the published state of any day before the previous `meta.data_version`; closing a version that was open changes only the days after its new end (implementation notes below).
   - a field that the public schema does not admit as null but is null internally (Step 10) stops the emitter with an error, whatever the anomalies.
 - **Acceptance**: byte-identical output across two runs on the same store; schema validation of all outputs; §4.4 example reproduced.
 - **Implementation notes** (decided with the maintainer):
-  - `src/emit/`: `toPublicData` (internal → public; inclusive ends only here; `role: null` participations dropped; entities by `id`, versions by `valid_from`, participants by `(level, territory_id)` and links by `(level, from, to)` with levels in the order region, province, municipality; `istat_events` alphabetically), `toPublicAnomalies` (warnings then infos, by code, then by the canonical JSON of message and context), `emitDataset`, `computeChanges`, `buildMeta`/`sourceSummaries`, `loadPublishedDataset`. Every file is validated against its public model before anything is written; meta and changes have zod models too and their JSON Schemas are generated with the others (`dist/schema/meta.schema.json`, `changes.schema.json`). Anomaly codes are kebab-case (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`).
+  - `src/emit/`: `toPublicData` (internal → public; inclusive ends only here; `role: null` participations dropped; entities by `id`, versions by `valid_from`, participants by `(level, territory_id)` and links by `(level, from, to)` with levels in the order region, province, municipality; `istat_events` alphabetically), `toPublicAnomalies` (warnings then infos, by code, then by the canonical JSON of message and context), `emitDataset`, `computeChanges`, `buildMeta`/`sourceSummaries`, `loadPublishedDataset`. Every file is validated against its model before anything is written; the internal reports (variations, anomalies, meta, changes) have zod models too, but only the three public files get JSON Schemas (revised, D39). Anomaly codes are kebab-case (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`).
   - `generated_at` is an input (the CLI reads the clock, the emitter never does). `emitDataset` returns the kind of release (files written atomically, `meta.json` always last):
-    - `unchanged`: the four data files (regions, provinces, municipalities, variations) and the JSON Schemas are identical to the previous release: `dist/` is **not touched**; `anomalies.json` stays the one of the build that produced the release and `generated_at` is not renewed; the current anomalies go to the run summary (Step 17);
+    - `unchanged`: the three public data files (regions, provinces, municipalities) and the JSON Schemas are identical to the previous release: `dist/` and `reports/` are **not touched** (also when only internal reports such as `variations.json` would change, §9); `anomalies.json` stays the one of the build that produced the release and `generated_at` is not renewed; the current anomalies go to the run summary (Step 17);
     - `schemas`: same data files, different schema files (a generator change): `dist/schema/`, an empty non-retroactive `changes.json` and `meta.json` are written, so the published schemas never lag behind the generator; the data files and `anomalies.json` stay those of the previous release, and so does its meta (`data_version`, which identifies the data content, sources, counts, anomaly counts) except `schema_version` and `generated_at`; `changes.json` goes from the previous release to the same `data_version` with the new `generated_at`. Step 17 treats it as an additive, non-retroactive release;
     - `data`: every file is written.
-  - The previous release is an input (`null` for the first one: everything added, nothing retroactive); Step 17 decides where it comes from (`dist/` in the checkout, `git show`, `diff <from> <to>`).
-  - Retroactivity by **days modified**, the reference being the previous `data_version`. `affected_from` of a version: the earlier `valid_from` when any field other than `valid_until` changed, otherwise the day after the earlier end (null = open), so closing an open version at `U` is additive iff `U + 1` is not before the reference; of a variation: the earlier date; of an entity (entity-level fields only, its versions are items of their own): the earliest date among the links added or removed, and for `status` the day after the end of the last version (old or new); `istat_origin_id`, `is_former_italian` and `current_successors` carry no date (`affected_from` null, not retroactive: they follow from dated items flagged on their own). Removed items: their first day; added items are retroactive iff their first day precedes the reference.
+  - The previous release is an input (`null` for the first one: everything added, nothing retroactive), read from `dist/` and `reports/`; Step 17 decides where it comes from (the checkout, `git show`, `diff <from> <to>`).
+  - Items: entities by id, versions by `(entity id, valid_from)` (a version whose start moves is removed and added), variations by internal id.
+  - Retroactivity by **days modified**, the reference being the previous `data_version`. `affected_from` of a version: the earlier `valid_from` when any field other than `valid_until` changed, otherwise the day after the earlier end (null = open), so closing an open version at `U` is additive iff `U + 1` is not before the reference; of a variation: the earlier date; of an entity (entity-level fields only, its versions are items of their own): the earliest date among the links added or removed, and for `status` the day after the end of the last version (old or new); `is_former_italian` and `current_successors` carry no date (`affected_from` null, not retroactive: they follow from dated items flagged on their own). Removed items: their first day; added items are retroactive iff their first day precedes the reference.
   - `meta.sources` per family `situas-public-snapshots`, `situas-public-reports` (stored event lists and counts), `situas-internal`, `anpr` (the stored archive, `manifests: 1`): `{ fetched_at, content_hash, manifests }`, the latest `fetched_at` of the store manifests of the current projection version, the SHA-256 of the canonical JSON of the sorted `[manifest key, content_hash]` pairs, their number; `null` for a family without stored responses. Every family comes from the store (Step 17), so an offline rebuild publishes the same summaries. `schema_version` starts at `1.0.0`.
   - Every output is validated with Ajv (dev dependency, tests only) against the JSON Schema published next to it (`test/helpers/json-schema.ts`; formats `date` and `date-time` defined with the generator's date rules): emitted datasets of the unit and golden tests, and the repository `dist/` once it holds a release.
+- **Revision of the published model** (2026-10-08, D39–D45), touching the modules of earlier steps; implemented here because it is a change of the published contract:
+  - entity ids (§5.3, D42): `<prefix>-<code>` from the SHA-256 of the first natural key, next window on collision, stored in the registry entries (no `next_id` for entity kinds); `province_id`, `region_id`, link ids and `current_successors` become strings;
+  - versions without id (D40): the public model drops `versions[].id`; the version registry, `registerVersions` and the moved-key rule (`key-moved`) are removed; internal versions, participants (`versionBefore`/`versionAfter`: `valid_from` dates), anomaly contexts and `changes.json` identify a version by `(entity id, validFrom)`;
+  - no ISTAT ids in the output (D41): `istat_origin_id` removed;
+  - links `{ id, kind, date }` without `variation_id`; `split_into` derived per origin and date (§7, D44); `transferred_to` never published;
+  - public rows without act whose link is in a variation with an act are explained by it (§4.3, D43, `link-explained-by-act`);
+  - (`partially_ceded`, added here, was removed by the second revision of 2026-10-09, below);
+  - bilingual names of regions and UTS from the closed table (§4.2, D7), `bilingual-name-unknown`; I12 projects the names with the same table;
+  - the public JSON Schemas regenerated; `schema_version` stays `1.0.0`, since no release exists yet (Step 17 note).
+- **Second revision of the public model** (2026-10-09, after evaluating the first release):
+  - entity order in the public files: by internal ISTAT id (root), numerically, `nk:` entities last by first `valid_from`, then `id` (§6.12); presentation only, stable between releases;
+  - `partially_ceded` removed (public model, schemas, derived fields, I11); the resolution rule of §7 decides on the public data alone (D45): automatic only with exactly one current successor and no former Italian successor, direct or indirect; golden-22 asserts it on Occisla-Clanzo;
+  - `is_former_italian` documented as "ceased because ceded abroad, directly or through all its successors", not a measure of lost territory (§7, JSON Schema, Step 19).
+  - Acceptance: determinism tests on the new order (the same order for any input order, `nk:` last, unchanged when an ISTAT code changes); golden-22 on the rule; release regenerated from the store, `validate` and the whole suite passing on it.
+- **Third revision of the public model** (2026-10-10): `current_successors` only for municipalities (D46), removed from regions and provinces (public model, schemas, derived fields, I11, the golden cases asserting it on Sud Sardegna and on the regions); §7 resolves provinces and regions through the municipalities. Acceptance: the region and province files and schemas have no `current_successors`; I11 requires non-empty `current_successors` for suppressed municipalities only; release regenerated from the store, `validate` and the whole suite passing on it.
+- **Acceptance of the revision**: golden 4, 15, 19, 22, 23 and the §4.4 example (shape) on the new model; a collision test (two keys with the same window 0 get windows 0 and 1, deterministically, in both input orders of one run; a key colliding with a registered one takes the next window) and a stability test (a remapped or re-keyed entity keeps its id); `dist/` contains exactly the three files and their schemas; the npm package contents (`npm pack --dry-run`) exclude `reports/`.
 
 ### Step 17 — Commands: bootstrap, update, rebuild, audit, validate, diff — DONE
 
+Implemented on the first published model, reopened by its revision (2026-10-08, D39–D45; deliverables below) and completed again on the revised model.
+
 - **Deliverables**:
   - Full orchestration per §10.1–§10.2.
+  - **Revision of the published model**: the release is `dist/` plus `reports/` (`paths.releaseReports`, default `reports`, next to `paths.dist`): the commands write, read and compare both (previous release, `data_version` from `reports/meta.json`); `validate` reads `dist/` and `reports/variations.json`; `diff <from> <to>` takes two directories holding `dist/` and `reports/`; `update` without a previous run requires `calendar.json`, `dist/` and `reports/meta.json`; golden-14 reads `reports/anomalies.json`. Acceptance: the end-to-end scenarios of this step pass on the new model (the retroactive one detected through `reports/changes.json`), and a full run reports the counts of `link-explained-by-act` (2 expected) and `split_into` links to the maintainer. Offline `rebuild` of 2026-10-08 on the revised model: exit 0; `link-explained-by-act` 2 (the two pfun 106 `ESCT` rows of 1948-01-01; Valle d'Aosta has one predecessor, Friuli-Venezia Giulia two); `split_into` successor links 9 (regions), 13 (UTS), 339 (municipalities); golden-14 still 491; the npm package (`npm pack --dry-run`) contains `dist/` only.
   - Exit codes: `0` success; `1` blocking anomalies; `2` retroactive changes (PR required); `3` source unavailable. Mapped from anomaly codes, never from messages: `snapshot-unavailable` → 3 (timeouts, connection errors, 5xx or 429 after exhausted retries, open circuit); `snapshot-request-rejected` (non-retryable 4xx) and `snapshot-schema-violation` → 1.
   - A `blocked` snapshot stage (Step 6) stops the pipeline before identity resolution.
   - Inferred breakpoints are kept in `calendar.json` across runs (source `inferred`): a calendar rebuilt from the sources must not lose them. Step 6 removes those no longer confirmed, and a published event on the same date replaces the `inferred` source.
   - Run summary written to `.cache/last-run.json`, for the workflows.
-  - **`validate` on `dist/`**: implemented as a command that reads the published files back into the internal model (inclusive → half-open with the `src/dates/` conversions, no local conversion) and runs `checkInvariants` with I2, I7, I12, I13 and I14 reported as `skipped`, never as passed (they need unpublished data, snapshots, counts or event accounts).
+  - **`validate` on the release** (`dist/` and, after the revision, `reports/variations.json`): implemented as a command that reads the files back into the internal model (inclusive → half-open with the `src/dates/` conversions, no local conversion) and runs `checkInvariants` with I2, I7, I12, I13 and I14 reported as `skipped`, never as passed (they need unpublished data, snapshots, counts or event accounts).
 - **Acceptance**:
   - **I12 timing**: measure the time I12 takes on the complete run (every stored snapshot, probes included) and report it to the maintainer, who decides whether it needs optimising. Also report `uncompared.abbreviation` of the I12 result.
   - **`sourceSummaries` timing**: measure the time `sourceSummaries` (Step 16, `meta.json`) takes on the complete store (it reads every snapshot manifest, the municipality ones holding thousands of row hashes each) and report it to the maintainer, who decides whether it needs optimising.
@@ -1172,13 +1233,14 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 - **Implementation notes** (decided with the maintainer):
   - `src/commands/`: `acquire.ts` (event lists, internal crawl with the mandatory refreshes of the mode, ANPR, counts; every source stored and read back from the store), `audit.ts`, `refresh.ts` (stored snapshots), `build.ts` (identity → invariants, no network), `pipeline.ts` (`bootstrap`, `update`, `rebuild [--refetch]`, `audit`), `published.ts` (`validate`, `diff`), `exit-codes.ts`, `summary.ts`, `context.ts` (the runtime the CLI provides: transport, wall clock for `generated_at`, monotonic clock for timings). Stage order: event lists → internal crawl → ANPR → counts → calendar → audit (update) → refresh of stored snapshots (update; `rebuild --refetch`: all of them) → snapshots and completeness → build → emit.
   - **Exit codes**, by anomaly code (and, for `internal-data-required`, by its `context.cause`), never by message: `*-unavailable` (`snapshot-`, `event-list-`, `count-`, `internal-list-`) and `internal-data-required` with `cause: unavailable` → 3 when no other blocking anomaly is present (`completeness-unverified` follows them); `internal-data-required` with `cause: absent`, `*-request-rejected`, `*-schema-violation` and every other blocking anomaly → 1; the blocking anomalies are logged with their `cause` when they have one; else 2 when retroactive (`changes.json` retroactive, retroactive registry remaps, audit discrepancies), else 0. The internal crawl keeps its warnings for r4–r8; a list r1–r3 unavailable with no copy adds `internal-list-unavailable`. A missing event list blocks the build like a blocked snapshot stage.
-  - **Effects by exit code**: 0 and 2 write `dist/` and `registry/`; 1 and 3 write neither; the store and `calendar.json` are always written; `.cache/last-run.json` (`paths.runSummary`) always: when the command throws (outcome `error`, exit 1), on SIGINT/SIGTERM (outcome `interrupted`, `signal`, then the process exits with 130/143) and on an uncaught exception or unhandled rejection anywhere in the process (outcome `error`, exit 1); the summary is written once, a later ending never overwrites it. Blocking anomalies are also logged (the first 50).
+  - **Effects by exit code**: 0 and 2 write `dist/`, `reports/` and `registry/`; 1 and 3 write none of them; the store and `calendar.json` are always written; `.cache/last-run.json` (`paths.runSummary`) always: when the command throws (outcome `error`, exit 1), on SIGINT/SIGTERM (outcome `interrupted`, `signal`, then the process exits with 130/143) and on an uncaught exception or unhandled rejection anywhere in the process (outcome `error`, exit 1); the summary is written once, a later ending never overwrites it. Blocking anomalies are also logged (the first 50).
   - **Progress**: every stage logs `stage start` and `stage done` (with `completed`, `total`, `errors` when it counted requests); while a stage runs, a `progress` line every 30 s with the same counts (a timer, so a stage stalled on retries still reports). Counted: event lists, internal reports, snapshots (calendar dates and probes), audit samples, refreshed snapshots.
   - **Disabled endpoints**: one `http endpoint disabled` line with the cause when an endpoint is disabled; the other schema violations of requests in flight and the requests refused afterwards are not logged one by one; at the end one `requests refused by a disabled endpoint` line per endpoint with the count, also in the run summary (`disabled_endpoints`).
-  - **`update`** without the state of a previous run (`calendar.json` in the store, a release in `dist/`) exits 1 asking to run `bootstrap`, which resumes from the cache; never an automatic bootstrap (a lost `data-cache` in CI must not trigger ~15,000 requests).
-  - **Audit**: samples in `[start, today)` from a PRNG seeded with `today`; corrections per §10.2; `audit-discrepancy` warnings; `audit` alone writes the store and `calendar.json` (inferred dates kept for the next build), never `dist/`.
+  - **`update`** without the state of a previous run (`calendar.json` in the store, a release in `dist/` and `reports/`) exits 1 asking to run `bootstrap`, which resumes from the cache; never an automatic bootstrap (a lost `data-cache` in CI must not trigger ~15,000 requests).
+  - **Audit**: samples in `[start, today)` from a PRNG seeded with `today`; corrections per §10.2; `audit-discrepancy` warnings; `audit` alone writes the store and `calendar.json` (inferred dates kept for the next build), never `dist/` nor `reports/`.
   - `time`, `level` and `msg` are reserved to the logger: `LogFields` forbids them in the types, and at run time a field never replaces them; a territorial level is logged as `territoryLevel`.
-- **First release postponed** (2026-10-08): the full run (bootstrap and `rebuild --refetch` on the real sources) met the acceptance criteria, but the published model (§4, §9) is going to be revised before any release. Until then `dist/` and `registry/` are not committed (`.gitignore`, only their `.gitkeep`): no release and no registry with the current ids exist, so the revision starts from a clean state.
+- **First release postponed** (2026-10-08): the full run (bootstrap and `rebuild --refetch` on the real sources) met the acceptance criteria, but the published model (§4, §9) is going to be revised before any release. Until then `dist/` and `registry/` are not committed (`.gitignore`, only their `.gitkeep`): no release and no registry with the current ids exist, so the revision starts from a clean state. The revision is specified in D39–D45 and in Steps 16–17; `reports/` follows the same rule as `dist/` until the first release.
+- **First release prepared** (2026-10-08): after the revision, `dist/`, `reports/` and `registry/` were generated by an offline `rebuild` from the store (`data_version` 2026.10.07, the `today` of `calendar.json`) and committed; `validate` and the whole suite pass on them, golden-14 and golden-22 included. Tag, GitHub Release and npm publication are Step 18's.
 
 ### Step 18 — GitHub Actions
 
@@ -1195,9 +1257,11 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 ### Step 19 — Documentation
 
 - **Deliverables**:
-  - README covering: purpose; scope and perimeter; de iure dates; inclusive `valid_until`; file formats; id stability; consumer resolution contract (§7); update cadence; anomaly levels.
+  - README covering: purpose; scope and perimeter; what is published and what is not (D39: territories only, no ISTAT history, no ISTAT ids, no synchronisation files); de iure dates; inclusive `valid_until`; file formats; entity id format and stability (D42), versions identified by `(entity id, valid_from)` (D40); link kinds (`merged_into`, `split_into`, `detached_into`); resolution to the current territory (§7: for municipalities, automatic only with a single current successor and no former Italian successor, direct or indirect; provinces and regions through the municipalities, whose versions carry `province_id` and `region_id`; `current_successors` only on municipalities, D46); `is_former_italian` as "ceased because ceded abroad, directly or because all its successors were", not a measure of lost territory; the order of the entities in the files (by internal ISTAT id, `nk:` entities last) declared stable but presentation only, not part of the contract; bilingual names of regions and UTS (§4.2); update cadence; the npm version scheme as the date of the data.
   - README: for versions with an 8xx `istat_code` (§3.5 item 17), the code must not be used to derive the province; use `province_id`.
-  - README: the date of the last data update (`data_version` of `meta.json`), clearly visible near the top, updated automatically by every data release (the release flow of Step 18 writes it; a schemas release leaves it unchanged).
+  - README: the date of the last data update (`data_version` of the internal `reports/meta.json`, the same date as the `YYYYMMDD` of the npm version), clearly visible near the top, updated automatically by every data release (the release flow of Step 18 reads it from `reports/meta.json`, which stays committed in the repository and is the only place the published data's date is recorded besides the npm version; a schemas release leaves it unchanged). The published files themselves carry no date.
+  - README: the internal reports (`reports/`) are mentioned only as part of the repository (for reviewers), not as part of the dataset.
+  - README: an explicit note that partial cessions of entities that continue to exist (Gorizia and Trieste in 1947, parts of territory passed between municipalities) are not represented in the public files (D39): the files describe which territories exist and how one ceased into others, not the flows of territory between surviving entities.
   - CONTRIBUTING: how to add an override and a fixture.
   - CHANGELOG policy.
 - **Acceptance**: every public field documented with type and semantics.
@@ -1213,16 +1277,16 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D2 | ANPR is cross-check only | Holes, anachronisms, lag, off-by-one dates (verified) |
 | D3 | ISTAT xlsx not used | Redundant with snapshot APIs |
 | D4 | Entity = transitive closure of ISTAT `id ↔ id_origine` links; follow ISTAT for reconstitutions | Type changes create new typed ISTAT ids linked by origin; municipalities keep ids on reconstitution, provinces do not; do not second-guess |
-| D5 | Own stable integer ids via registry; ISTAT origin id exposed | Undocumented source; database-friendly; never renumbered |
+| D5 | Own stable ids via registry, never renumbered (revised by D40–D42: string entity ids, no version ids, no ISTAT ids in the output) | Undocumented source; never renumbered |
 | D6 | Cadastral code is a version attribute | It can change within an entity (Siamanna) |
-| D7 | Three name fields; split only on `/` for regions/UTS; use ISTAT fields for municipalities | `-` is ambiguous |
+| D7 | Three name fields; use ISTAT fields for municipalities; bilingual names of regions and UTS (denominations with `/`) from a closed table with a source per entry (a normative one where the decomposition is not the trivial split), checked by the decomposition rule (`-` separates territories, `/` languages); a denomination with `/` not in the table is blocking, with the suggested decomposition (revised 2026-10-08) | Splitting on `/` alone gives the wrong foreign name of `Trentino-Alto Adige/Südtirol` (`Südtirol` instead of `Trentino-Südtirol`, statute of autonomy); a table with sources documents each name, the rule catches typos, and a new bilingual denomination must be checked by a person |
 | D8 | Names taken from snapshots, which are chronological | Verified against pfun 104 and the internal API |
 | D9 | Internal half-open intervals; public inclusive `valid_until` | Machine convenience inside, human readability and simple queries outside |
 | D10 | No `ceded_at`, `macro_area`, `statute`, capital flags; `status` kept; `region_id` kept on municipalities | Not needed or derivable; `status`/`region_id` useful for quick checks |
 | D11 | UTS field named `abbreviation`, always two uppercase letters; Venezia Giulia = `VG` (override, ANPR as source) | Abbreviations serve postal and other uses beyond vehicle plates; avoid a nullable field for a single case |
 | D12 | `COD_PROV_STORICO` internal only | Needed only for invariant I7 |
 | D13 | No `opened_by`/`closed_by` on versions; variations reference versions via participants | Many-to-many safe (several acts on the same date) |
-| D14 | `predecessors`, `successors`, `current_successors` published as derived fields | Direct support for moving stored references to current territories |
+| D14 | `predecessors`, `successors`, `current_successors` published as derived fields (`current_successors` for municipalities only since D46) | Direct support for moving stored references to current territories |
 | D15 | Same-day intermediate states are never published | Only end-of-day states are observable; handled by the alias resolver |
 | D16 | Perimeter = SITUAS; nothing outside it is mentioned | Undocumented territories are out of scope |
 | D17 | Parallel, adaptive, resumable HTTP client | Thousands of calls; unknown server limits |
@@ -1239,7 +1303,7 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D28 | Empty responses are transient only for snapshots and internal lists r1–r3; counts have exactly one row and zero is valid; empty r4–r6 are accepted by the client and produce a blocking anomaly on the single record (Step 7) | Short event ranges and event/detail reports are legitimately empty; a listed record without events is a data problem of that record, not of the transport |
 | D29 | Field differences between endpoints or periods are handled by explicit mappings per adapter; defaults for missing fields must be verified by an invariant | No silent guessing between field names; every fallback (e.g. `COD_PROV_STORICO ?? COD_UTS`) is checked (I7) |
 | D30 | Municipality codes with suffix ≥ 800 are exempt from the strict I7 prefix rule: the prefix must be a UTS code of some time, differences are `info`; an active municipality with an 8xx current code is a `warning` | ISTAT assigns 8xx codes retroactively to suppressed municipalities with the prefix of a later or earlier province; membership comes from `COD_PROV`/`COD_UTS` only |
-| D31 | A foreign state counterpart (`Stato estero`, no code) is allowed only in `AS`, `AN`, `CE`, `AQ` (an acquisition of territory from abroad, verified in r7); it is never resolved and never produces links; the participant carries the public flag `abroad` | Cessions and annexations involve territories outside the perimeter (D16), which have no entity; the flag keeps the information without inventing one |
+| D31 | A foreign state counterpart (`Stato estero`, no code) is allowed only in `AS`, `AN`, `CE`, `AQ` (an acquisition of territory from abroad, verified in r7); it is never resolved and never produces links; the participant carries the flag `abroad` (internal since D39) | Cessions and annexations involve territories outside the perimeter (D16), which have no entity; the flag keeps the information without inventing one |
 | D32 | Store manifests carry a `projection_version` per projection; only manifests with the current version are compared or used; a version change requires `rebuild --refetch` and is never retroactive. A refresh with the same content writes nothing; event-list change detection is semantic (rows compared by date range with everything the store knows, not with a previous manifest) | A projection change is a change of the generator, not of the data: it must neither look like an ISTAT correction nor mix rows of different shapes |
 | D33 | A cession abroad with partial transfers to Italian territories on the same day keeps its links (`merged_into`, the ceded entity ceases); the entity is former Italian (closed with `ceded`, a terminal point of `is_former_italian`); its `current_successors` are the parts that stayed Italian and are never used for automatic migration (§7) | Verified on 1947-09-16 (Tenda, Briga Marittima and four municipalities of Gorizia): the domestic flows are real and must not be lost, but the entity itself went abroad |
 | D34 | A UTS version boundary where only the abbreviation changes, without an event, is a `warning` (`abbreviation-change-without-event`) with an `inferred` variation, never blocking | Abbreviations (vehicle plates) are not ISTAT acts: they change without events (Forlì-Cesena `FO` → `FC`, Pesaro e Urbino `PS` → `PU` on 1999-01-01) |
@@ -1247,6 +1311,14 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | D36 | Overrides are applied to the values of every day before contiguous days are merged into versions; they may remove version boundaries but never create one (`override-creates-boundary`, blocking) | A correction must not invent history: it can only make the published data match what ISTAT reports on the neighbouring days (Littoria `LT` in 1934) |
 | D37 | Report 9 (municipality event details) is downloaded only for the ambiguous events (one entity, same date and event code, several internal acts) and used only to match public rows to acts by related code; never for related territories or other checks | r9 for every municipality event would be tens of thousands of requests for data the public rows already give; the only gap it fills is which act a row belongs to (Riola Sardo 1946, golden-21) |
 | D38 | The circuit breaker opens only after `circuitBreakerThreshold` consecutive failures of more than one request lasting at least `circuitBreakerMinFailureMs`; while open, requests wait and a single probe is sent after a cooldown doubled at every reopening; a family is lost for the run (exit 3) only after `circuitBreakerMaxOpenMs` of open time in total. A request out of attempts fails alone only if its family had a success after its first failure; otherwise it waits for the family's verdict (one waiting request retries every `backoffMaxMs`), and a request failing alone gives up at the opening condition without opening the circuit. `rebuild --refetch` refreshes with `fetchedSince: today` on the HTTP cache, so an interrupted refetch resumes the same day | With 8 requests in flight, a DNS failure of 2 s made 10 consecutive failures and lost a whole refetch (17 000 snapshots, over an hour); an outage must cost waiting, not the run, also when it lasts longer than a request's retries (30–60 s) or hits a sequential stage; a single broken URL must not cost its whole family; a resumed run must not download again what it already has |
+| D39 | The output is a self-contained territorial dataset, independent of how and by whom it is used and of any database structure: only `regions.json`, `provinces.json`, `municipalities.json` and their JSON Schemas are published. Variations, anomalies, changes and meta are still produced (invariants, retroactive classification, PRs) as internal reports in `reports/`, committed, outside the npm package. The date of the data is in the npm version (`MAJOR.YYYYMMDD.PATCH`) and in the README | Territories are what consumers need; the ISTAT history and the synchronisation tools would tie the contract to particular uses and to the generator's internals, and would have to stay stable forever |
+| D40 | Versions have no id: a version is identified by `(entity id, valid_from)`, in the output and internally; no version registry, no moved-key rule | The pair is already unique (I1) and meaningful; a second key would only be a database convenience (D39); a moved start is classified by `changes.json` like any other retroactive change |
+| D41 | No ISTAT id in the output (`istat_origin_id` removed); ISTAT origin ids stay in the registry keys | They are identifiers of an undocumented internal API, not of the territories; the entity id is the only identity consumers need |
+| D42 | Entity ids are strings `<prefix>-<code>` (`reg`, `prv`, `mun`; 6 Crockford base32 characters from 30 bits of the SHA-256 of `<level>|<natural key>`, the key with which the entity first enters the registry; collisions checked per level); on a collision with another key the next 30-bit window of the hash is used, deterministically; the registry keeps the id, which never changes, even when the natural key changes (remap) | Readable, typed by level, unique across the dataset, independent of ISTAT numbering and of the order of assignment of a counter; derived from data rather than from a counter, but frozen by the registry |
+| D43 | A public row without act whose link `(date, level, from, to)` already exists in a variation with an act is explained by that variation and forms no `nk:` variation (`link-explained-by-act`, `info`) | The same flow reported twice (pfun 106 `ESCT` rows of 1948 next to act 6107) duplicated the predecessors of Valle d'Aosta and Friuli-Venezia Giulia |
+| D44 | Public link kinds: `split_into` when the origin ceases and its territory goes to several destinations on the same date (all variations of that date), `merged_into` for a single destination, `detached_into` unchanged; `transferred_to` stays internal (never in predecessors or successors); links are `{ id, kind, date }` without `variation_id` | Consumers must know whether a suppressed entity has one heir or several without counting links; variations are internal (D39) |
+| D45 | Resolution to the current territory (§7): automatic only when `current_successors` has exactly one element and no successor, direct or indirect, has `is_former_italian: true`; otherwise user supervision. No dedicated field (`partially_ceded`, introduced on 2026-10-08, removed on 2026-10-09) | The rule follows from the public data alone; a field duplicating it would be one more derived value to keep consistent. Occisla-Clanzo has a single current successor, but part of its territory ended in a municipality ceded in 1947: an automatic migration could move a reference that belongs to the ceded part |
+| D46 | `current_successors` only for municipalities (the closure of the links as before); regions and provinces keep `predecessors`, `successors` and `is_former_italian`; a reference to a province or region is resolved through the municipalities (§7) | For provinces and regions the closure of the links does not describe where the territory went (a reorganisation spreads a province over several others by its municipalities, not by the links of the act), and the real use goes through the municipalities, whose versions carry `province_id` and `region_id` |
 
 ---
 
@@ -1274,12 +1346,13 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 │   ├── derive/                # derived fields
 │   ├── crosscheck/            # ANPR
 │   ├── invariants/            # I1–I15
-│   ├── emit/                  # public JSON, meta, changes, schemas
+│   ├── emit/                  # public JSON + schemas; internal reports (variations, anomalies, changes, meta)
 │   └── model/                 # internal + public types, zod schemas
 ├── overrides/
 │   └── abbreviations.json
 ├── registry/
-├── dist/                      # published outputs (committed)
+├── dist/                      # published outputs: three entity files + schemas (committed)
+├── reports/                   # internal reports: variations, anomalies, changes, meta (committed, not in npm)
 ├── lib/                       # compiled generator code (gitignored)
 ├── .cache/                    # http/ and store/ local caches (gitignored)
 ├── test/

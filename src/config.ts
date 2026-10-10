@@ -19,7 +19,10 @@ const pathsSchema = z
     runSummary: z.string().default('.cache/last-run.json'),
     registry: z.string().default('registry'),
     overrides: z.string().default('overrides'),
+    /** Published data files and JSON Schemas (§9). */
     dist: z.string().default('dist'),
+    /** Internal reports of the release: variations, anomalies, changes, meta (§9, D39). */
+    releaseReports: z.string().default('reports'),
   })
   .prefault({});
 
@@ -131,6 +134,7 @@ export function resolveConfig(input: ConfigInput = {}): Config {
       registry: abs(config.paths.registry),
       overrides: abs(config.paths.overrides),
       dist: abs(config.paths.dist),
+      releaseReports: abs(config.paths.releaseReports),
     },
   };
 }

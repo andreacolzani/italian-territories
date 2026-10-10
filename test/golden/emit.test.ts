@@ -1,7 +1,7 @@
 /**
  * The emitter on real SITUAS fixtures (§6.12, §9, Step 16): byte-identical output across two runs,
- * every file valid against its public model and against the JSON Schema it publishes (Ajv), the
- * §4.4 example (Siamanna) reproduced, the cessions of 1947-09-16 and Sardinia 2026 published.
+ * every file valid against its model and the public files against the JSON Schema they publish
+ * (Ajv), the §4.4 example (Siamanna) reproduced, the cessions of 1947-09-16 and Sardinia 2026.
  */
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -53,7 +53,7 @@ async function emitTwice(built: BuiltVariations, today: IsoDate): Promise<Publis
     const anomalies = anomaliesOf(built);
     const run = (out: string, list: typeof anomalies) =>
       emitDataset({
-        dir: join(dir, out),
+        dirs: { dist: join(dir, out, 'dist'), reports: join(dir, out, 'reports') },
         world,
         anomalies: list,
         previous: null,
@@ -71,10 +71,10 @@ async function emitTwice(built: BuiltVariations, today: IsoDate): Promise<Publis
     const a = await filesOf(join(dir, 'a'));
     expect(a).toEqual(await filesOf(join(dir, 'b')));
     for (const [name, schema] of Object.entries(generateJsonSchemas())) {
-      expect(JSON.parse(a.get(`schema/${name}`) ?? '')).toEqual(schema);
+      expect(JSON.parse(a.get(`dist/schema/${name}`) ?? '')).toEqual(schema);
     }
-    expect(await publishedSchemaViolations(join(dir, 'a'))).toEqual([]);
-    const dataset = await loadPublishedDataset(join(dir, 'a'));
+    expect(await publishedSchemaViolations(join(dir, 'a', 'dist'))).toEqual([]);
+    const dataset = await loadPublishedDataset({ dist: join(dir, 'a', 'dist'), reports: join(dir, 'a', 'reports') });
     if (dataset === null) throw new Error('nothing published');
     return dataset;
   });
@@ -112,21 +112,24 @@ describe('§4.4: Siamanna (golden-3)', async () => {
     const cagliari = entityAt(built.entities.province, '092', '1947-11-28').id;
     const oristano = entityAt(built.entities.province, '115', '2026-01-01').id;
     const sardegna = entityAt(built.entities.region, '20', '2026-01-01').id;
-    const ids = siamanna.versions.map((v) => v.id);
-    // Without the r6 of Villaurbana its `CECS` row matches no act and forms a variation of its own
-    // (`nk:`) next to the act of Siamanna's `CS`: both carry the same link (§7 joins them by date).
-    const variations = dataset.variations.filter((v) => v.date === '1947-11-28').map((v) => v.id);
+    // Without the r6 of Villaurbana its `CECS` row matches no act, but its link is already in the
+    // variation of the act of Siamanna's `CS`: explained by it, no `nk:` variation (§4.3, D43).
+    const acts = dataset.variations.filter((v) => v.date === '1947-11-28').map((v) => v.istat_act_id);
+    expect(acts).toHaveLength(1);
+    expect(acts[0]).not.toBeNull();
+    const explained = dataset.anomalies.find((a) => a.code === 'link-explained-by-act')?.context as
+      { items: { event: string; entityId: string; date: string }[] } | undefined;
+    expect(explained?.items.map((i) => [i.date, i.event, i.entityId])).toContainEqual([
+      '1947-11-28',
+      'CECS',
+      villaurbana,
+    ]);
+    expect(siamanna.id).toMatch(/^mun-[0-9A-HJKMNP-TV-Z]{6}$/);
     expect(siamanna).toEqual({
       id: siamanna.id,
-      istat_origin_id: 10704,
       status: 'active',
       is_former_italian: false,
-      predecessors: variations.map((id) => ({
-        id: villaurbana,
-        kind: 'detached_into',
-        date: '1947-11-28',
-        variation_id: id,
-      })),
+      predecessors: [{ id: villaurbana, kind: 'detached_into', date: '1947-11-28' }],
       successors: [],
       current_successors: [],
       versions: [
@@ -134,8 +137,7 @@ describe('§4.4: Siamanna (golden-3)', async () => {
         ['1974-08-20', '1974-09-12', '095057', 'I719', 'Siamanna-Siapiccia', oristano],
         ['1974-09-13', '2025-12-31', '095057', 'I718', 'Siamanna', oristano],
         ['2026-01-01', null, '115064', 'I718', 'Siamanna', oristano],
-      ].map(([validFrom, validUntil, code, cadastral, name, province], i) => ({
-        id: ids[i],
+      ].map(([validFrom, validUntil, code, cadastral, name, province]) => ({
         valid_from: validFrom,
         valid_until: validUntil,
         istat_code: code,
@@ -150,7 +152,6 @@ describe('§4.4: Siamanna (golden-3)', async () => {
     expect(JSON.stringify(Object.keys(siamanna))).toBe(
       JSON.stringify([
         'id',
-        'istat_origin_id',
         'status',
         'is_former_italian',
         'predecessors',
@@ -176,7 +177,7 @@ describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
     expect(variation?.participants.find((p) => p.territory_id === tenda.id)).toMatchObject({
       istat_events: ['AS', 'CE', 'CECS'],
       abroad: true,
-      version_after_id: null,
+      version_after: null,
     });
   });
 
@@ -189,7 +190,8 @@ describe('the cessions of 1947-09-16 (golden 9, 18, 19)', async () => {
         .sort(
           (a, b) =>
             ['region', 'province', 'municipality'].indexOf(a.level) -
-              ['region', 'province', 'municipality'].indexOf(b.level) || a.territory_id - b.territory_id,
+              ['region', 'province', 'municipality'].indexOf(b.level) ||
+            (a.territory_id < b.territory_id ? -1 : a.territory_id > b.territory_id ? 1 : 0),
         )
         .map((p) => `${['region', 'province', 'municipality'].indexOf(p.level)}:${p.territory_id}`);
       expect(keys).toEqual(sorted);

@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/Municipality"
+  },
+  "title": "Municipalities",
+  "$defs": {
+    "Municipality": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$",
+          "description": "Stable entity id, unique in the dataset, never reused."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "suppressed"
+          ]
+        },
+        "is_former_italian": {
+          "type": "boolean",
+          "description": "True when the entity ceased to exist because it was ceded abroad, directly or because all its successors were. It does not measure losses of territory: partial cessions of entities that continue to exist are not represented."
+        },
+        "predecessors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Link"
+          }
+        },
+        "successors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Link"
+          }
+        },
+        "current_successors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$",
+            "description": "Stable entity id: reg-, prv- or mun- and 6 Crockford base32 characters; unique in the dataset, never reused."
+          },
+          "description": "Currently active municipalities this municipality resolves to (municipalities only)."
+        },
+        "versions": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MunicipalityVersion"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "is_former_italian",
+        "predecessors",
+        "successors",
+        "current_successors",
+        "versions"
+      ],
+      "additionalProperties": false
+    },
+    "Link": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$",
+          "description": "Linked entity of the same level."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "merged_into",
+            "split_into",
+            "detached_into"
+          ],
+          "description": "merged_into: the origin ceased and its territory went to this one destination; split_into: the origin ceased and its territory went to several destinations on the same date; detached_into: the origin survived and gave part of its territory to a new entity."
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date",
+          "description": "First day of the new state."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "date"
+      ],
+      "additionalProperties": false
+    },
+    "MunicipalityVersion": {
+      "type": "object",
+      "properties": {
+        "valid_from": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "format": "date",
+          "description": "First day the version is valid; with the entity id, it identifies the version."
+        },
+        "valid_until": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "format": "date",
+              "description": "ISO calendar date YYYY-MM-DD, no time or timezone."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Last day the version is valid (inclusive); null if current."
+        },
+        "istat_code": {
+          "type": "string",
+          "pattern": "^\\d{6}$",
+          "description": "ISTAT code valid during this version, zero-padded."
+        },
+        "cadastral_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z]\\d{3}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "official_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "italian_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "foreign_name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "province_id": {
+          "type": "string",
+          "pattern": "^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$",
+          "description": "Province (UTS) entity id."
+        },
+        "region_id": {
+          "type": "string",
+          "pattern": "^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$",
+          "description": "Region entity id; equals the province's region."
+        }
+      },
+      "required": [
+        "valid_from",
+        "valid_until",
+        "istat_code",
+        "cadastral_code",
+        "official_name",
+        "italian_name",
+        "foreign_name",
+        "province_id",
+        "region_id"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

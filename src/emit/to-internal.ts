@@ -1,11 +1,12 @@
 /**
- * Public → internal model (Step 17, `validate`): the inverse of `toPublicData`, so the invariants
- * (§8.1) run on a published dataset. Inclusive `valid_until` becomes the half-open `validTo` with the
- * `src/dates/` conversion; derived fields are read as published.
+ * Release → internal model (Step 17, `validate`): the inverse of `toPublicData` and
+ * `toReportVariations`, so the invariants (§8.1) run on a release (the public files and the
+ * variation report). Inclusive `valid_until` becomes the half-open `validTo` with the `src/dates/`
+ * conversion; derived fields are read as published.
  *
- * What the public files do not carry stays out: the UTS historical codes (`historicalCodes` is left
- * empty, and the world built by `validate` has no `historicalCodes`, so I7 and I12 are skipped) and
- * the participations without effect (dropped by the emitter).
+ * What a release does not carry stays out: the ISTAT origin ids (null), the UTS historical codes
+ * (`historicalCodes` is left empty, and the world built by `validate` has no `historicalCodes`, so
+ * I7 and I12 are skipped) and the participations without effect (dropped by the emitter).
  */
 import { toHalfOpen } from '../dates/index.ts';
 import type { InvariantEntities, InvariantEntity } from '../invariants/index.ts';
@@ -19,14 +20,15 @@ import type {
   Variation,
 } from '../model/internal.ts';
 import type * as Public from '../model/public.ts';
-import type { PublicData } from './public.ts';
+import type * as Reports from '../model/reports.ts';
+import type { ReleaseData } from './changes.ts';
 
 export interface InternalData {
   entities: InvariantEntities;
   variations: Variation[];
 }
 
-export function toInternalData(data: PublicData): InternalData {
+export function toInternalData(data: ReleaseData): InternalData {
   return {
     entities: {
       region: data.regions.map((e) => entity('region', e, regionVersion)),
@@ -47,24 +49,23 @@ function entity<L extends Level, P extends { versions: readonly unknown[] }>(
     isFormerItalian: e.is_former_italian,
     predecessors: e.predecessors.map(link),
     successors: e.successors.map(link),
-    currentSuccessors: [...e.current_successors],
+    currentSuccessors: 'current_successors' in e ? [...(e.current_successors as string[])] : null,
   };
   return {
     level,
     id: e.id,
-    istatOriginId: e.istat_origin_id,
+    istatOriginId: null,
     versions: e.versions.map(version),
     ...derived,
   } as unknown as InvariantEntity<L>;
 }
 
 function link(l: Public.EntityLink): EntityLink {
-  return { id: l.id, kind: l.kind, date: l.date, variationId: l.variation_id };
+  return { id: l.id, kind: l.kind, date: l.date };
 }
 
 function common(v: Public.RegionVersion | Public.ProvinceVersion | Public.MunicipalityVersion) {
   return {
-    id: v.id,
     ...toHalfOpen({ valid_from: v.valid_from, valid_until: v.valid_until }),
     istatCode: v.istat_code,
     officialName: v.official_name,
@@ -85,7 +86,7 @@ function municipalityVersion(v: Public.MunicipalityVersion): MunicipalityVersion
   return { ...common(v), cadastralCode: v.cadastral_code, provinceId: v.province_id, regionId: v.region_id };
 }
 
-function variation(v: Public.Variation): Variation {
+function variation(v: Reports.Variation): Variation {
   return {
     id: v.id,
     date: v.date,
@@ -98,8 +99,8 @@ function variation(v: Public.Variation): Variation {
       istatEvents: [...p.istat_events],
       abroad: p.abroad,
       role: p.role,
-      versionBeforeId: p.version_before_id,
-      versionAfterId: p.version_after_id,
+      versionBefore: p.version_before,
+      versionAfter: p.version_after,
     })),
     links: v.links.map((l) => ({ level: l.level, from: l.from, to: l.to, kind: l.kind })),
   };

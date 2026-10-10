@@ -68,7 +68,7 @@ describe('golden-3: Siamanna', async () => {
     expect((missing[0]?.context as { items: unknown[] }).items).toMatchObject([
       {
         entityId: siamanna.id,
-        versionIds: [first?.id],
+        versionsFrom: [first?.validFrom],
         matchedBy: ['cadastral'],
         validFrom: '1947-11-28',
         validTo: '1947-12-13',
@@ -84,11 +84,11 @@ describe('golden-3: Siamanna', async () => {
       anomalies.list().find((a) => a.code === code)?.context as { count: number; items: Record<string, unknown>[] };
     expect(item(ANPR_ANOMALIES.laggingIstatCode)).toMatchObject({
       count: 1,
-      items: [{ versionId: renumbered?.id, validFrom: '2026-01-01', situas: '115064', anpr: '095057' }],
+      items: [{ versionFrom: renumbered?.validFrom, validFrom: '2026-01-01', situas: '115064', anpr: '095057' }],
     });
     expect(item(ANPR_ANOMALIES.laggingProvince)).toMatchObject({
       count: 1,
-      items: [{ versionId: renumbered?.id, validFrom: '2026-01-01', anpr: '095' }],
+      items: [{ versionFrom: renumbered?.validFrom, validFrom: '2026-01-01', anpr: '095' }],
     });
   });
 

@@ -1,0 +1,161 @@
+{
+  "kind": "region",
+  "entries": {
+    "istat:1": {
+      "id": "reg-9X12C3",
+      "members": [
+        1
+      ]
+    },
+    "istat:10": {
+      "id": "reg-VW2J7K",
+      "members": [
+        10
+      ]
+    },
+    "istat:11": {
+      "id": "reg-8CMNEX",
+      "members": [
+        11
+      ]
+    },
+    "istat:12": {
+      "id": "reg-C0WBQT",
+      "members": [
+        12
+      ]
+    },
+    "istat:13": {
+      "id": "reg-8XV2MT",
+      "members": [
+        13
+      ]
+    },
+    "istat:14": {
+      "id": "reg-XJVQ9D",
+      "members": [
+        14
+      ]
+    },
+    "istat:15": {
+      "id": "reg-NKXHR4",
+      "members": [
+        15
+      ]
+    },
+    "istat:16": {
+      "id": "reg-HRHWED",
+      "members": [
+        16
+      ]
+    },
+    "istat:17": {
+      "id": "reg-AJG85Q",
+      "members": [
+        17
+      ]
+    },
+    "istat:18": {
+      "id": "reg-KMKKHH",
+      "members": [
+        18
+      ]
+    },
+    "istat:19": {
+      "id": "reg-50HQ5N",
+      "members": [
+        19
+      ]
+    },
+    "istat:2": {
+      "id": "reg-6SJM89",
+      "members": [
+        2
+      ]
+    },
+    "istat:20": {
+      "id": "reg-2N7C5Z",
+      "members": [
+        20
+      ]
+    },
+    "istat:21": {
+      "id": "reg-8Y96MW",
+      "members": [
+        21
+      ]
+    },
+    "istat:22": {
+      "id": "reg-S1ZEBW",
+      "members": [
+        22
+      ]
+    },
+    "istat:23": {
+      "id": "reg-GWC1MY",
+      "members": [
+        23
+      ]
+    },
+    "istat:25": {
+      "id": "reg-1VWR6N",
+      "members": [
+        25
+      ]
+    },
+    "istat:29": {
+      "id": "reg-HM3T63",
+      "members": [
+        29
+      ]
+    },
+    "istat:3": {
+      "id": "reg-15XBF3",
+      "members": [
+        3
+      ]
+    },
+    "istat:4": {
+      "id": "reg-KM2Y1Y",
+      "members": [
+        4
+      ]
+    },
+    "istat:43": {
+      "id": "reg-BQ6E9H",
+      "members": [
+        43
+      ]
+    },
+    "istat:5": {
+      "id": "reg-XZFCF6",
+      "members": [
+        5
+      ]
+    },
+    "istat:6": {
+      "id": "reg-MYRFEY",
+      "members": [
+        6
+      ]
+    },
+    "istat:7": {
+      "id": "reg-5WKQVA",
+      "members": [
+        7
+      ]
+    },
+    "istat:8": {
+      "id": "reg-5EKDNJ",
+      "members": [
+        8
+      ]
+    },
+    "istat:9": {
+      "id": "reg-X0RQAP",
+      "members": [
+        9
+      ]
+    }
+  }
+}

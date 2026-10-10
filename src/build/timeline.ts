@@ -3,13 +3,13 @@
  * entity a code identifies over time, which abbreviations the municipalities of a UTS report.
  */
 import { compareDates, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
-import type { Level } from '../model/common.ts';
+import type { EntityId, Level } from '../model/common.ts';
 import type { Dated } from '../model/internal.ts';
 import type { SnapshotInterval } from '../resolve/index.ts';
 
 /** An entity of the identity stage (Step 9) with its registry id. */
 export interface IdentifiedEntity<L extends Level = Level> {
-  id: number;
+  id: EntityId;
   istatOriginId: number | null;
   /** Snapshot intervals of the entity, sorted, non-overlapping. */
   intervals: readonly SnapshotInterval<L>[];
@@ -81,15 +81,15 @@ export function mergeDated<T>(pieces: readonly Dated<T>[], key: (value: T) => st
 /** Which entity of one level each ISTAT code identifies over time. */
 export class EntityTimeline {
   readonly level: Level;
-  readonly #byCode: ReadonlyMap<string, readonly Dated<number>[]>;
+  readonly #byCode: ReadonlyMap<string, readonly Dated<EntityId>[]>;
 
-  private constructor(level: Level, byCode: ReadonlyMap<string, readonly Dated<number>[]>) {
+  private constructor(level: Level, byCode: ReadonlyMap<string, readonly Dated<EntityId>[]>) {
     this.level = level;
     this.#byCode = byCode;
   }
 
   static of<L extends Level>(level: L, entities: readonly IdentifiedEntity<L>[]): EntityTimeline {
-    const byCode = new Map<string, Dated<number>[]>();
+    const byCode = new Map<string, Dated<EntityId>[]>();
     for (const entity of entities) {
       for (const { code, validFrom, validTo } of entity.intervals) {
         const pieces = byCode.get(code) ?? [];
@@ -102,8 +102,8 @@ export class EntityTimeline {
   }
 
   /** The entity of `code` over `range`, `null` where the code identifies none. */
-  over(code: string, range: HalfOpenInterval): Dated<number | null>[] {
-    return cover<number | null>(range, this.#byCode.get(code) ?? [], null);
+  over(code: string, range: HalfOpenInterval): Dated<EntityId | null>[] {
+    return cover<EntityId | null>(range, this.#byCode.get(code) ?? [], null);
   }
 }
 

@@ -6,18 +6,17 @@ import type { HttpResponse } from '../../src/http/transport.ts';
 import type { MunicipalityVersion, ProvinceEntity } from '../../src/model/internal.ts';
 import { anprRecord, type AnprRow } from '../../src/sources/anpr/index.ts';
 import { rowHash } from '../../src/store/index.ts';
+import { M, P, R } from '../helpers/invariants.ts';
 import { constant, withSources } from '../helpers/sources.ts';
 
-const PROVINCE_ID = 28;
+const PROVINCE_ID = P(28);
 
 function version(
-  id: number,
   validFrom: IsoDate,
   validTo: IsoDate | null,
   fields: Partial<MunicipalityVersion> = {},
 ): MunicipalityVersion {
   return {
-    id,
     validFrom,
     validTo,
     istatCode: '028001',
@@ -26,13 +25,13 @@ function version(
     foreignName: null,
     cadastralCode: 'A001',
     provinceId: PROVINCE_ID,
-    regionId: 5,
+    regionId: R(5),
     ...fields,
   };
 }
 
-function municipality(id: number, versions: MunicipalityVersion[], isFormerItalian = false): CrossCheckMunicipality {
-  return { level: 'municipality', id, istatOriginId: id, versions, isFormerItalian };
+function municipality(n: number, versions: MunicipalityVersion[], isFormerItalian = false): CrossCheckMunicipality {
+  return { level: 'municipality', id: M(n), istatOriginId: n, versions, isFormerItalian };
 }
 
 function row(line: number, validFrom: IsoDate, validTo: IsoDate | null, fields: Partial<AnprRow> = {}): AnprRow {
@@ -55,7 +54,7 @@ function row(line: number, validFrom: IsoDate, validTo: IsoDate | null, fields: 
 const PADOVA: ProvinceEntity = {
   level: 'province',
   id: PROVINCE_ID,
-  istatOriginId: PROVINCE_ID,
+  istatOriginId: 28,
   versions: [],
   historicalCodes: [{ validFrom: '1861-03-17', validTo: null, value: '028' }],
 };
@@ -86,8 +85,8 @@ const one = (anomalies: AnomalyCollector, code: string) => {
 describe('crossCheckAnpr: attributes', () => {
   it('reports nothing when ANPR agrees, across row splits that follow version splits', () => {
     const entity = municipality(1, [
-      version(1, '1866-11-19', '1924-11-14', { officialName: 'Abano', italianName: 'Abano' }),
-      version(2, '1924-11-14', null),
+      version('1866-11-19', '1924-11-14', { officialName: 'Abano', italianName: 'Abano' }),
+      version('1924-11-14', null),
     ]);
     const anomalies = check(
       [entity],
@@ -97,14 +96,14 @@ describe('crossCheckAnpr: attributes', () => {
   });
 
   it('accepts the official or the Italian name in uppercase, accents included', () => {
-    const bilingual = version(1, '1920-10-16', null, {
+    const bilingual = version('1920-10-16', null, {
       istatCode: '021008',
       cadastralCode: 'A952',
       officialName: 'Bolzano/Bozen',
       italianName: 'Bolzano',
       foreignName: 'Bozen',
     });
-    const accented = version(2, '1861-03-17', null, {
+    const accented = version('1861-03-17', null, {
       istatCode: '001001',
       cadastralCode: 'A074',
       officialName: 'Agliè',
@@ -121,7 +120,7 @@ describe('crossCheckAnpr: attributes', () => {
   });
 
   it('warns once per divergent ISTAT code, name and province, on the overlap', () => {
-    const entity = municipality(7, [version(1, '1866-11-19', null)]);
+    const entity = municipality(7, [version('1866-11-19', null)]);
     const anomalies = check(
       [entity],
       [
@@ -137,8 +136,8 @@ describe('crossCheckAnpr: attributes', () => {
     ]);
     expect(one(anomalies, ANPR_ANOMALIES.divergentIstatCode).context).toEqual({
       matchedBy: 'cadastral',
-      entityId: 7,
-      versionId: 1,
+      entityId: M(7),
+      versionFrom: '1866-11-19',
       validFrom: '1866-11-19',
       validTo: '1924-11-14',
       anprRow: {
@@ -168,11 +167,11 @@ describe('crossCheckAnpr: attributes', () => {
   it('compares the province with its historical code on the same dates, skipping undetermined provinces', () => {
     const milano: ProvinceEntity = {
       ...PADOVA,
-      id: 15,
+      id: P(15),
       historicalCodes: [{ validFrom: '1861-03-17', validTo: null, value: '015' }],
     };
-    const inMilano = version(1, '1861-03-17', null, { istatCode: '015146', cadastralCode: 'F205', provinceId: 15 });
-    const undetermined = version(2, '1866-11-19', null, { provinceId: null });
+    const inMilano = version('1861-03-17', null, { istatCode: '015146', cadastralCode: 'F205', provinceId: P(15) });
+    const undetermined = version('1866-11-19', null, { provinceId: null });
     const anomalies = check(
       [municipality(1, [inMilano]), municipality(2, [undetermined])],
       [
@@ -185,9 +184,7 @@ describe('crossCheckAnpr: attributes', () => {
   });
 
   it('falls back to the ISTAT code for versions without cadastral code', () => {
-    const entity = municipality(3, [
-      version(1, '1861-03-17', '1928-05-04', { cadastralCode: null, istatCode: '095809' }),
-    ]);
+    const entity = municipality(3, [version('1861-03-17', '1928-05-04', { cadastralCode: null, istatCode: '095809' })]);
     const anomalies = check(
       [entity],
       [row(2, '1861-03-17', '1928-05-05', { cadastralCode: null, istatCode: '095809', italianName: 'X' })],
@@ -211,7 +208,7 @@ describe('crossCheckAnpr: attributes', () => {
 
   it('falls back to the ISTAT code for ANPR rows without cadastral code too (San Siro 1861–1928)', () => {
     const entity = municipality(2322, [
-      version(1, '1861-03-17', '1928-08-12', { istatCode: '013934', cadastralCode: 'I162', officialName: 'San Siro' }),
+      version('1861-03-17', '1928-08-12', { istatCode: '013934', cadastralCode: 'I162', officialName: 'San Siro' }),
     ]);
     const anomalies = check(
       [entity],
@@ -229,16 +226,16 @@ describe('crossCheckAnpr: attributes', () => {
 
   it('retries by ISTAT code a stretch no version matches: a different cadastral code is a warning (Quintosole)', () => {
     const quintosole = municipality(2856, [
-      version(1, '1861-03-17', '1893-10-07', {
+      version('1861-03-17', '1893-10-07', {
         istatCode: '015931',
         cadastralCode: 'H138',
         officialName: 'Quintosole',
       }),
-      version(2, '1893-10-07', '1923-10-14', { istatCode: '015931', cadastralCode: 'H138', officialName: 'Vigentino' }),
+      version('1893-10-07', '1923-10-14', { istatCode: '015931', cadastralCode: 'H138', officialName: 'Vigentino' }),
     ]);
     // The cadastral code of the municipality merged into it in 1869, never its own.
     const vigentino = municipality(2900, [
-      version(3, '1861-03-17', '1869-03-01', { istatCode: '015975', cadastralCode: 'L871', officialName: 'Vigentino' }),
+      version('1861-03-17', '1869-03-01', { istatCode: '015975', cadastralCode: 'L871', officialName: 'Vigentino' }),
     ]);
     const anomalies = check(
       [quintosole, vigentino],
@@ -250,19 +247,19 @@ describe('crossCheckAnpr: attributes', () => {
     expect(codes(anomalies)).not.toContainEqual(['warning', ANPR_ANOMALIES.unmatchedPeriod]);
     const divergent = anomalies.list().filter((a) => a.code === ANPR_ANOMALIES.divergentCadastral);
     expect(divergent.map((a) => a.context)).toMatchObject([
-      { matchedBy: 'istat-code', versionId: 1, validFrom: '1869-03-01', situas: 'H138', anpr: 'L871' },
-      { matchedBy: 'istat-code', versionId: 2, validFrom: '1893-10-07', situas: 'H138', anpr: 'L871' },
+      { matchedBy: 'istat-code', versionFrom: '1861-03-17', validFrom: '1869-03-01', situas: 'H138', anpr: 'L871' },
+      { matchedBy: 'istat-code', versionFrom: '1893-10-07', validFrom: '1893-10-07', situas: 'H138', anpr: 'L871' },
     ]);
     // Joined, Quintosole is no longer missing from ANPR: only its years before 1869 are.
     expect(one(anomalies, ANPR_ANOMALIES.missingPeriod).context).toMatchObject({
-      items: [{ entityId: 2856, validFrom: '1861-03-17', validTo: '1869-03-01' }],
+      items: [{ entityId: M(2856), validFrom: '1861-03-17', validTo: '1869-03-01' }],
     });
   });
 
   it('a cadastral code of another time of the municipality follows the rule of the history (info)', () => {
     const entity = municipality(7, [
-      version(1, '1861-03-17', '1900-01-01', { cadastralCode: 'A001' }),
-      version(2, '1900-01-01', null, { cadastralCode: 'B002' }),
+      version('1861-03-17', '1900-01-01', { cadastralCode: 'A001' }),
+      version('1900-01-01', null, { cadastralCode: 'B002' }),
     ]);
     // ANPR swaps the two codes: each stretch matches no version by cadastral code and is retried.
     const anomalies = check(
@@ -277,18 +274,18 @@ describe('crossCheckAnpr: attributes', () => {
       ['info', ANPR_ANOMALIES.anachronisticCadastral],
     ]);
     expect(one(anomalies, ANPR_ANOMALIES.laggingCadastral).context).toMatchObject({
-      items: [{ versionId: 2, situas: 'B002', anpr: 'A001', matchedBy: 'istat-code' }],
+      items: [{ versionFrom: '1900-01-01', situas: 'B002', anpr: 'A001', matchedBy: 'istat-code' }],
     });
     expect(one(anomalies, ANPR_ANOMALIES.anachronisticCadastral).context).toMatchObject({
-      items: [{ versionId: 1, situas: 'A001', anpr: 'B002', matchedBy: 'istat-code' }],
+      items: [{ versionFrom: '1861-03-17', situas: 'A001', anpr: 'B002', matchedBy: 'istat-code' }],
     });
   });
 
   it('compares consecutive rows day by day and skips only the days where rows of the join key overlap', () => {
     const fallback = municipality(1, [
-      version(1, '1861-03-17', '1900-01-01', { cadastralCode: null, istatCode: '001801' }),
+      version('1861-03-17', '1900-01-01', { cadastralCode: null, istatCode: '001801' }),
     ]);
-    const cadastral = municipality(2, [version(2, '1861-03-17', null)]);
+    const cadastral = municipality(2, [version('1861-03-17', null)]);
     const anomalies = check(
       [fallback, cadastral],
       [
@@ -305,7 +302,7 @@ describe('crossCheckAnpr: attributes', () => {
     ]);
     expect(one(anomalies, ANPR_ANOMALIES.divergentName).context).toMatchObject({
       matchedBy: 'istat-code',
-      entityId: 1,
+      entityId: M(1),
       validFrom: '1861-03-17',
       validTo: '1880-01-01',
       anprRow: { cadastralCode: 'Z001', validFrom: '1861-03-17' },
@@ -314,8 +311,8 @@ describe('crossCheckAnpr: attributes', () => {
       count: 2,
       items: [
         {
-          entityId: 1,
-          versionId: 1,
+          entityId: M(1),
+          versionFrom: '1861-03-17',
           matchedBy: 'istat-code',
           validFrom: '1890-01-01',
           validTo: '1900-01-01',
@@ -325,8 +322,8 @@ describe('crossCheckAnpr: attributes', () => {
           ],
         },
         {
-          entityId: 2,
-          versionId: 2,
+          entityId: M(2),
+          versionFrom: '1861-03-17',
           matchedBy: 'cadastral',
           validFrom: '1950-01-01',
           validTo: null,
@@ -337,7 +334,7 @@ describe('crossCheckAnpr: attributes', () => {
   });
 
   it('ignores the spaces around apostrophes: Sant’ Andrea and SANT’ANDREA differ only in form (info)', () => {
-    const santAndrea = version(1, '1861-03-17', null, { cadastralCode: 'B004', officialName: "Antei Sant' Andrea" });
+    const santAndrea = version('1861-03-17', null, { cadastralCode: 'B004', officialName: "Antei Sant' Andrea" });
     const anomalies = check(
       [municipality(1, [santAndrea])],
       [row(2, '1861-03-17', null, { cadastralCode: 'B004', italianName: "ANTEI SANT'ANDREA" })],
@@ -346,9 +343,9 @@ describe('crossCheckAnpr: attributes', () => {
   });
 
   it('names equal without diacritics and with uniform apostrophes are info, other differences warnings', () => {
-    const sampeire = version(1, '1861-03-17', null, { cadastralCode: 'B001', officialName: 'Sampèire' });
-    const santAngelo = version(2, '1861-03-17', null, { cadastralCode: 'B002', officialName: 'Sant\u2019Angelo' });
-    const cantu = version(3, '1861-03-17', null, { cadastralCode: 'B003', officialName: 'Cantù' });
+    const sampeire = version('1861-03-17', null, { cadastralCode: 'B001', officialName: 'Sampèire' });
+    const santAngelo = version('1861-03-17', null, { cadastralCode: 'B002', officialName: 'Sant\u2019Angelo' });
+    const cantu = version('1861-03-17', null, { cadastralCode: 'B003', officialName: 'Cantù' });
     const anomalies = check(
       [municipality(1, [sampeire]), municipality(2, [santAngelo]), municipality(3, [cantu])],
       [
@@ -361,28 +358,28 @@ describe('crossCheckAnpr: attributes', () => {
       ['warning', ANPR_ANOMALIES.divergentName],
       ['info', ANPR_ANOMALIES.nameDiacritics],
     ]);
-    expect(one(anomalies, ANPR_ANOMALIES.divergentName).context).toMatchObject({ entityId: 3, anpr: "CANTU'" });
+    expect(one(anomalies, ANPR_ANOMALIES.divergentName).context).toMatchObject({ entityId: M(3), anpr: "CANTU'" });
     expect(one(anomalies, ANPR_ANOMALIES.nameDiacritics).context).toMatchObject({
       count: 2,
       items: [
-        { entityId: 1, anpr: 'SAMPEIRE', situas: { officialName: 'Sampèire' } },
-        { entityId: 2, anpr: "SANT'ANGELO" },
+        { entityId: M(1), anpr: 'SAMPEIRE', situas: { officialName: 'Sampèire' } },
+        { entityId: M(2), anpr: "SANT'ANGELO" },
       ],
     });
   });
 
   it('ISTAT codes and provinces in the municipality history: earlier = lag, later = anachronism (info)', () => {
-    const province = (id: number, value: string): ProvinceEntity => ({
+    const province = (n: number, value: string): ProvinceEntity => ({
       ...PADOVA,
-      id,
+      id: P(n),
       historicalCodes: [{ validFrom: '1861-03-17', validTo: null, value }],
     });
     const provinces = [province(802, '802'), province(21, '021'), province(22, '022')];
     // Bolzano: 802039 in 802 until 1923-02-13, 022954 in 022 until 1927-01-11, then 021008 in 021.
     const bolzano = municipality(1, [
-      version(1, '1920-10-16', '1923-02-14', { cadastralCode: 'A952', istatCode: '802039', provinceId: 802 }),
-      version(2, '1923-02-14', '1927-01-12', { cadastralCode: 'A952', istatCode: '022954', provinceId: 22 }),
-      version(3, '1927-01-12', null, { cadastralCode: 'A952', istatCode: '021008', provinceId: 21 }),
+      version('1920-10-16', '1923-02-14', { cadastralCode: 'A952', istatCode: '802039', provinceId: P(802) }),
+      version('1923-02-14', '1927-01-12', { cadastralCode: 'A952', istatCode: '022954', provinceId: P(22) }),
+      version('1927-01-12', null, { cadastralCode: 'A952', istatCode: '021008', provinceId: P(21) }),
     ]);
     const anomalies = check(
       [bolzano],
@@ -401,23 +398,23 @@ describe('crossCheckAnpr: attributes', () => {
       ['info', ANPR_ANOMALIES.anachronisticProvince],
     ]);
     expect(one(anomalies, ANPR_ANOMALIES.laggingIstatCode).context).toMatchObject({
-      items: [{ versionId: 3, situas: '021008', anpr: '022954' }],
+      items: [{ versionFrom: '1927-01-12', situas: '021008', anpr: '022954' }],
     });
     expect(one(anomalies, ANPR_ANOMALIES.anachronisticIstatCode).context).toMatchObject({
-      items: [{ versionId: 2, situas: '022954', anpr: '021008' }],
+      items: [{ versionFrom: '1923-02-14', situas: '022954', anpr: '021008' }],
     });
     expect(one(anomalies, ANPR_ANOMALIES.laggingProvince).context).toMatchObject({
-      items: [{ versionId: 3, provinceId: 21, anpr: '022', situas: [{ historicalCode: '021' }] }],
+      items: [{ versionFrom: '1927-01-12', provinceId: P(21), anpr: '022', situas: [{ historicalCode: '021' }] }],
     });
     expect(one(anomalies, ANPR_ANOMALIES.anachronisticProvince).context).toMatchObject({
-      items: [{ versionId: 1, provinceId: 802, anpr: '022', situas: [{ historicalCode: '802' }] }],
+      items: [{ versionFrom: '1920-10-16', provinceId: P(802), anpr: '022', situas: [{ historicalCode: '802' }] }],
     });
   });
 
   it('an ISTAT code or province never in the municipality history is a warning', () => {
     const entity = municipality(1, [
-      version(1, '1866-11-19', '1924-11-14', { istatCode: '028901' }),
-      version(2, '1924-11-14', null),
+      version('1866-11-19', '1924-11-14', { istatCode: '028901' }),
+      version('1924-11-14', null),
     ]);
     const anomalies = check(
       [entity],
@@ -436,9 +433,9 @@ describe('crossCheckAnpr: attributes', () => {
 describe('crossCheckAnpr: names in the history', () => {
   it('a name of an earlier time is a lag, of a later time an anachronism (info); never in the history is a warning', () => {
     const entity = municipality(1, [
-      version(1, '1866-11-19', '1924-11-14', { officialName: 'Abano', italianName: 'Abano' }),
-      version(2, '1924-11-14', '1950-01-01'),
-      version(3, '1950-01-01', null, { officialName: 'Abano Bagni', italianName: 'Abano Bagni' }),
+      version('1866-11-19', '1924-11-14', { officialName: 'Abano', italianName: 'Abano' }),
+      version('1924-11-14', '1950-01-01'),
+      version('1950-01-01', null, { officialName: 'Abano Bagni', italianName: 'Abano Bagni' }),
     ]);
     const anomalies = check(
       [entity],
@@ -455,21 +452,24 @@ describe('crossCheckAnpr: names in the history', () => {
     ]);
     expect(one(anomalies, ANPR_ANOMALIES.laggingName).context).toMatchObject({
       count: 1,
-      items: [{ versionId: 2, situas: { officialName: 'Abano Terme' }, anpr: 'ABANO' }],
+      items: [{ versionFrom: '1924-11-14', situas: { officialName: 'Abano Terme' }, anpr: 'ABANO' }],
     });
     expect(one(anomalies, ANPR_ANOMALIES.anachronisticName).context).toMatchObject({
       count: 1,
-      items: [{ versionId: 1, situas: { officialName: 'Abano' }, anpr: 'ABANO TERME' }],
+      items: [{ versionFrom: '1866-11-19', situas: { officialName: 'Abano' }, anpr: 'ABANO TERME' }],
     });
-    expect(one(anomalies, ANPR_ANOMALIES.divergentName).context).toMatchObject({ versionId: 3, anpr: 'ALTRO NOME' });
+    expect(one(anomalies, ANPR_ANOMALIES.divergentName).context).toMatchObject({
+      versionFrom: '1950-01-01',
+      anpr: 'ALTRO NOME',
+    });
   });
 });
 
 describe('crossCheckAnpr: dates', () => {
   it('one-day differences are info; ANPR covering less is a missing period (info, golden-3 shape)', () => {
     const entity = municipality(1, [
-      version(1, '1947-11-28', '1974-08-20'),
-      version(2, '1974-08-20', '2000-01-01', { istatCode: '095057' }),
+      version('1947-11-28', '1974-08-20'),
+      version('1974-08-20', '2000-01-01', { istatCode: '095057' }),
     ]);
     const anomalies = check(
       [entity],
@@ -480,8 +480,8 @@ describe('crossCheckAnpr: dates', () => {
       ['info', ANPR_ANOMALIES.dateOffByOne],
     ]);
     expect((one(anomalies, ANPR_ANOMALIES.missingPeriod).context as { items: unknown[] }).items[0]).toMatchObject({
-      entityId: 1,
-      versionIds: [1],
+      entityId: M(1),
+      versionsFrom: ['1947-11-28'],
       matchedBy: ['cadastral'],
       validFrom: '1947-11-28',
       validTo: '1947-12-13',
@@ -496,7 +496,7 @@ describe('crossCheckAnpr: dates', () => {
 
   it('a period only ANPR covers, next to a matched one, is unmatched (ANPR covers more, warning)', () => {
     const anomalies = check(
-      [municipality(1, [version(1, '1900-01-01', '1950-01-01')])],
+      [municipality(1, [version('1900-01-01', '1950-01-01')])],
       [row(2, '1900-01-01', '1960-01-01')],
     );
     expect(one(anomalies, ANPR_ANOMALIES.unmatchedPeriod).context).toMatchObject({
@@ -505,7 +505,7 @@ describe('crossCheckAnpr: dates', () => {
       validTo: '1960-01-01',
       side: 'anpr-only',
       edge: 'end',
-      versions: [{ entityId: 1, versionId: 1 }],
+      versions: [{ entityId: M(1), validFrom: '1900-01-01' }],
     });
   });
 
@@ -513,11 +513,11 @@ describe('crossCheckAnpr: dates', () => {
     const anomalies = check(
       [
         // Established on 1950-03-01, ANPR from 1949-12-01 (act date against administrative date).
-        municipality(1, [version(1, '1950-03-01', '1960-01-01')]),
+        municipality(1, [version('1950-03-01', '1960-01-01')]),
         // Suppressed on 1930-01-01 and reconstituted on 1945-06-01: ANPR from 1945-01-01.
         municipality(2, [
-          version(2, '1900-01-01', '1930-01-01', { cadastralCode: 'B002', istatCode: '028002' }),
-          version(3, '1945-06-01', null, { cadastralCode: 'B002', istatCode: '028002' }),
+          version('1900-01-01', '1930-01-01', { cadastralCode: 'B002', istatCode: '028002' }),
+          version('1945-06-01', null, { cadastralCode: 'B002', istatCode: '028002' }),
         ]),
       ],
       [
@@ -535,7 +535,7 @@ describe('crossCheckAnpr: dates', () => {
           validFrom: '1949-12-01',
           validTo: '1950-03-01',
           edge: 'start',
-          entityId: 1,
+          entityId: M(1),
           boundary: 'establishment',
           days: 90,
         },
@@ -544,7 +544,7 @@ describe('crossCheckAnpr: dates', () => {
           validFrom: '1960-01-01',
           validTo: '1960-07-01',
           edge: 'end',
-          entityId: 1,
+          entityId: M(1),
           boundary: 'suppression',
           days: 182,
         },
@@ -553,7 +553,7 @@ describe('crossCheckAnpr: dates', () => {
           validFrom: '1945-01-01',
           validTo: '1945-06-01',
           edge: 'start',
-          versionId: 3,
+          versionFrom: '1945-06-01',
           boundary: 'establishment',
         },
       ],
@@ -561,7 +561,7 @@ describe('crossCheckAnpr: dates', () => {
   });
 
   it('more than 365 days from an establishment stays a warning', () => {
-    const anomalies = check([municipality(1, [version(1, '1950-03-01', null)])], [row(2, '1949-02-28', null)]);
+    const anomalies = check([municipality(1, [version('1950-03-01', null)])], [row(2, '1949-02-28', null)]);
     expect(codes(anomalies)).toEqual([['warning', ANPR_ANOMALIES.unmatchedPeriod]]);
     expect(one(anomalies, ANPR_ANOMALIES.unmatchedPeriod).context).toMatchObject({
       validFrom: '1949-02-28',
@@ -571,24 +571,28 @@ describe('crossCheckAnpr: dates', () => {
 
   it('a period after the cession abroad of a former Italian municipality is info (golden-18 shape)', () => {
     const anomalies = check(
-      [municipality(1, [version(1, '1861-03-17', '1947-09-16')], true)],
+      [municipality(1, [version('1861-03-17', '1947-09-16')], true)],
       [row(2, '1861-03-17', '1977-04-04', { regionCode: 'EX' })],
     );
     expect(codes(anomalies)).toEqual([['info', ANPR_ANOMALIES.cessionExtended]]);
     expect(one(anomalies, ANPR_ANOMALIES.cessionExtended).context).toMatchObject({
       count: 1,
-      items: [{ key: 'A001', validFrom: '1947-09-16', validTo: '1977-04-04', edge: 'end', entityId: 1, versionId: 1 }],
+      items: [
+        {
+          key: 'A001',
+          validFrom: '1947-09-16',
+          validTo: '1977-04-04',
+          edge: 'end',
+          entityId: M(1),
+          versionFrom: '1861-03-17',
+        },
+      ],
     });
   });
 
   it('a period under a key the municipality, existing then under another key, takes at another time is info', () => {
     const anomalies = check(
-      [
-        municipality(1, [
-          version(1, '1900-01-01', '1928-01-01', { cadastralCode: 'Z900' }),
-          version(2, '1928-01-01', null),
-        ]),
-      ],
+      [municipality(1, [version('1900-01-01', '1928-01-01', { cadastralCode: 'Z900' }), version('1928-01-01', null)])],
       [row(2, '1900-01-01', '1928-01-01', { cadastralCode: 'Z900' }), row(3, '1920-01-01', null)],
     );
     expect(codes(anomalies)).toContainEqual(['info', ANPR_ANOMALIES.anachronisticKey]);
@@ -601,22 +605,22 @@ describe('crossCheckAnpr: dates', () => {
           validFrom: '1920-01-01',
           validTo: '1928-01-01',
           edge: 'start',
-          entityId: 1,
-          versions: [{ versionId: 1, cadastralCode: 'Z900' }],
+          entityId: M(1),
+          versions: [{ validFrom: '1900-01-01', cadastralCode: 'Z900' }],
         },
       ],
     });
   });
 
   it('entities and periods absent from ANPR are info, aggregated per code', () => {
-    const missing = municipality(1, [version(1, '1861-03-17', '1869-01-01', { cadastralCode: 'B001' })]);
+    const missing = municipality(1, [version('1861-03-17', '1869-01-01', { cadastralCode: 'B001' })]);
     const other = municipality(2, [
-      version(2, '1861-03-17', '1870-01-01', { cadastralCode: 'B002', istatCode: '028002' }),
+      version('1861-03-17', '1870-01-01', { cadastralCode: 'B002', istatCode: '028002' }),
     ]);
     // A suppressed and reconstituted municipality: ANPR knows only the second period.
     const gap = municipality(3, [
-      version(3, '1861-03-17', '1929-05-14', { cadastralCode: 'I460', istatCode: '041060' }),
-      version(4, '1947-11-25', null, { cadastralCode: 'I460', istatCode: '041060' }),
+      version('1861-03-17', '1929-05-14', { cadastralCode: 'I460', istatCode: '041060' }),
+      version('1947-11-25', null, { cadastralCode: 'I460', istatCode: '041060' }),
     ]);
     const anomalies = check(
       [missing, other, gap],
@@ -628,17 +632,17 @@ describe('crossCheckAnpr: dates', () => {
     ]);
     expect(one(anomalies, ANPR_ANOMALIES.missingEntity).context).toMatchObject({
       count: 2,
-      items: [{ entityId: 1 }, { entityId: 2 }],
+      items: [{ entityId: M(1) }, { entityId: M(2) }],
     });
     expect(one(anomalies, ANPR_ANOMALIES.missingPeriod).context).toMatchObject({
       count: 1,
-      items: [{ entityId: 3, versionIds: [3], validFrom: '1861-03-17', validTo: '1929-05-14' }],
+      items: [{ entityId: M(3), versionsFrom: ['1861-03-17'], validFrom: '1861-03-17', validTo: '1929-05-14' }],
     });
   });
 
   it('a period only ANPR knows, matching no version, is unmatched', () => {
     const anomalies = check(
-      [municipality(1, [version(1, '1900-01-01', null)])],
+      [municipality(1, [version('1900-01-01', null)])],
       [row(2, '1900-01-01', null), row(3, '1920-10-16', '1923-02-14', { cadastralCode: 'Z999', istatCode: '802001' })],
     );
     expect(codes(anomalies)).toEqual([['warning', ANPR_ANOMALIES.unmatchedPeriod]]);
@@ -652,7 +656,7 @@ describe('crossCheckAnpr: dates', () => {
 
   it('consecutive ANPR rows with identical attributes are split rows (info)', () => {
     const anomalies = check(
-      [municipality(1, [version(1, '1900-01-01', null)])],
+      [municipality(1, [version('1900-01-01', null)])],
       [row(2, '1900-01-01', '1928-12-12'), row(3, '1928-12-12', null)],
     );
     expect(codes(anomalies)).toEqual([['info', ANPR_ANOMALIES.splitRows]]);
@@ -675,9 +679,9 @@ describe('crossCheckAnpr: dates', () => {
 
 describe('crossCheckAnpr: former Italian', () => {
   it('ANPR missing the EX of a former Italian entity is info; an EX on one that is not is a warning', () => {
-    const fiume = municipality(1, [version(1, '1924-03-09', '1947-09-16', { cadastralCode: 'D620' })], true);
-    const tenda = municipality(2, [version(2, '1861-03-17', '1947-09-16', { cadastralCode: 'L095' })], true);
-    const zara = municipality(3, [version(3, '1923-02-08', null, { cadastralCode: 'M149' })], false);
+    const fiume = municipality(1, [version('1924-03-09', '1947-09-16', { cadastralCode: 'D620' })], true);
+    const tenda = municipality(2, [version('1861-03-17', '1947-09-16', { cadastralCode: 'L095' })], true);
+    const zara = municipality(3, [version('1923-02-08', null, { cadastralCode: 'M149' })], false);
     const anomalies = check(
       [fiume, tenda, zara],
       [
@@ -691,7 +695,7 @@ describe('crossCheckAnpr: former Italian', () => {
       ['info', ANPR_ANOMALIES.formerItalianMissing],
     ]);
     expect(one(anomalies, ANPR_ANOMALIES.formerItalianDivergence).context).toMatchObject({
-      entityId: 3,
+      entityId: M(3),
       isFormerItalian: false,
       anprRegion: 'EX',
     });
@@ -700,8 +704,8 @@ describe('crossCheckAnpr: former Italian', () => {
       items: [
         {
           matchedBy: 'cadastral',
-          entityId: 2,
-          versionId: 2,
+          entityId: M(2),
+          versionFrom: '1861-03-17',
           isFormerItalian: true,
           anprRegion: '01',
           anprRow: {

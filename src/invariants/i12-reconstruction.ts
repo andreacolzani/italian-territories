@@ -4,7 +4,7 @@
  * rows of the snapshot (after the overrides), field by field and row by row.
  *
  * The projection of a version on a date is, per level:
- * - region: code, the names split as the builder does, type;
+ * - region: code, the names from the bilingual name table as the builder takes them (§4.2), type;
  * - UTS: code, names, type, the code of its region on that date, the historical code (§5.5) and
  *   the abbreviation. The expected abbreviation of a version is the value of the override applied
  *   to it, if any; else `SIGLA_AUTOMOBILISTICA` of the snapshot; before 1948 (snapshot value null)
@@ -17,10 +17,10 @@
  * {@link MAX_LISTED} of them: a version without row, a row without version, a code with several
  * versions, a field that differs.
  */
-import { splitName } from '../build/versions.ts';
+import { regionalNames } from '../build/bilingual-names.ts';
 import { municipalityAbbreviations } from '../build/timeline.ts';
 import { compareDates, containsDate, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
-import { LEVELS, type Level } from '../model/common.ts';
+import { LEVELS, type EntityId, type Level } from '../model/common.ts';
 import type { Anomaly, SnapshotRowByLevel, VersionByLevel } from '../model/internal.ts';
 import type { AppliedOverride } from '../overrides/index.ts';
 import { REGIME_1948_START } from '../sources/situas-public/pfun.ts';
@@ -45,25 +45,27 @@ interface FieldDifference {
 interface Difference {
   code: string;
   kind: 'field' | 'no-version' | 'no-row' | 'ambiguous' | 'count';
-  entityId?: number;
-  versionId?: number;
+  entityId?: EntityId;
+  versionFrom?: IsoDate;
   fields?: FieldDifference[];
   rows?: number;
   versions?: number;
 }
 
 interface Placed<V> {
-  entityId: number;
+  entityId: EntityId;
   version: V;
 }
 
-class LevelIndex<V extends HalfOpenInterval & { id: number; istatCode: string }> {
+type IndexedVersion = HalfOpenInterval & { istatCode: string };
+
+class LevelIndex<V extends IndexedVersion> {
   readonly byCode = new Map<string, Placed<V>[]>();
-  readonly #byEntity = new Map<number, readonly V[]>();
+  readonly #byEntity = new Map<EntityId, readonly V[]>();
   readonly #starts: IsoDate[] = [];
   readonly #ends: IsoDate[] = [];
 
-  constructor(entities: readonly { id: number; versions: readonly V[] }[]) {
+  constructor(entities: readonly { id: EntityId; versions: readonly V[] }[]) {
     for (const entity of entities) {
       this.#byEntity.set(entity.id, entity.versions);
       for (const version of entity.versions) {
@@ -83,7 +85,7 @@ class LevelIndex<V extends HalfOpenInterval & { id: number; istatCode: string }>
     return upperBound(this.#starts, date) - upperBound(this.#ends, date);
   }
 
-  at(entityId: number | null, date: IsoDate): V | undefined {
+  at(entityId: EntityId | null, date: IsoDate): V | undefined {
     return entityId === null ? undefined : this.#byEntity.get(entityId)?.find((v) => containsDate(v, date));
   }
 
@@ -120,13 +122,13 @@ function compare(fields: [string, unknown, unknown][]): FieldDifference[] {
   return fields.filter(([, a, b]) => a !== b).map(([field, snapshot, version]) => ({ field, snapshot, version }));
 }
 
-function historicalAt(context: Context, utsId: number | null, date: IsoDate): string | null {
+function historicalAt(context: Context, utsId: EntityId | null, date: IsoDate): string | null {
   if (utsId === null) return null;
   return context.historicalCodes.get(utsId)?.find((p) => containsDate(p, date))?.value ?? null;
 }
 
 function names(row: { name: string }, version: VersionByLevel['region'] | VersionByLevel['province']) {
-  const wanted = splitName(row.name);
+  const wanted = regionalNames(row.name);
   return [
     ['officialName', wanted.officialName, version.officialName],
     ['italianName', wanted.italianName, version.italianName],
@@ -170,7 +172,7 @@ function diffProvince(
     if (reported !== undefined || context.reported() !== undefined) {
       fields.push(['abbreviation', reported?.length === 1 ? (reported[0] ?? null) : null, version.abbreviation]);
     } else {
-      context.uncompared.versions.add(`${placed.entityId}:${version.id}`);
+      context.uncompared.versions.add(`${placed.entityId}:${version.validFrom}`);
       context.uncompared.dates.add(context.date);
     }
   }
@@ -283,7 +285,7 @@ export async function checkI12Detailed(
 }
 
 /** The differences between the rows of a snapshot and the versions of `index` valid on its date. */
-function compareRows<R extends { code: string }, V extends HalfOpenInterval & { id: number; istatCode: string }>(
+function compareRows<R extends { code: string }, V extends IndexedVersion>(
   date: IsoDate,
   rows: readonly R[],
   index: LevelIndex<V>,
@@ -305,7 +307,13 @@ function compareRows<R extends { code: string }, V extends HalfOpenInterval & { 
     }
     const fields = diff(row, placed);
     if (fields.length > 0) {
-      found.push({ code: row.code, kind: 'field', entityId: placed.entityId, versionId: placed.version.id, fields });
+      found.push({
+        code: row.code,
+        kind: 'field',
+        entityId: placed.entityId,
+        versionFrom: placed.version.validFrom,
+        fields,
+      });
     }
   }
   const valid = index.count(date);
@@ -316,7 +324,7 @@ function compareRows<R extends { code: string }, V extends HalfOpenInterval & { 
         code: placed.version.istatCode,
         kind: 'no-row',
         entityId: placed.entityId,
-        versionId: placed.version.id,
+        versionFrom: placed.version.validFrom,
       });
     }
     if (valid !== rows.length) found.unshift({ code: '', kind: 'count', rows: rows.length, versions: valid });
@@ -331,7 +339,7 @@ function describe(difference: Difference | undefined): string {
     case 'no-version':
       return `${where} has a row but no version`;
     case 'no-row':
-      return `${where} has a version (${difference.versionId}) but no row`;
+      return `${where} has a version (entity ${difference.entityId}, from ${difference.versionFrom}) but no row`;
     case 'ambiguous':
       return `${where} has several versions`;
     case 'count':

@@ -55,7 +55,7 @@ export function toPublicData(world: Pick<EmitWorld, 'entities'>): PublicData {
   return {
     regions: entities(world.entities.region, regionVersion),
     provinces: entities(world.entities.province, provinceVersion),
-    municipalities: entities(world.entities.municipality, municipalityVersion),
+    municipalities: entities(world.entities.municipality, municipalityVersion) as Public.Municipality[],
   };
 }
 
@@ -85,17 +85,21 @@ export function comparePublicOrder(
   return compareStrings(first(a), first(b)) || compareStrings(a.id, b.id);
 }
 
+/**
+ * The entities of a level in the published order and key order; `current_successors` only for
+ * municipalities (D46), between `successors` and `versions`.
+ */
 function entities<L extends Level, V>(
   list: readonly (Entity<L> & DerivedFields)[],
   version: (v: Entity<L>['versions'][number], entity: Entity<L>) => V,
-): (Omit<Public.Region, 'versions'> & { versions: V[] })[] {
+): (Omit<Public.Region, 'versions'> & { current_successors?: string[]; versions: V[] })[] {
   return [...list].sort(comparePublicOrder).map((e) => ({
     id: e.id,
     status: e.status,
     is_former_italian: e.isFormerItalian,
     predecessors: e.predecessors.map(link),
     successors: e.successors.map(link),
-    current_successors: [...e.currentSuccessors],
+    ...(e.level === 'municipality' ? { current_successors: [...(e.currentSuccessors ?? [])] } : {}),
     versions: [...e.versions].sort((a, b) => compareDates(a.validFrom, b.validFrom)).map((v) => version(v, e)),
   }));
 }

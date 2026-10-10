@@ -49,7 +49,7 @@ function entity<L extends Level, P extends { versions: readonly unknown[] }>(
     isFormerItalian: e.is_former_italian,
     predecessors: e.predecessors.map(link),
     successors: e.successors.map(link),
-    currentSuccessors: [...e.current_successors],
+    currentSuccessors: 'current_successors' in e ? [...(e.current_successors as string[])] : null,
   };
   return {
     level,

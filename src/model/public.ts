@@ -131,31 +131,41 @@ export const municipalityVersionSchema = withOrderedInterval(
     .meta({ id: 'MunicipalityVersion' }),
 );
 
-function entitySchema<V extends z.ZodType>(versionSchema: V, title: string, prefix: string) {
-  return z
-    .strictObject({
-      id: prefixed(prefix, 'Stable entity id, unique in the dataset, never reused.'),
-      status: z.enum(ENTITY_STATUSES),
-      is_former_italian: z.boolean().meta({
-        description:
-          'True when the entity ceased to exist because it was ceded abroad, directly or because all its ' +
-          'successors were. It does not measure losses of territory: partial cessions of entities that ' +
-          'continue to exist are not represented.',
-      }),
-      predecessors: z.array(entityLinkSchema),
-      successors: z.array(entityLinkSchema),
-      current_successors: z
-        .array(entityIdSchema)
-        .refine(isStrictlyAscending, 'must be sorted without duplicates')
-        .meta({ description: 'Currently active entities of the same level this entity resolves to.' }),
-      versions: z.array(versionSchema).min(1),
-    })
-    .meta({ id: title });
+const currentSuccessorsSchema = z
+  .array(entityIdSchema)
+  .refine(isStrictlyAscending, 'must be sorted without duplicates')
+  .meta({ description: 'Currently active municipalities this municipality resolves to (municipalities only).' });
+
+/** The fields every entity has (§4.2). */
+function entityShape(prefix: string) {
+  return {
+    id: prefixed(prefix, 'Stable entity id, unique in the dataset, never reused.'),
+    status: z.enum(ENTITY_STATUSES),
+    is_former_italian: z.boolean().meta({
+      description:
+        'True when the entity ceased to exist because it was ceded abroad, directly or because all its ' +
+        'successors were. It does not measure losses of territory: partial cessions of entities that ' +
+        'continue to exist are not represented.',
+    }),
+    predecessors: z.array(entityLinkSchema),
+    successors: z.array(entityLinkSchema),
+  };
 }
 
-export const regionSchema = entitySchema(regionVersionSchema, 'Region', 'reg');
-export const provinceSchema = entitySchema(provinceVersionSchema, 'Province', 'prv');
-export const municipalitySchema = entitySchema(municipalityVersionSchema, 'Municipality', 'mun');
+/** Regions and provinces: no `current_successors` (D46), resolved through the municipalities (§7). */
+export const regionSchema = z
+  .strictObject({ ...entityShape('reg'), versions: z.array(regionVersionSchema).min(1) })
+  .meta({ id: 'Region' });
+export const provinceSchema = z
+  .strictObject({ ...entityShape('prv'), versions: z.array(provinceVersionSchema).min(1) })
+  .meta({ id: 'Province' });
+export const municipalitySchema = z
+  .strictObject({
+    ...entityShape('mun'),
+    current_successors: currentSuccessorsSchema,
+    versions: z.array(municipalityVersionSchema).min(1),
+  })
+  .meta({ id: 'Municipality' });
 
 // ---------------------------------------------------------------------------------------------
 // Files (§9)

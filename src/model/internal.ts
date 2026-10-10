@@ -185,8 +185,11 @@ export interface DerivedFields {
   isFormerItalian: boolean;
   predecessors: EntityLink[];
   successors: EntityLink[];
-  /** Ids of active entities of the same level, sorted (ordinal string order). */
-  currentSuccessors: EntityId[];
+  /**
+   * Municipalities: ids of active municipalities, sorted (ordinal string order). `null` for regions
+   * and provinces, which have no current successors (D46).
+   */
+  currentSuccessors: EntityId[] | null;
 }
 
 // ---------------------------------------------------------------------------------------------

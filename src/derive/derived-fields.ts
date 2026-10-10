@@ -14,8 +14,9 @@
  *   `merged_into`. The kind is the same on both sides of the link.
  * - The role closing the last version is that of the entity's participants whose `versionBefore`
  *   is that version; participants without effect (`role: null`) are ignored.
- * - `current_successors`: closure over `successors` following `merged_into`, `split_into` and
- *   `detached_into` until active entities; visited entities are not followed again.
+ * - `current_successors` (municipalities only, D46; `null` for regions and provinces): closure
+ *   over `successors` following `merged_into`, `split_into` and `detached_into` until active
+ *   entities; visited entities are not followed again.
  * - `is_former_italian`: a suppressed entity whose last version was closed with role `ceded` is
  *   former Italian and a terminal point even when it has links (D33); any other suppressed entity is
  *   former Italian iff it has successors and all of them are. A path ending in an active entity or
@@ -144,7 +145,7 @@ export function deriveFields<L extends Level, E extends Entity<L>>(options: {
     isFormerItalian: isFormerItalian(entity.id),
     predecessors: predecessors.get(entity.id) ?? [],
     successors: successors.get(entity.id) ?? [],
-    currentSuccessors: currentSuccessors(entity.id),
+    currentSuccessors: level === 'municipality' ? currentSuccessors(entity.id) : null,
   }));
 }
 

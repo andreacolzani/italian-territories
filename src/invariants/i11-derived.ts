@@ -4,7 +4,8 @@
  * (`deriveFields`) and every field of every entity is compared: a stale or tampered `status`,
  * `predecessors`, `successors` (the `split_into` kind included), `current_successors`,
  * or `is_former_italian` is a violation, one per entity and field. Moreover, a
- * suppressed entity that is not former Italian must have a non-empty `current_successors`.
+ * suppressed municipality that is not former Italian must have a non-empty `current_successors`;
+ * regions and provinces have none (D46).
  */
 import { AnomalyCollector } from '../anomalies.ts';
 import { deriveFields } from '../derive/index.ts';
@@ -59,10 +60,13 @@ export function checkI11(options: { entities: InvariantEntities; variations: rea
       }
       const got = entity.currentSuccessors;
       const want = wanted.currentSuccessors;
-      if (got.length !== want.length || got.some((id, i) => id !== want[i])) {
-        mismatch('currentSuccessors', got, want);
-      }
-      if (entity.status === 'suppressed' && !entity.isFormerItalian && entity.currentSuccessors.length === 0) {
+      if (JSON.stringify(got) !== JSON.stringify(want)) mismatch('currentSuccessors', got, want);
+      if (
+        level === 'municipality' &&
+        entity.status === 'suppressed' &&
+        !entity.isFormerItalian &&
+        (entity.currentSuccessors ?? []).length === 0
+      ) {
         anomalies.push(
           violation(
             'I11',

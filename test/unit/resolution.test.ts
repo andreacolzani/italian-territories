@@ -104,7 +104,7 @@ function world() {
     status: e.status,
     is_former_italian: e.isFormerItalian,
     successors: e.successors,
-    current_successors: e.currentSuccessors,
+    current_successors: e.currentSuccessors ?? [],
   }));
 }
 

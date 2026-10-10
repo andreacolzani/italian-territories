@@ -31,11 +31,18 @@ function derive(built: BuiltVariations): DerivedWorld {
   return world;
 }
 
-/** I11 (second part): every suppressed entity that is not former Italian has current successors. */
+/**
+ * I11 (second part): every suppressed municipality that is not former Italian has current successors;
+ * regions and provinces have none (D46).
+ */
 function withoutCurrentSuccessors(world: DerivedWorld): string[] {
   return LEVELS.flatMap((level) =>
     world[level]
-      .filter((e) => e.status === 'suppressed' && !e.isFormerItalian && e.currentSuccessors.length === 0)
+      .filter((e) =>
+        level === 'municipality'
+          ? e.status === 'suppressed' && !e.isFormerItalian && (e.currentSuccessors ?? []).length === 0
+          : e.currentSuccessors !== null,
+      )
       .map((e) => `${level} ${e.id} (${e.versions.at(-1)?.istatCode})`),
   );
 }
@@ -124,12 +131,13 @@ describe('Sud Sardegna with several successors (golden-4)', async () => {
     const successors = ascending(['114', '116', '117', '119', '318'].map((code) => uts(code).id));
     expect(sudSardegna).toMatchObject({ status: 'suppressed', isFormerItalian: false });
     expect(sudSardegna.successors).toEqual(successors.map((id) => ({ id, kind: 'split_into', date: '2026-01-01' })));
-    expect(sudSardegna.currentSuccessors).toEqual(successors);
+    // A province: no current successors (D46).
+    expect(sudSardegna.currentSuccessors).toBeNull();
   });
 
   it('the entities renumbered or changed in type stay active without predecessors', () => {
     for (const code of ['114', '115', '312', '318']) {
-      expect(uts(code)).toMatchObject({ status: 'active', successors: [], currentSuccessors: [], predecessors: [] });
+      expect(uts(code)).toMatchObject({ status: 'active', successors: [], currentSuccessors: null, predecessors: [] });
     }
   });
 

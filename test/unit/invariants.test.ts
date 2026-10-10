@@ -512,6 +512,13 @@ describe('I11: derived fields are consistent', () => {
     expect(of(M(4))?.successors).toEqual([{ id: M(1), kind: 'merged_into', date: '1900-01-01' }]);
   });
 
+  it('rejects current successors on a region or province (D46)', () => {
+    const world = baseline();
+    expect(entityOf(world, 'region', 1).currentSuccessors).toBeNull();
+    entityOf(world, 'province', 2).currentSuccessors = [];
+    expect(contexts(checkI11(world)).map((c) => [c.entityId, c.field])).toEqual([[P(2), 'currentSuccessors']]);
+  });
+
   it('rejects a suppressed entity that is not former Italian and has no current successors', () => {
     const world = baseline();
     variationOf(world, 1).links = [];

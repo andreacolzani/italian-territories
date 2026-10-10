@@ -192,7 +192,7 @@ Common entity fields:
 | `is_former_italian` | boolean | Derived, §7. |
 | `predecessors` | Link[] | Derived, §7. |
 | `successors` | Link[] | Derived, §7. |
-| `current_successors` | string[] | Derived, §7. Ids of currently active entities of the same level. |
+| `current_successors` | string[] | Municipalities only (D46). Derived, §7. Ids of currently active municipalities. |
 | `versions` | Version[] | Sorted by `valid_from`. |
 
 `Link = { "id": <entity id>, "kind": "merged_into" | "split_into" | "detached_into", "date": "YYYY-MM-DD" }`
@@ -591,19 +591,19 @@ Computed after overrides, per level:
 - **`split_into`** (D44): for one origin and one date, the `merged_into` links of all the variations of that date are counted by distinct destination; with **two or more** destinations each of them becomes `split_into`, with one it stays `merged_into`. The kind is the same in the origin's `successors` and in each destination's `predecessors`. `detached_into` is unchanged. E.g. Sud Sardegna 2026 (five destinations), Tenda 1947 (Limone Piemonte and Briga Alta, golden-19); Quero Vas 2024 stays `merged_into` Setteville. The internal variations keep `merged_into` (§4.3).
 - **`predecessors`**: links whose `to` is this entity, from the variations dated on `valid_from` of the entity's **first** version.
 - **`successors`**: links whose `from` is this entity, from the variations dated on the day after `valid_until` of the entity's **last** version. Empty for active entities. Intermediate closures (gaps such as Sassofeltrio 1929–1947) are ignored: an entity that is active again has no successors.
-- **`current_successors`**: transitive closure over `successors` (following `merged_into`, `split_into` and `detached_into`) until reaching **active** entities of the same level; ids sorted (ordinal string order); entities already visited are not followed again. Empty for active entities.
+- **`current_successors`** (municipalities only, D46): transitive closure over `successors` (following `merged_into`, `split_into` and `detached_into`) until reaching **active** municipalities; ids sorted (ordinal string order); entities already visited are not followed again. Empty for active entities.
   - Example: Quero (1866–2013) → Quero Vas (2013–2024) → Setteville ⇒ Quero's `current_successors = [Setteville]`.
 - **`is_former_italian`**: `true` when the entity ceased to exist because it was ceded abroad, directly or because all its successors were; it does not measure losses of territory (partial cessions of entities that continue to exist are not represented in the public files, D39). Formally: `true` iff the entity is suppressed and every terminal path of its successor graph ends in an entity whose last version was closed with role `ceded` (cession abroad). An entity closed with `ceded` is a terminal point of the transitive computation even when it has links (D33): it is former Italian itself, and an entity merged into it is former Italian if all its paths end in ceded entities. Partial cessions of surviving entities do not count. `current_successors` is computed as above, regardless of this flag (Tenda, 1947: `is_former_italian = true`, `current_successors = [Briga Alta, Limone Piemonte]`, golden-19). Whether the last version was closed with `ceded` is read from the entity's participants whose `version_before` is that version.
 - **Cycles**: a cycle among final closures (the `merged_into`/`split_into`/`detached_into` successors of suppressed entities) is a `blocking` anomaly `successor-cycle`, one per strongly connected component, with the entities involved; it is never treated as a path that does not end in a ceded entity.
 
-Resolution to the current territory (the semantics of the derived fields, D45). Moving a stored reference to the current territory is
+Resolution to the current territory (the semantics of the derived fields, D45). For a municipality, moving a stored reference to the current territory is
 - the entity's current version if `status = active`;
 - automatic for a suppressed entity **only** if `is_former_italian = false`, `current_successors` has exactly one element and no successor of the entity, direct or indirect (following `successors` transitively), has `is_former_italian = true`: the reference moves to that element;
 - otherwise left to user supervision: a former Italian entity (its `current_successors`, if any, are the parts of its territory that stayed Italian), an entity with several current successors, or one with a former Italian successor somewhere on its paths (Occisla-Clanzo, 1923: one current successor, San Dorligo della Valle-Dolina, but also Erpelle-Cosina, ceded in 1947, among its successors; golden-22).
 
 Everything this rule needs is in the public files.
 
-For provinces, resolving through the municipality is preferable, whose current version carries the current `province_id`.
+For provinces and regions there is no such rule and no `current_successors` (D46): their `predecessors`, `successors` and `is_former_italian` describe their own history, but the closure of their links does not say where their territory went. A reference to a province or region is resolved through the municipalities: every municipality version carries its `province_id` and `region_id`, so the current province and region of a place are those of the current version of its municipality (resolved as above).
 
 ---
 
@@ -621,7 +621,7 @@ For provinces, resolving through the municipality is preferable, whose current v
 - **I8** `abbreviation` matches `^[A-Z]{2}$`.
 - **I9** Every version boundary is referenced by at least one participant of a variation with the matching date: `version_after` for opened versions, `version_before` for closed ones. The only exception is versions starting on `1861-03-17` via `PV`. Every referenced version and entity exists and dates are coherent.
 - **I10** No zero-length versions; no published participation without effect.
-- **I11** Derived fields (the `split_into` kind included) are consistent with versions and variations. A suppressed entity that is not former Italian has a non-empty `current_successors`.
+- **I11** Derived fields (the `split_into` kind included) are consistent with versions and variations. A suppressed municipality that is not former Italian has a non-empty `current_successors`; regions and provinces have no `current_successors` (D46).
 - **I12** Reconstruction equals SITUAS: for every snapshot in the store (and every audit sample), the set of versions valid on that date, projected, equals the snapshot projection (after applying overrides).
 - **I13** Today's reconstructed counts equal the SITUAS count endpoints for the three levels.
 - **I14** Every event row from public lists and internal events is either represented in a variation or explicitly classified as dropped (no-effect), with a reason.
@@ -820,7 +820,7 @@ If a request in this table returns something that contradicts the expectations o
    - `successors` empty (active).
 3. **Siamanna** (`id_comune_origine` 10704; internal 6). Expect exactly the four versions of §4.4. The 1861–1928 Siamanna (095809, cadastral `null`) is a **different** entity. The SITUAS start date (1947-11-28) wins over ANPR (1947-12-13): ANPR covers less → `info` (`anpr-missing-period`).
 4. **Sardinia 2026** (pfun 64 on 2025-12-31 and 2026-01-01; pfun 112/113 for 2026; internal 5 for Sud Sardegna, Sulcis Iglesiente, Nuoro, Ogliastra, Medio Campidano; pfun 105 RNAPUTS rows):
-   - Sud Sardegna (origin 126, 111, SU): suppressed, last `valid_until = 2025-12-31`, successors Nuoro, Ogliastra (146), Medio Campidano (144), Sulcis Iglesiente (145), Cagliari metropolitan city, all `split_into` (§7); in the internal variation the links stay `merged_into`.
+   - Sud Sardegna (origin 126, 111, SU): suppressed, last `valid_until = 2025-12-31`, successors Nuoro, Ogliastra (146), Medio Campidano (144), Sulcis Iglesiente (145), Cagliari metropolitan city, all `split_into` (§7); in the internal variation the links stay `merged_into`; no `current_successors` (a province, D46).
    - Nuoro (origin 95): same entity, new version `114` from 2026-01-01 (internal `RN`).
    - Cagliari: one entity (root 59) with versions province `092` … 2016-04-27, metropolitan city `292` from 2016-04-28 (`CSCT`, `id_uts` 127), metropolitan city `318` from 2026-01-01 (`RN`, same `id_uts` 127).
    - Oristano 095 → 115 and Cagliari metropolitan city 292 → 318: same entities, new versions (renumbering detected by snapshot diff, confirmed by internal data).
@@ -1202,6 +1202,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
   - `partially_ceded` removed (public model, schemas, derived fields, I11); the resolution rule of §7 decides on the public data alone (D45): automatic only with exactly one current successor and no former Italian successor, direct or indirect; golden-22 asserts it on Occisla-Clanzo;
   - `is_former_italian` documented as "ceased because ceded abroad, directly or through all its successors", not a measure of lost territory (§7, JSON Schema, Step 19).
   - Acceptance: determinism tests on the new order (the same order for any input order, `nk:` last, unchanged when an ISTAT code changes); golden-22 on the rule; release regenerated from the store, `validate` and the whole suite passing on it.
+- **Third revision of the public model** (2026-10-10): `current_successors` only for municipalities (D46), removed from regions and provinces (public model, schemas, derived fields, I11, the golden cases asserting it on Sud Sardegna and on the regions); §7 resolves provinces and regions through the municipalities. Acceptance: the region and province files and schemas have no `current_successors`; I11 requires non-empty `current_successors` for suppressed municipalities only; release regenerated from the store, `validate` and the whole suite passing on it.
 - **Acceptance of the revision**: golden 4, 15, 19, 22, 23 and the §4.4 example (shape) on the new model; a collision test (two keys with the same window 0 get windows 0 and 1, deterministically, in both input orders of one run; a key colliding with a registered one takes the next window) and a stability test (a remapped or re-keyed entity keeps its id); `dist/` contains exactly the three files and their schemas; the npm package contents (`npm pack --dry-run`) exclude `reports/`.
 
 ### Step 17 — Commands: bootstrap, update, rebuild, audit, validate, diff — DONE
@@ -1256,7 +1257,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 ### Step 19 — Documentation
 
 - **Deliverables**:
-  - README covering: purpose; scope and perimeter; what is published and what is not (D39: territories only, no ISTAT history, no ISTAT ids, no synchronisation files); de iure dates; inclusive `valid_until`; file formats; entity id format and stability (D42), versions identified by `(entity id, valid_from)` (D40); link kinds (`merged_into`, `split_into`, `detached_into`); resolution to the current territory (§7: automatic only with a single current successor and no former Italian successor, direct or indirect); `is_former_italian` as "ceased because ceded abroad, directly or because all its successors were", not a measure of lost territory; the order of the entities in the files (by internal ISTAT id, `nk:` entities last) declared stable but presentation only, not part of the contract; bilingual names of regions and UTS (§4.2); update cadence; the npm version scheme as the date of the data.
+  - README covering: purpose; scope and perimeter; what is published and what is not (D39: territories only, no ISTAT history, no ISTAT ids, no synchronisation files); de iure dates; inclusive `valid_until`; file formats; entity id format and stability (D42), versions identified by `(entity id, valid_from)` (D40); link kinds (`merged_into`, `split_into`, `detached_into`); resolution to the current territory (§7: for municipalities, automatic only with a single current successor and no former Italian successor, direct or indirect; provinces and regions through the municipalities, whose versions carry `province_id` and `region_id`; `current_successors` only on municipalities, D46); `is_former_italian` as "ceased because ceded abroad, directly or because all its successors were", not a measure of lost territory; the order of the entities in the files (by internal ISTAT id, `nk:` entities last) declared stable but presentation only, not part of the contract; bilingual names of regions and UTS (§4.2); update cadence; the npm version scheme as the date of the data.
   - README: for versions with an 8xx `istat_code` (§3.5 item 17), the code must not be used to derive the province; use `province_id`.
   - README: the date of the last data update (`data_version` of the internal `reports/meta.json`, the same date as the `YYYYMMDD` of the npm version), clearly visible near the top, updated automatically by every data release (the release flow of Step 18 reads it from `reports/meta.json`, which stays committed in the repository and is the only place the published data's date is recorded besides the npm version; a schemas release leaves it unchanged). The published files themselves carry no date.
   - README: the internal reports (`reports/`) are mentioned only as part of the repository (for reviewers), not as part of the dataset.
@@ -1285,7 +1286,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 | D11 | UTS field named `abbreviation`, always two uppercase letters; Venezia Giulia = `VG` (override, ANPR as source) | Abbreviations serve postal and other uses beyond vehicle plates; avoid a nullable field for a single case |
 | D12 | `COD_PROV_STORICO` internal only | Needed only for invariant I7 |
 | D13 | No `opened_by`/`closed_by` on versions; variations reference versions via participants | Many-to-many safe (several acts on the same date) |
-| D14 | `predecessors`, `successors`, `current_successors` published as derived fields | Direct support for moving stored references to current territories |
+| D14 | `predecessors`, `successors`, `current_successors` published as derived fields (`current_successors` for municipalities only since D46) | Direct support for moving stored references to current territories |
 | D15 | Same-day intermediate states are never published | Only end-of-day states are observable; handled by the alias resolver |
 | D16 | Perimeter = SITUAS; nothing outside it is mentioned | Undocumented territories are out of scope |
 | D17 | Parallel, adaptive, resumable HTTP client | Thousands of calls; unknown server limits |
@@ -1317,6 +1318,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 | D43 | A public row without act whose link `(date, level, from, to)` already exists in a variation with an act is explained by that variation and forms no `nk:` variation (`link-explained-by-act`, `info`) | The same flow reported twice (pfun 106 `ESCT` rows of 1948 next to act 6107) duplicated the predecessors of Valle d'Aosta and Friuli-Venezia Giulia |
 | D44 | Public link kinds: `split_into` when the origin ceases and its territory goes to several destinations on the same date (all variations of that date), `merged_into` for a single destination, `detached_into` unchanged; `transferred_to` stays internal (never in predecessors or successors); links are `{ id, kind, date }` without `variation_id` | Consumers must know whether a suppressed entity has one heir or several without counting links; variations are internal (D39) |
 | D45 | Resolution to the current territory (§7): automatic only when `current_successors` has exactly one element and no successor, direct or indirect, has `is_former_italian: true`; otherwise user supervision. No dedicated field (`partially_ceded`, introduced on 2026-10-08, removed on 2026-10-09) | The rule follows from the public data alone; a field duplicating it would be one more derived value to keep consistent. Occisla-Clanzo has a single current successor, but part of its territory ended in a municipality ceded in 1947: an automatic migration could move a reference that belongs to the ceded part |
+| D46 | `current_successors` only for municipalities (the closure of the links as before); regions and provinces keep `predecessors`, `successors` and `is_former_italian`; a reference to a province or region is resolved through the municipalities (§7) | For provinces and regions the closure of the links does not describe where the territory went (a reorganisation spreads a province over several others by its municipalities, not by the links of the act), and the real use goes through the municipalities, whose versions carry `province_id` and `region_id` |
 
 ---
 

@@ -37,15 +37,6 @@
             "$ref": "#/$defs/Link"
           }
         },
-        "current_successors": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$",
-            "description": "Stable entity id: reg-, prv- or mun- and 6 Crockford base32 characters; unique in the dataset, never reused."
-          },
-          "description": "Currently active entities of the same level this entity resolves to."
-        },
         "versions": {
           "minItems": 1,
           "type": "array",
@@ -60,7 +51,6 @@
         "is_former_italian",
         "predecessors",
         "successors",
-        "current_successors",
         "versions"
       ],
       "additionalProperties": false

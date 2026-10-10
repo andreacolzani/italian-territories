@@ -5,7 +5,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -33,7 +32,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -61,7 +59,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -89,7 +86,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -117,7 +113,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -145,7 +140,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -184,10 +178,6 @@
         "date": "1871-12-31"
       }
     ],
-    "current_successors": [
-      "reg-NKXHR4",
-      "reg-XJVQ9D"
-    ],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -217,10 +207,6 @@
         "date": "1871-12-31"
       }
     ],
-    "current_successors": [
-      "reg-6SJM89",
-      "reg-HRHWED"
-    ],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -245,9 +231,6 @@
         "date": "1871-12-31"
       }
     ],
-    "current_successors": [
-      "reg-HRHWED"
-    ],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -271,9 +254,6 @@
         "kind": "merged_into",
         "date": "1871-12-31"
       }
-    ],
-    "current_successors": [
-      "reg-HRHWED"
     ],
     "versions": [
       {
@@ -319,13 +299,6 @@
         "date": "1871-12-31"
       }
     ],
-    "current_successors": [
-      "reg-2N7C5Z",
-      "reg-50HQ5N",
-      "reg-8Y96MW",
-      "reg-AJG85Q",
-      "reg-KMKKHH"
-    ],
     "versions": [
       {
         "valid_from": "1861-03-17",
@@ -344,7 +317,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1866-11-20",
@@ -372,7 +344,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-01-15",
@@ -406,7 +377,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -440,7 +410,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -484,7 +453,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -518,7 +486,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -561,7 +528,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -595,7 +561,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -629,7 +594,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -663,7 +627,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1871-12-31",
@@ -691,7 +654,6 @@
     "is_former_italian": false,
     "predecessors": [],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1920-10-16",
@@ -725,9 +687,6 @@
         "date": "1948-01-01"
       }
     ],
-    "current_successors": [
-      "reg-HM3T63"
-    ],
     "versions": [
       {
         "valid_from": "1921-01-05",
@@ -752,7 +711,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1948-01-01",
@@ -791,7 +749,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1948-01-01",
@@ -816,7 +773,6 @@
       }
     ],
     "successors": [],
-    "current_successors": [],
     "versions": [
       {
         "valid_from": "1964-01-19",

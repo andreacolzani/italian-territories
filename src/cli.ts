@@ -61,12 +61,18 @@ const GLOBAL_OPTIONS = {
 function dataCommand(
   name: string,
   run: (ctx: RunContext, command: CommandContext) => Promise<ExitCode>,
-  offline: (command: CommandContext) => boolean = () => false,
+  options: {
+    /** Whether the run is offline (default never). */
+    offline?: (command: CommandContext) => boolean;
+    /** A pipeline command: exit 0 or 2 records the last complete update (Step 18). */
+    completeUpdate?: boolean;
+  } = {},
 ) {
   return (command: CommandContext): Promise<number> =>
     runDataCommand({
       command: name,
-      offline: offline(command),
+      offline: options.offline?.(command) ?? false,
+      completeUpdate: options.completeUpdate ?? false,
       config: command.config,
       today: command.today,
       logger: command.logger,
@@ -88,14 +94,14 @@ export const commands: Record<string, Command> = {
     summary: 'Full fetch and build from scratch.',
     options: {},
     positionals: 0,
-    run: dataCommand('bootstrap', (ctx) => runPipeline(ctx, 'bootstrap')),
+    run: dataCommand('bootstrap', (ctx) => runPipeline(ctx, 'bootstrap'), { completeUpdate: true }),
   },
   update: {
     usage: 'update',
     summary: 'Incremental update.',
     options: {},
     positionals: 0,
-    run: dataCommand('update', (ctx) => runPipeline(ctx, 'update')),
+    run: dataCommand('update', (ctx) => runPipeline(ctx, 'update'), { completeUpdate: true }),
   },
   rebuild: {
     usage: 'rebuild [--refetch]',
@@ -108,8 +114,11 @@ export const commands: Record<string, Command> = {
     run: dataCommand(
       'rebuild',
       (ctx, command) => runPipeline(ctx, command.values.refetch === true ? 'rebuild-refetch' : 'rebuild'),
-      // Without --refetch the run is offline: the transport refuses every request (§6.3, §10.1).
-      (command) => command.values.refetch !== true,
+      {
+        // Without --refetch the run is offline: the transport refuses every request (§6.3, §10.1).
+        offline: (command) => command.values.refetch !== true,
+        completeUpdate: true,
+      },
     ),
   },
   audit: {

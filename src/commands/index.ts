@@ -2,12 +2,14 @@
 import type { Config } from '../config.ts';
 import type { IsoDate } from '../dates/index.ts';
 import type { Logger } from '../logger.ts';
+import { loadLastCompleteUpdate, recordCompleteUpdate } from './complete-update.ts';
 import { createRunContext, type RunContext, type RunProcessEvent, type Runtime } from './context.ts';
 import { EXIT_CODES, type ExitCode } from './exit-codes.ts';
 import { INTERRUPT_EXIT_CODES, writeRunSummary, type InterruptSignal } from './summary.ts';
 
 export { isOffline, type RunMode } from './acquire.ts';
 export { sampleDates } from './audit.ts';
+export { COMPLETE_UPDATE_FILE, loadLastCompleteUpdate, recordCompleteUpdate } from './complete-update.ts';
 export {
   createRunContext,
   OfflineRequestError,
@@ -32,6 +34,9 @@ const MAX_LOGGED_BLOCKING = 50;
  * - on an uncaught exception or unhandled rejection anywhere in the process: outcome `error`, then
  *   the process exits with 1.
  * The handlers (`runtime.process`) are removed when the command ends.
+ *
+ * A pipeline command (`completeUpdate`) that returns 0 or 2 records its `today` as the last
+ * complete update in the store (Step 18).
  */
 export async function runDataCommand(options: {
   command: string;
@@ -41,6 +46,8 @@ export async function runDataCommand(options: {
   runtime: Runtime;
   /** `rebuild` without `--refetch` (see `createRunContext`). */
   offline?: boolean;
+  /** A pipeline command: exit 0 or 2 records the last complete update (default `false`). */
+  completeUpdate?: boolean;
   run: (ctx: RunContext) => Promise<ExitCode>;
 }): Promise<ExitCode> {
   const { logger, runtime } = options;
@@ -88,10 +95,31 @@ export async function runDataCommand(options: {
 /** Writes the run summary and logs the end of the run (once per run). */
 async function finish(
   ctx: RunContext,
-  options: { command: string; config: Config; logger: Logger; runtime: Runtime },
+  options: {
+    command: string;
+    config: Config;
+    today: IsoDate;
+    logger: Logger;
+    runtime: Runtime;
+    completeUpdate?: boolean;
+  },
   outcome: { exitCode: ExitCode; error?: unknown; signal?: InterruptSignal },
 ): Promise<void> {
   const { logger } = options;
+  const storeDir = options.config.paths.store;
+  const complete =
+    options.completeUpdate === true &&
+    outcome.error === undefined &&
+    outcome.signal === undefined &&
+    (outcome.exitCode === EXIT_CODES.success || outcome.exitCode === EXIT_CODES.retroactive);
+  try {
+    ctx.summary.lastCompleteUpdate = complete
+      ? await recordCompleteUpdate(storeDir, options.today)
+      : await loadLastCompleteUpdate(storeDir);
+  } catch (error) {
+    // The summary is written anyway; the workflows treat a missing date as stale.
+    logger.error('last complete update unreadable', { error: error instanceof Error ? error.message : String(error) });
+  }
   ctx.summary.disabledEndpoints = ctx.client.disabledEndpoints();
   for (const { endpoint, cause, refused } of ctx.summary.disabledEndpoints) {
     logger.warn('requests refused by a disabled endpoint', { endpoint, cause, refused });

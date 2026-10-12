@@ -100,6 +100,11 @@ export const runSummarySchema = z.strictObject({
   http: z.record(z.string(), count),
   /** Endpoints disabled by a permanent validation error, with the requests refused afterwards. */
   disabled_endpoints: z.array(z.strictObject({ endpoint: z.string(), cause: z.string(), refused: count })),
+  /**
+   * The `today` of the last pipeline run ended with exit 0 or 2, this one included
+   * (`last-complete-update.json` in the store, Step 18); `null` when none is recorded.
+   */
+  last_complete_update: isoDateSchema.nullable(),
   error: z.strictObject({ name: z.string(), message: z.string(), stack: z.string().nullable() }).nullable(),
 });
 
@@ -131,6 +136,7 @@ export class SummaryBuilder {
   refreshedSnapshots: number | null = null;
   readonly http: Record<string, number> = {};
   disabledEndpoints: RunSummary['disabled_endpoints'] = [];
+  lastCompleteUpdate: IsoDate | null = null;
   message: string | null = null;
 
   constructor(command: string, startedAt: string) {
@@ -199,6 +205,7 @@ export class SummaryBuilder {
       audit: this.audit,
       http: { ...this.http },
       disabled_endpoints: [...this.disabledEndpoints],
+      last_complete_update: this.lastCompleteUpdate,
       error:
         error === undefined
           ? null

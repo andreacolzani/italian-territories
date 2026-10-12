@@ -1,0 +1,131 @@
+name: Release
+
+# Every release starts here (D47): on a push to main touching dist/ (a merged PR) or dispatched by
+# weekly-update with the commit it pushed (a push made with GITHUB_TOKEN triggers no workflow).
+# npm trusted publishing checks the workflow the run starts from: this file, release.yml.
+on:
+  push:
+    branches: [main]
+    paths: ['dist/**']
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit of main to release (full SHA)
+        required: true
+        type: string
+      dry_run:
+        description: Check everything and run npm publish --dry-run, but create no tag and no GitHub Release
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # tag and GitHub Release
+      id-token: write # npm trusted publishing
+    env:
+      SHA: ${{ inputs.sha || github.sha }}
+      DRY_RUN: ${{ inputs.dry_run == true }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0 # ancestry of the commit and existing tags
+
+      - name: Check the commit
+        run: |
+          set -euo pipefail
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::not a full commit SHA: $SHA"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "::error::$SHA is not on main"
+            exit 1
+          fi
+          git checkout --quiet --detach "$SHA"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Trusted publishing needs npm >= 11.5.1.
+      - run: npm install --global npm@11
+
+      - name: Version
+        id: version
+        run: |
+          set -euo pipefail
+          npm run --silent release -- check
+          version=$(npm run --silent release -- version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "releasing $version from $SHA"
+
+      - name: Tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          existing=$(git rev-parse -q --verify "refs/tags/$TAG^{commit}" || true)
+          if [ -n "$existing" ]; then
+            if [ "$existing" != "$SHA" ]; then
+              echo "::error::$TAG already exists on $existing, not on $SHA: the CHANGELOG needs a new entry"
+              exit 1
+            fi
+            echo "$TAG already on $SHA"
+          elif [ "$DRY_RUN" = true ]; then
+            echo "dry run: would create $TAG on $SHA"
+          else
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              tag -a "$TAG" -m "$TAG" "$SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: npm publish
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          name=$(jq -r .name package.json)
+          if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+            echo "$name@$VERSION already on npm"
+            exit 0
+          fi
+          npm run --silent release -- pack "$RUNNER_TEMP/package"
+          cd "$RUNNER_TEMP/package"
+          npm pack --dry-run
+          if [ "$DRY_RUN" = true ]; then
+            npm publish --dry-run
+          else
+            npm publish
+          fi
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists"
+            exit 0
+          fi
+          npm run --silent release -- notes > "$RUNNER_TEMP/notes.md"
+          if [ "$DRY_RUN" = true ]; then
+            echo "dry run: would create the GitHub Release $TAG with:"
+            cat "$RUNNER_TEMP/notes.md"
+            exit 0
+          fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" \
+            dist/*.json dist/schema/*.json

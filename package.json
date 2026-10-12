@@ -26,7 +26,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "fixtures:fetch": "node scripts/fixtures-fetch.ts"
+    "fixtures:fetch": "node scripts/fixtures-fetch.ts",
+    "release": "node scripts/release.ts"
   },
   "dependencies": {
     "csv-parse": "^7.0.3",

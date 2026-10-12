@@ -3,10 +3,11 @@
  * CLI, store, registry and `dist/` in a temporary directory, the sources answered by the world
  * transport. The scenarios change the world (or make requests fail) between two runs.
  */
-import { cp, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { cp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadCalendar } from '../../src/calendar/index.ts';
+import { COMPLETE_UPDATE_FILE, loadLastCompleteUpdate } from '../../src/commands/index.ts';
 import { loadPublishedDataset, type PublishedDataset } from '../../src/emit/index.ts';
 import { INVARIANT_IDS } from '../../src/invariants/index.ts';
 import { reportUrls } from '../../src/sources/situas-internal/index.ts';
@@ -373,6 +374,49 @@ describe('failures', () => {
       request.url.includes('pfun=98&') ? { status: 404, headers: {}, body: 'not found' } : response;
     expect(await rejected.run('bootstrap', '--today', '2026-10-01')).toBe(1);
     expect((await rejected.summary()).anomalies.by_code['event-list-request-rejected']).toBeDefined();
+  });
+});
+
+describe('last complete update', () => {
+  it('is the today of the last pipeline run ended with exit 0 or 2, carried by the run summary', async () => {
+    const box = await bootstrapped(baseWorld());
+    expect(await loadLastCompleteUpdate(box.config.paths.store)).toBe('2026-10-01');
+    expect((await box.summary()).last_complete_update).toBe('2026-10-01');
+
+    // Exit 3: not recorded, the summary reports the previous one.
+    box.world.failing = (r) => r.url.includes('pfun=98&');
+    expect(await box.run('update', '--today', '2026-10-08')).toBe(3);
+    expect((await box.summary()).last_complete_update).toBe('2026-10-01');
+    box.world.failing = null;
+
+    // Exit 2 of an update: recorded.
+    box.world.world = withSettevilleFusion(box.world.world, '2026-06-01');
+    expect(await box.run('update', '--today', '2026-10-15')).toBe(2);
+    expect((await box.summary()).last_complete_update).toBe('2026-10-15');
+  });
+
+  it('is not recorded by audit, nor by a blocked run', async () => {
+    const box = await bootstrapped(baseWorld());
+    box.world.world = withSilentCadastralChange(baseWorld(), '028060', '2015-05-01', 'G225');
+    expect(await box.run('audit', '--samples', '30', '--today', '2026-10-08')).toBe(2);
+    expect(await loadLastCompleteUpdate(box.config.paths.store)).toBe('2026-10-01');
+
+    const blocked = await fresh(baseWorld());
+    blocked.world.patch = (response, request) =>
+      request.url.includes('pfun=64&pdata=')
+        ? { ...response, body: response.body.replaceAll('"COD_UTS"', '"X"') }
+        : response;
+    expect(await blocked.run('bootstrap', '--today', '2026-10-01')).toBe(1);
+    expect((await blocked.summary()).last_complete_update).toBeNull();
+    expect(await exists(join(blocked.config.paths.store, COMPLETE_UPDATE_FILE))).toBe(false);
+  });
+
+  it('never moves back', async () => {
+    const box = await bootstrapped(baseWorld());
+    await writeFile(join(box.config.paths.store, COMPLETE_UPDATE_FILE), JSON.stringify({ today: '2026-12-01' }));
+    // The offline rebuild runs on the today of calendar.json, 2026-10-01.
+    expect(await box.run('rebuild')).toBe(0);
+    expect((await box.summary()).last_complete_update).toBe('2026-12-01');
   });
 });
 

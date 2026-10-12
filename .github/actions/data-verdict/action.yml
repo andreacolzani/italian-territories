@@ -1,0 +1,52 @@
+name: Data verdict
+description: >-
+  Ends a data job by the exit code of its command (§10.3): 0 and 2 succeed; 1 fails; 3 succeeds
+  with a warning, unless the last complete update (the run summary's `last_complete_update`, from
+  the store) is missing or older than `max-stale-days`; anything else (an interruption, a crash)
+  fails.
+
+inputs:
+  exit-code:
+    description: Exit code of the data command
+    required: true
+  max-stale-days:
+    description: Days without a complete update after which exit 3 fails the job
+    default: '21'
+
+runs:
+  using: composite
+  steps:
+    - name: Verdict
+      shell: bash
+      env:
+        EXIT_CODE: ${{ inputs.exit-code }}
+        MAX_STALE_DAYS: ${{ inputs.max-stale-days }}
+      run: |
+        set -euo pipefail
+        summary=.cache/last-run.json
+        message=$(jq -r '.message // ""' "$summary" 2>/dev/null || true)
+        case "$EXIT_CODE" in
+          0) echo "success" ;;
+          2) echo "retroactive: delivered as the data-update PR" ;;
+          1)
+            echo "::error title=Blocking anomalies::exit 1 ${message:+($message)}; see the run summary artifact"
+            exit 1
+            ;;
+          3)
+            last=$(jq -r '.last_complete_update // empty' "$summary" 2>/dev/null || true)
+            if [ -z "$last" ]; then
+              echo "::error title=Source unavailable::exit 3 and no complete update recorded in the store"
+              exit 1
+            fi
+            days=$(( ( $(date -u +%s) - $(date -u -d "$last" +%s) ) / 86400 ))
+            if [ "$days" -gt "$MAX_STALE_DAYS" ]; then
+              echo "::error title=Source unavailable::exit 3; the last complete update ($last) is $days days old (more than $MAX_STALE_DAYS)"
+              exit 1
+            fi
+            echo "::warning title=Source unavailable::exit 3: nothing committed or released; the last complete update ($last) is $days days old"
+            ;;
+          *)
+            echo "::error title=Run failed::exit $EXIT_CODE ${message:+($message)}"
+            exit 1
+            ;;
+        esac

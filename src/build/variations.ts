@@ -9,7 +9,12 @@
  *    - public rows identify their subject and related territory through the code resolver, on the
  *      sides of their event rule (`event-rules.ts`, §3.5 item 6);
  *    - a public row is matched to the internal event of the same `(date, entity, event code)`,
- *      which provides `istat_act_id` and `description`; unmatched rows keep both null.
+ *      which provides `istat_act_id` and `description`; unmatched rows keep both null. Without an
+ *      exact match, an internal event of the same `(date, entity)` with an equivalent code of the
+ *      closed table (`EVENT_CODE_EQUIVALENCES`, D48) is matched when it is the only one (one act,
+ *      one code) and no row of another code took it, and the fact takes the public code (§3); the
+ *      matches are one aggregated `info` (`event-code-mismatch`), an ambiguous equivalence is
+ *      `blocking` (`event-code-equivalence-ambiguous`).
  * 2. **Grouping.** One variation per `(istat_act_id, date)`, across levels (`act:<act>:<date>`).
  *    Facts without act id are grouped per date and level into the connected components of the
  *    entities they mention (subject or related), keyed by the smallest subject entity id
@@ -66,7 +71,7 @@ import {
 import type { EntityByLevel, Participant, Variation, VariationLink, VersionByLevel } from '../model/internal.ts';
 import { ResolutionError, resolutionAnomaly, type Resolution, type ResolveQuery } from '../resolve/index.ts';
 import type { EventRowByLevel } from '../sources/situas-public/index.ts';
-import { eventRule, reportMissingRule, type EventRule } from './event-rules.ts';
+import { equivalentEventCodes, eventRule, reportMissingRule, type EventRule } from './event-rules.ts';
 import type { IdentifiedEntity } from './timeline.ts';
 
 /** An internal event as the variation builder needs it. */
@@ -153,6 +158,10 @@ export const VARIATION_ANOMALIES = {
   selfReference: 'self-reference-ignored',
   /** Public rows without act whose links are already in a variation with an act (`info`, D43). */
   linkExplainedByAct: 'link-explained-by-act',
+  /** Public rows matched to internal events with an equivalent event code (`info`, D48). */
+  eventCodeMismatch: 'event-code-mismatch',
+  /** A public row whose equivalent internal events are not unique, or claimed by another code (`blocking`, D48). */
+  equivalenceAmbiguous: 'event-code-equivalence-ambiguous',
 } as const;
 
 const INTERNAL_SOURCES: Readonly<Record<Level, string>> = {
@@ -269,9 +278,22 @@ export function buildVariations(options: BuildVariationsOptions): VariationBuild
   const accounts: EventAccount[] = [];
   const missingRules = new Map<string, { level: Level; event: IstatEventCode; count: number; source: string }>();
   const selfReferences: SelfReference[] = [];
+  const mismatches = new Map<string, CodeMismatch>();
   const facts: Fact[] = [];
   for (const [level, { input, entities }] of levels) {
-    facts.push(...levelFacts(level, input, entities, accounts, missingRules, selfReferences, anomalies));
+    facts.push(...levelFacts(level, input, entities, accounts, missingRules, selfReferences, mismatches, anomalies));
+  }
+  if (mismatches.size > 0) {
+    const items = [...mismatches.values()];
+    const count = items.reduce((sum, item) => sum + item.count, 0);
+    anomalies.add({
+      level: 'info',
+      code: VARIATION_ANOMALIES.eventCodeMismatch,
+      message: `${count} public rows matched to internal events with an equivalent event code (${items
+        .map((i) => `${i.level} ${i.publicEvent} ↔ ${i.internalEvent}, act ${i.actId}: ${i.count}`)
+        .join('; ')})`,
+      context: { count, items },
+    });
   }
   if (selfReferences.length > 0) {
     anomalies.add({
@@ -319,6 +341,7 @@ function levelFacts(
   accounts: EventAccount[],
   missingRules: Map<string, { level: Level; event: IstatEventCode; count: number; source: string }>,
   selfReferences: SelfReference[],
+  mismatches: Map<string, CodeMismatch>,
   anomalies: AnomalyCollector,
 ): Fact[] {
   const resolver = input.identity.resolver;
@@ -369,6 +392,10 @@ function levelFacts(
   };
 
   const internalByKey = new Map<string, Fact[]>();
+  /** Event code of the internal events, kept when the fact takes the code of a public row. */
+  const internalEvent = new Map<Fact, IstatEventCode>();
+  /** Event code of the public rows matched to an internal fact. */
+  const publicEvent = new Map<Fact, IstatEventCode>();
   const facts: Fact[] = [];
   const source = INTERNAL_SOURCES[level];
   (input.internal ?? []).forEach((e, index) => {
@@ -424,9 +451,40 @@ function levelFacts(
       }
     }
     facts.push(fact);
+    internalEvent.set(fact, e.event);
     const key = factKey(level, e.date, entityId, e.event);
     internalByKey.set(key, [...(internalByKey.get(key) ?? []), fact]);
   });
+
+  /**
+   * The internal facts of a public row by an equivalent event code (D48): only when the internal
+   * events of `(date, entity)` with an equivalent code are of one act and one code; `null` when
+   * they are not (`blocking`), `undefined` when there are none.
+   */
+  const equivalentFacts = (
+    row: EventRowByLevel[Level],
+    entityId: EntityId,
+    source: string,
+    index: number,
+  ): Fact[] | null | undefined => {
+    const candidates = equivalentEventCodes(level, row.event).flatMap(
+      (code) => internalByKey.get(factKey(level, row.date, entityId, code)) ?? [],
+    );
+    if (candidates.length === 0) return undefined;
+    const acts = [...new Set(candidates.map((f) => f.actId))];
+    const codes = [...new Set(candidates.map((f) => internalEvent.get(f)))];
+    if (acts.length === 1 && codes.length === 1) return candidates;
+    ambiguousEquivalence(row, source, index, `internal events of acts ${acts.join(', ')}, codes ${codes.join(', ')}`);
+    return null;
+  };
+  const ambiguousEquivalence = (row: EventRowByLevel[Level], source: string, index: number, detail: string): void => {
+    anomalies.add({
+      level: 'blocking',
+      code: VARIATION_ANOMALIES.equivalenceAmbiguous,
+      message: `${level} ${row.event} of ${row.code} on ${row.date} (${source}): no unique internal event (${detail})`,
+      context: { level, event: row.event, date: row.date, code: row.code, source, index, detail },
+    });
+  };
 
   const publicByKey = new Map<string, Fact>();
   const lists = input.eventLists as Partial<Record<number, readonly EventRowByLevel[Level][]>>;
@@ -472,7 +530,35 @@ function levelFacts(
           : relatedEntity(rule, row.related.code, row.date, relatedCadastralOf(row), { ...context, side: 'related' });
 
       const key = factKey(level, row.date, entityId, row.event);
-      let fact = matchInternal(internalByKey.get(key), level, row, listSource, anomalies) ?? publicByKey.get(key);
+      const exact = internalByKey.get(key);
+      const equivalent = exact === undefined ? equivalentFacts(row, entityId, listSource, index) : undefined;
+      let fact = exact === undefined ? equivalent?.[0] : matchInternal(exact, level, row, listSource, anomalies);
+      // An internal fact takes the rows of one public code only: the code its variation shows.
+      const claimed = fact === undefined ? undefined : publicEvent.get(fact);
+      if (fact !== undefined && claimed !== undefined && claimed !== row.event) {
+        ambiguousEquivalence(row, listSource, index, `its internal event is already matched by ${claimed} rows`);
+        fact = undefined;
+      } else if (fact !== undefined && equivalent) {
+        const internal = internalEvent.get(fact) ?? fact.event;
+        const mismatchKey = `${level}|${row.event}|${internal}|${fact.actId}`;
+        const mismatch = mismatches.get(mismatchKey) ?? {
+          level,
+          publicEvent: row.event,
+          internalEvent: internal,
+          actId: fact.actId,
+          count: 0,
+        };
+        mismatch.count += 1;
+        mismatches.set(mismatchKey, mismatch);
+        // The public list is the source of truth (§3): the variation shows its code.
+        for (const f of equivalent) {
+          f.event = row.event;
+          publicEvent.set(f, row.event);
+        }
+      } else if (fact !== undefined) {
+        publicEvent.set(fact, row.event);
+      }
+      fact ??= publicByKey.get(key);
       if (fact === undefined) {
         fact = {
           level,
@@ -510,6 +596,15 @@ interface SelfReference {
   code: string;
   source: string;
   actId: number | null;
+}
+
+/** Public rows of one level, public code, internal code and act matched by equivalence (D48). */
+interface CodeMismatch {
+  level: Level;
+  publicEvent: IstatEventCode;
+  internalEvent: IstatEventCode;
+  actId: number | null;
+  count: number;
 }
 
 /** The internal fact a public row belongs to: the only act among the candidates, if any. */

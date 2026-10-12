@@ -82,6 +82,42 @@ export function eventRule(level: Level, event: IstatEventCode): EventRule | unde
   return EVENT_RULES[level][event];
 }
 
+/** Two event codes of a level that may describe the same event in the public lists and in r4–r6. */
+export interface EventCodeEquivalence {
+  level: Level;
+  codes: readonly [IstatEventCode, IstatEventCode];
+  reason: string;
+}
+
+/**
+ * The closed table of equivalent event codes for matching public rows to internal events (§6.9,
+ * D48): never deduced from the codes themselves. A pair must have the same rule at its level, so
+ * the match changes no effect; the variation keeps the code of the public list (§3).
+ */
+export const EVENT_CODE_EQUIVALENCES: readonly EventCodeEquivalence[] = [
+  {
+    level: 'municipality',
+    codes: ['RN', 'RNAPUTS'],
+    reason:
+      'A renumbering with or without the change of UTS: the 66 municipalities moved from UTS 090 to 312 on ' +
+      '2026-01-01 (act 6151) were RNAPUTS in pfun 105 until 2026-10-07 and RN from 2026-10-12, while r6 kept RNAPUTS',
+  },
+];
+
+for (const { level, codes } of EVENT_CODE_EQUIVALENCES) {
+  const [a, b] = codes.map((code) => eventRule(level, code));
+  if (a === undefined || a !== b) {
+    throw new Error(`equivalent ${level} event codes ${codes.join(' ↔ ')} must have the same rule`);
+  }
+}
+
+/** The codes equivalent to `event` at `level` (§6.9, D48), without `event` itself. */
+export function equivalentEventCodes(level: Level, event: IstatEventCode): IstatEventCode[] {
+  return EVENT_CODE_EQUIVALENCES.flatMap(({ level: l, codes: [a, b] }) =>
+    l !== level ? [] : a === event ? [b] : b === event ? [a] : [],
+  );
+}
+
 export const EVENT_RULE_ANOMALIES = {
   /** An observed `(level, event code)` pair without a rule (D27). */
   missing: 'event-rule-missing',

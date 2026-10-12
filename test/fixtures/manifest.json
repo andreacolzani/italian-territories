@@ -3334,6 +3334,43 @@
       "used_by": [
         "golden-15"
       ]
+    },
+    {
+      "path": "situas-internal/r6-municipality-events/112001_alghero.json",
+      "source": "situas-internal",
+      "endpoint": "r6:municipality-events",
+      "request": {
+        "method": "POST",
+        "url": "https://situas.istat.it/ShibO2Module/api/Report/ReportByUrl",
+        "headers": {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        "body": {
+          "url": "var_get_ua_comuni_lov_rs?procom=112001&com=Alghero"
+        }
+      },
+      "fetched_at": "2026-10-12",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-24"
+      ]
+    },
+    {
+      "path": "situas-public/events/municipalities/pfun-105_2026-01-01_2026-01-01.json",
+      "source": "situas-public",
+      "endpoint": "events:pfun-105",
+      "request": {
+        "method": "GET",
+        "url": "https://situas-servizi.istat.it/publish/reportspooljson?pfun=105&pdatada=01/01/2026&pdataa=01/01/2026"
+      },
+      "fetched_at": "2026-10-12",
+      "completeness": "full",
+      "note": null,
+      "used_by": [
+        "golden-24"
+      ]
     }
   ]
 }

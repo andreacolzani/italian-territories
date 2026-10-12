@@ -256,6 +256,9 @@ function staticDownloads(): Download[] {
       snapshot(49, date, ['golden-20']),
       snapshot(50, date, ['golden-20']),
     ]),
+    // golden-24: from 2026-10-12 pfun 105 has `RN` where r6 keeps `RNAPUTS` (act 6151, D48).
+    internal(reportUrls.municipalityEvents({ code: '112001', name: 'Alghero' }), ['golden-24']),
+    { request: eventListRequest(publicBase, 105, '2026-01-01', '2026-01-01'), usedBy: ['golden-24'] },
   ];
 }
 

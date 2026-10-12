@@ -262,6 +262,10 @@ export interface WorldOptions {
   municipalityDetails?: string[];
   provinces?: { graph: IdentityGraph<InternalUtsEvent>; details?: string[] };
   overrides?: readonly Override[];
+  /** Municipality event lists replacing the full-range fixtures (e.g. a list of another download). */
+  municipalityLists?: Record<number, readonly { date: IsoDate }[]>;
+  /** Internal municipality events added to those of `municipalities`. */
+  extraMunicipalityEvents?: InternalVariationEvent[];
 }
 
 /**
@@ -296,7 +300,12 @@ export async function fixtureWorld(dates: readonly IsoDate[], options: WorldOpti
     },
     municipality: {
       index: indexes.municipality,
-      eventLists: await listsOn('municipality', eventDates),
+      eventLists:
+        options.municipalityLists === undefined
+          ? await listsOn('municipality', eventDates)
+          : Object.fromEntries(
+              Object.entries(options.municipalityLists).map(([pfun, rows]) => [pfun, onDates(rows, eventDates)]),
+            ),
       internal:
         municipalities === undefined
           ? null
@@ -307,7 +316,10 @@ export async function fixtureWorld(dates: readonly IsoDate[], options: WorldOpti
         ? {}
         : {
             municipality: onDates(
-              variationEvents(municipalities, await municipalityDetails(options.municipalityDetails ?? [])),
+              [
+                ...variationEvents(municipalities, await municipalityDetails(options.municipalityDetails ?? [])),
+                ...(options.extraMunicipalityEvents ?? []),
+              ],
               eventDates,
             ),
           }),

@@ -1,5 +1,5 @@
 /**
- * Variations and links on real SITUAS fixtures (§4.3, Step 11): golden 1, 2, 4, 6, 9, 18, 19, and
+ * Variations and links on real SITUAS fixtures (§4.3, Step 11): golden 1, 2, 4, 6, 9, 18, 19, 24, and
  * I9, I10, I14 on the full worlds of two consecutive days.
  *
  * Event lists and internal events are restricted to the dates of each world (`onDates`): a row of
@@ -28,6 +28,7 @@ import {
   variationOf,
   variationPropertyViolations,
   type BuiltVariations,
+  type WorldOptions,
 } from '../helpers/variations.ts';
 import { entityAt } from '../helpers/versions.ts';
 
@@ -317,6 +318,76 @@ describe('golden-21: Riola Sardo, two acts of the same day and event (1946-02-07
   it('without the r9 details the ambiguity stays a warning', async () => {
     const ambiguous = (await world([])).variationAnomalies.list().filter((a) => a.code === 'variation-act-ambiguous');
     expect(ambiguous.map((a) => a.level)).toEqual(['warning', 'warning']);
+  });
+});
+
+describe('golden-24: equivalent event codes, Alghero (act 6151, 2026-01-01)', async () => {
+  const dates: IsoDate[] = ['2025-12-31', '2026-01-01'];
+  // Downloaded on 2026-10-12: pfun 105 says RN where r6 (and the lists until 2026-10-07) say RNAPUTS.
+  const renumbered = await withSources(
+    async ({ situasPublic }) =>
+      (await situasPublic.fetchEventList('municipality', 105, '2026-01-01', '2026-01-01')).data,
+  );
+  const algheroRows = <T extends { code: string }>(rows: readonly T[]): T[] => rows.filter((r) => r.code === '090003');
+  const graph = await municipalityGraph(['112001_alghero.json']);
+  const world = async (rows: readonly { date: IsoDate; code: string }[], options: Partial<WorldOptions> = {}) =>
+    fixtureWorld(dates, {
+      codes: { region: false, province: false, municipality: ['090003', '112001'] },
+      municipalities: graph,
+      municipalityLists: { 105: rows },
+      ...options,
+    });
+  const alghero = (built: BuiltVariations) => entityAt(built.entities.municipality, '090003', '2025-12-31');
+  // The reduced world has no regions and provinces: their rows of 2026-01-01 do not resolve.
+  const blocking = (built: BuiltVariations) =>
+    built.variationAnomalies
+      .list()
+      .filter((a) => a.level === 'blocking' && !(a.code === 'code-unresolved' && a.context.code !== '090003'))
+      .map((a) => a.code);
+  const ofAlghero = (built: BuiltVariations) =>
+    built.variations
+      .filter((v) => v.participants.some((p) => p.entityId === alghero(built).id))
+      .map((v) => [v.istatActId, v.participants.find((p) => p.entityId === alghero(built).id)?.istatEvents]);
+
+  it('the public RN row joins the variation of act 6151 with the public code, as one info', async () => {
+    const rows = algheroRows(renumbered);
+    expect(rows.map((r) => r.event)).toEqual(['RN']);
+    const built = await world(rows);
+    expect(ofAlghero(built)).toEqual([[6151, ['RN']]]);
+    expect(built.variations.some((v) => v.istatActId === null)).toBe(false);
+    expect(accountViolations(built)).toEqual([]);
+    const anomalies = built.variationAnomalies.list();
+    expect(blocking(built)).toEqual([]);
+    expect(anomalies.filter((a) => a.code === 'event-code-mismatch')).toEqual([
+      expect.objectContaining({
+        level: 'info',
+        context: {
+          count: 1,
+          items: [{ level: 'municipality', publicEvent: 'RN', internalEvent: 'RNAPUTS', actId: 6151, count: 1 }],
+        },
+      }),
+    ]);
+  });
+
+  it('the exact code still matches first, without anomaly', async () => {
+    const built = await world(algheroRows(lists.municipality[105]));
+    expect(ofAlghero(built)).toEqual([[6151, ['RNAPUTS']]]);
+    expect(built.variationAnomalies.list().map((a) => a.code)).not.toContain('event-code-mismatch');
+  });
+
+  it('equivalent internal events of two acts are blocking', async () => {
+    const [event] = variationEvents(graph, new Map()).filter((e) => e.date === '2026-01-01');
+    expect(event?.event).toBe('RNAPUTS');
+    const built = await world(algheroRows(renumbered), {
+      extraMunicipalityEvents: event === undefined ? [] : [{ ...event, actId: 9999 }],
+    });
+    expect(blocking(built)).toEqual(['event-code-equivalence-ambiguous']);
+  });
+
+  it('rows of both codes for one internal event are blocking', async () => {
+    const both = [...algheroRows(renumbered), ...algheroRows(lists.municipality[105])];
+    const built = await world(both);
+    expect(blocking(built)).toEqual(['event-code-equivalence-ambiguous']);
   });
 });
 

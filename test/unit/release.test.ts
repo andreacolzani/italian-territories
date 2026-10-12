@@ -1,12 +1,15 @@
-/** Release tooling (Step 18): CHANGELOG entries, versions, checks and the staged npm package. */
+/** Release tooling (Step 18): CHANGELOG entries, versions, checks, the staged npm package and the delivery target. */
+import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Changes, Meta } from '../../src/model/reports.ts';
 import {
   changelog,
   check,
+  deliveryTarget,
   nextVersion,
   pack,
   parseChangelog,
@@ -218,5 +221,57 @@ describe('pack', () => {
   it('fails when the CHANGELOG does not describe the release', async () => {
     const root = await project();
     await expect(pack(root, join(root, 'staged'))).rejects.toThrow(/has no entry/);
+  });
+});
+
+describe('deliveryTarget', () => {
+  async function git(root: string, ...args: string[]): Promise<void> {
+    await promisify(execFile)('git', args, { cwd: root });
+  }
+
+  /** A committed release: `dist/`, `reports/`, `registry/` and the CHANGELOG. */
+  async function repository(): Promise<string> {
+    const root = await project();
+    await changelog(root);
+    await mkdir(join(root, 'registry'));
+    await writeFile(join(root, 'registry', 'regions.json'), '{}\n');
+    await git(root, 'init', '--quiet');
+    await git(root, 'add', '--all');
+    await git(root, '-c', 'user.name=test', '-c', 'user.email=test@example.org', 'commit', '--quiet', '-m', 'release');
+    return root;
+  }
+
+  const every = [
+    { exitCode: 0, allowMain: true, openPrs: 0 },
+    { exitCode: 0, allowMain: false, openPrs: 0 },
+    { exitCode: 2, allowMain: true, openPrs: 1 },
+  ];
+
+  it('delivers nothing when only reports/, registry/ or the CHANGELOG changed', async () => {
+    const root = await repository();
+    for (const options of every) expect(await deliveryTarget(root, options)).toBe('none');
+    await writeFile(join(root, 'reports', 'anomalies.json'), '[]\n');
+    await writeFile(join(root, 'registry', 'regions.json'), '{"kind":"region"}\n');
+    await writeFile(join(root, 'registry', 'remaps.json'), '[]\n');
+    await writeFile(join(root, CHANGELOG), '# Changelog\n');
+    for (const options of every) expect(await deliveryTarget(root, options)).toBe('none');
+  });
+
+  it('delivers a change of dist/ to main only with exit 0, main allowed and no open PR', async () => {
+    const root = await repository();
+    await writeFile(join(root, 'dist', 'regions.json'), '[{}]\n');
+    expect(await deliveryTarget(root, { exitCode: 0, allowMain: true, openPrs: 0 })).toBe('main');
+    expect(await deliveryTarget(root, { exitCode: 0, allowMain: true, openPrs: 1 })).toBe('pr');
+    expect(await deliveryTarget(root, { exitCode: 0, allowMain: false, openPrs: 0 })).toBe('pr');
+    expect(await deliveryTarget(root, { exitCode: 2, allowMain: true, openPrs: 0 })).toBe('pr');
+  });
+
+  it('sees a new file in dist/ and refuses the exit codes without delivery', async () => {
+    const root = await repository();
+    await writeFile(join(root, 'dist', 'provinces.json'), '[]\n');
+    expect(await deliveryTarget(root, { exitCode: 0, allowMain: true, openPrs: 0 })).toBe('main');
+    for (const exitCode of [1, 3]) {
+      await expect(deliveryTarget(root, { exitCode, allowMain: true, openPrs: 0 })).rejects.toThrow(ReleaseError);
+    }
   });
 });

@@ -1,0 +1,130 @@
+name: Data output
+description: >-
+  Delivers the output of a data run (§10.3, Step 18): with changed public files it writes the
+  CHANGELOG entry and checks it, then commits to main and starts release.yml, or force-pushes the
+  data-update branch and creates or updates its PR. Runs only after exit 0 or 2.
+
+inputs:
+  exit-code:
+    description: Exit code of the data command (0 or 2)
+    required: true
+  origin:
+    description: What produced the output, for the PR body (e.g. `weekly-update`, `rebuild`)
+    required: true
+  allow-main:
+    description: '`true` when exit 0 may go straight to main (weekly-update); otherwise always the PR'
+    default: 'false'
+  dry-run:
+    description: '`true`: prepare everything, commit nothing, open no PR, start no release'
+    default: 'false'
+  token:
+    description: GITHUB_TOKEN (contents, pull-requests and actions write)
+    required: true
+
+outputs:
+  target:
+    description: '`none` (nothing changed), `main` or `pr`'
+    value: ${{ steps.plan.outputs.target }}
+
+runs:
+  using: composite
+  steps:
+    - name: Plan
+      id: plan
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        EXIT_CODE: ${{ inputs.exit-code }}
+        ALLOW_MAIN: ${{ inputs.allow-main }}
+      run: |
+        set -euo pipefail
+        if [ -z "$(git status --porcelain -- dist reports registry)" ]; then
+          echo "nothing to deliver: the public files are unchanged"
+          echo "target=none" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        dist_changed=false
+        if [ -n "$(git status --porcelain -- dist)" ]; then dist_changed=true; fi
+        if [ "$dist_changed" = true ]; then
+          npm run --silent release -- changelog
+        fi
+        # Also when only the registry changed: the first entry must still describe reports/meta.json.
+        npm run --silent release -- check
+        open=$(gh pr list --head data-update --base main --state open --json number --jq length)
+        if [ "$ALLOW_MAIN" = true ] && [ "$EXIT_CODE" = 0 ] && [ "$open" = 0 ]; then
+          target='main'
+        else
+          target='pr'
+        fi
+        data_version=$(jq -r .data_version reports/meta.json)
+        {
+          echo "target=$target"
+          echo "dist-changed=$dist_changed"
+          echo "data-version=$data_version"
+          # The files a data run may change (the README only once it exists, Step 19).
+          echo 'paths<<EOF'
+          printf '%s\n' dist reports registry CHANGELOG.md
+          if [ -f README.md ]; then echo README.md; fi
+          echo EOF
+        } >> "$GITHUB_OUTPUT"
+        echo "open data-update PRs: $open; target: $target; dist changed: $dist_changed"
+
+    - name: Commit to main and start the release
+      if: steps.plan.outputs.target == 'main' && inputs.dry-run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        DATA_VERSION: ${{ steps.plan.outputs.data-version }}
+        DIST_CHANGED: ${{ steps.plan.outputs.dist-changed }}
+        PATHS: ${{ steps.plan.outputs.paths }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2086
+        git add -- $PATHS
+        message="Data update $DATA_VERSION"
+        if [ "$DIST_CHANGED" != true ]; then message="Registry update $DATA_VERSION"; fi
+        git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+          commit --quiet -m "$message"
+        # Rejected when main moved during the run: the next run starts again from the new main.
+        git push origin HEAD:main
+        sha=$(git rev-parse HEAD)
+        if [ "$DIST_CHANGED" = true ]; then
+          # A push made with GITHUB_TOKEN triggers no workflow: release.yml is started explicitly,
+          # so it is always the workflow npm trusted publishing sees (D47).
+          gh workflow run release.yml --ref main -f sha="$sha"
+          echo "release.yml started on $sha"
+        fi
+
+    - name: PR body
+      if: steps.plan.outputs.target == 'pr'
+      shell: bash
+      env:
+        ORIGIN: ${{ inputs.origin }}
+        BODY: ${{ runner.temp }}/data-update-body.md
+      run: |
+        set -euo pipefail
+        jq -r --arg origin "$ORIGIN" --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" '
+          "Automated data update: last updated by **\($origin)** ([run](\($run))).\n",
+          "- command: `\(.command)`, today \(.today), exit code \(.exit_code) (\(.outcome))",
+          "- release: \(.release.kind // "none"), data version \(.release.data_version // "-")",
+          (if .release.changes then "- changes: \(.release.changes.added) added, \(.release.changes.updated) updated, \(.release.changes.removed) removed, \(.release.changes.retroactive) retroactive" else empty end),
+          "- anomalies: \(.anomalies.warning) warnings, \(.anomalies.info) info",
+          (if .retroactive.value then "\n**Retroactive** (review before merging):\n" + ([.retroactive.reasons[] | "- " + .] | join("\n")) else empty end),
+          "\nThe branch is force-pushed by every data run with its latest output (§10.3): merging publishes it (release.yml)."
+        ' .cache/last-run.json > "$BODY"
+        cat "$BODY"
+
+    - name: Create or update the data-update PR
+      if: steps.plan.outputs.target == 'pr' && inputs.dry-run != 'true'
+      # v8.1.1
+      uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
+      with:
+        token: ${{ inputs.token }}
+        branch: data-update
+        base: main
+        add-paths: ${{ steps.plan.outputs.paths }}
+        commit-message: Data update ${{ steps.plan.outputs.data-version }} (${{ inputs.origin }})
+        committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+        author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+        title: Data update ${{ steps.plan.outputs.data-version }}
+        body-path: ${{ runner.temp }}/data-update-body.md

@@ -1,0 +1,90 @@
+name: Weekly update
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run everything and upload the artifacts, but push no store, commit nothing, open no PR, start no release
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: write # commit to main
+      pull-requests: write # the data-update PR
+      actions: write # start release.yml
+    env:
+      DRY_RUN: ${{ inputs.dry_run == true }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Restore the store
+        id: restore
+        uses: ./.github/actions/store
+        with:
+          mode: restore
+          deploy-key: ${{ secrets.STORE_DEPLOY_KEY }}
+
+      - name: Update
+        id: run
+        run: |
+          set +e
+          node src/cli.ts update 2> >(tee "$RUNNER_TEMP/run.ndjson" >&2)
+          code=$?
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          echo "today=$(jq -r '.today // "unknown"' .cache/last-run.json 2>/dev/null || echo unknown)" >> "$GITHUB_OUTPUT"
+
+      # Always, also after a failure or a timeout: the store caches what was downloaded.
+      - name: Push the store
+        if: always() && steps.restore.outcome == 'success' && env.DRY_RUN != 'true'
+        uses: ./.github/actions/store
+        with:
+          mode: save
+          deploy-key: ${{ secrets.STORE_DEPLOY_KEY }}
+          message: Store ${{ steps.run.outputs.today }} (update, exit ${{ steps.run.outputs.exit-code }})
+
+      - name: Upload the run summary and log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: update-run
+          path: |
+            .cache/last-run.json
+            ${{ runner.temp }}/run.ndjson
+          if-no-files-found: warn
+
+      - name: Deliver the data
+        if: steps.run.outputs.exit-code == '0' || steps.run.outputs.exit-code == '2'
+        uses: ./.github/actions/data-output
+        with:
+          exit-code: ${{ steps.run.outputs.exit-code }}
+          origin: weekly-update
+          allow-main: 'true'
+          dry-run: ${{ env.DRY_RUN }}
+          token: ${{ github.token }}
+
+      - name: Verdict
+        if: always() && steps.run.outcome == 'success'
+        uses: ./.github/actions/data-verdict
+        with:
+          exit-code: ${{ steps.run.outputs.exit-code }}

@@ -26,3 +26,6 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # The release: invariants on dist/ and reports/variations.json, CHANGELOG entry of reports/meta.json.
+      - run: npm run cli -- validate
+      - run: npm run release -- check

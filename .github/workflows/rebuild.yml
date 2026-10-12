@@ -1,0 +1,89 @@
+name: Rebuild
+
+# The offline rebuild from the store (no network): it reproduces the last run with the current
+# generator, overrides and registry, and always delivers its output as the data-update PR.
+# `rebuild --refetch` (about 8 hours) is run locally by the maintainer (Step 18).
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run everything and upload the artifacts, but push no store and open no PR
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    name: Rebuild
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: write # the data-update branch
+      pull-requests: write # the data-update PR
+    env:
+      DRY_RUN: ${{ inputs.dry_run == true }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Restore the store
+        id: restore
+        uses: ./.github/actions/store
+        with:
+          mode: restore
+          deploy-key: ${{ secrets.STORE_DEPLOY_KEY }}
+
+      - name: Rebuild
+        id: run
+        run: |
+          set +e
+          node src/cli.ts rebuild 2> >(tee "$RUNNER_TEMP/run.ndjson" >&2)
+          code=$?
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          echo "today=$(jq -r '.today // "unknown"' .cache/last-run.json 2>/dev/null || echo unknown)" >> "$GITHUB_OUTPUT"
+
+      - name: Push the store
+        if: always() && steps.restore.outcome == 'success' && env.DRY_RUN != 'true'
+        uses: ./.github/actions/store
+        with:
+          mode: save
+          deploy-key: ${{ secrets.STORE_DEPLOY_KEY }}
+          message: Store ${{ steps.run.outputs.today }} (rebuild, exit ${{ steps.run.outputs.exit-code }})
+
+      - name: Upload the run summary and log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rebuild-run
+          path: |
+            .cache/last-run.json
+            ${{ runner.temp }}/run.ndjson
+          if-no-files-found: warn
+
+      - name: Deliver the data
+        if: steps.run.outputs.exit-code == '0' || steps.run.outputs.exit-code == '2'
+        uses: ./.github/actions/data-output
+        with:
+          exit-code: ${{ steps.run.outputs.exit-code }}
+          origin: rebuild
+          allow-main: 'false'
+          dry-run: ${{ env.DRY_RUN }}
+          token: ${{ github.token }}
+
+      - name: Verdict
+        if: always() && steps.run.outcome == 'success'
+        uses: ./.github/actions/data-verdict
+        with:
+          exit-code: ${{ steps.run.outputs.exit-code }}

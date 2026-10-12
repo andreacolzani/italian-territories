@@ -434,7 +434,7 @@ Per adapter, producing typed internal rows:
 
 - Content-addressed: each normalised projected row is stored once, keyed by its hash; a snapshot is a manifest `(level, date) → sorted list of row hashes`.
 - Layout: `rows/<level>.ndjson` (append-only) and `snapshots/<level>/<YYYY-MM-DD>.json`.
-- Persisted on an orphan branch `data-cache` (or as a compressed release asset). Also cached, with the same approach: normalised event lists (`events/`), internal API responses (`internal/`), the counts of the snapshot requests (`counts/`, I13) and the ANPR archive (`anpr/`): every source of the build is in the store (Step 17).
+- Persisted in a separate git repository, `italian-territories-store` (D47): one commit per run, history kept (git deltas between similar manifests keep it small: the store of 2026-10-07, 3.3 GB on disk, is a 506 MiB pack), so a clone of the project never downloads it. The workflows clone it shallow into `.cache/store` and push it at the end of every run (Step 18). Also cached, with the same approach: normalised event lists (`events/`), internal API responses (`internal/`), the counts of the snapshot requests (`counts/`, I13) and the ANPR archive (`anpr/`): every source of the build is in the store (Step 17).
 - Every manifest carries the `projection_version` of its projection (snapshots per level, event lists per endpoint, internal reports per report). Content comparisons (`history`, change detection, completeness) only involve manifests with the current version; a manifest with another version is never used by the build. Changing a projection bumps its version and requires `rebuild --refetch`, which is never a retroactive change (D32).
 - A refresh with the same content writes nothing. Event-list change detection is **semantic**: the rows of a new list dated in `[from, to]` are compared with everything the store knows in that date range (for each date, the most recently fetched list covering it), not with a previous manifest (D32).
 - A full rebuild must be possible from the store without network access (`rebuild` without `--refetch`), counts and ANPR included.
@@ -663,12 +663,14 @@ Nothing else is published (D39): the dataset carries no date, no ISTAT history a
 
 The reports are zod-validated before writing, like the public files, but no JSON Schema is published for them.
 
-Releases:
-- git tag `data-YYYY.MM.DD`;
-- GitHub Release with the `dist/` files attached;
-- npm package with `dist/` (version `MAJOR.YYYYMMDD.PATCH`, where MAJOR follows `schema_version` and `YYYYMMDD` is the `data_version` of `reports/meta.json`).
+Releases (D47, Step 18):
+- npm version `MAJOR.YYYYMMDD.PATCH`, where MAJOR follows `schema_version` and `YYYYMMDD` is the `data_version` of `reports/meta.json`; PATCH is 0 for the first release of a `MAJOR.YYYYMMDD`, then incremented (a schemas release, or a rebuild that changes the data without changing `data_version`);
+- `CHANGELOG.md`: one entry per release, generated from `reports/meta.json` and `reports/changes.json` in the same commit or PR as the data; the version is that of its first entry;
+- git tag `v<npm version>` (e.g. `v1.20261007.0`), so a schemas release, or a change of MAJOR with the same `data_version`, gets its own tag;
+- GitHub Release on the tag, with the `dist/` files attached and the CHANGELOG entry of that version as notes;
+- npm package with `dist/`, `README.md`, the data licence as `LICENSE` (CC BY 4.0, attribution to ISTAT) and `license: "CC-BY-4.0"`; the generator code is MIT and is not published.
 
-A release is either a **data** release (new public data files) or a **schemas** release (same public data files, new JSON Schemas after a generator change, Step 16): a schemas release keeps the previous `data_version`, data files and internal reports except `reports/meta.json`, where only `schema_version` and `generated_at` change, and writes an empty, non-retroactive `reports/changes.json`. It increments the npm PATCH; its git tag must be distinguishable from the data release with the same `data_version` (Step 18). Whether a release happens is decided by the **public** files only: when they are unchanged, nothing is written, the internal reports included (they always describe the build of the published release, even if, e.g., only the description of an act changed).
+A release is either a **data** release (new public data files) or a **schemas** release (same public data files, new JSON Schemas after a generator change, Step 16): a schemas release keeps the previous `data_version`, data files and internal reports except `reports/meta.json`, where only `schema_version` and `generated_at` change, and writes an empty, non-retroactive `reports/changes.json`. It increments the npm PATCH and gets its own tag. Whether a release happens is decided by the **public** files only: when they are unchanged, nothing is written, the internal reports included (they always describe the build of the published release, even if, e.g., only the description of an act changed).
 
 ---
 
@@ -707,12 +709,18 @@ Every update runs the whole pipeline (offline from the store wherever a source n
 
 | Workflow | Trigger | Behaviour |
 |---|---|---|
-| `ci.yml` | push, PR | typecheck, lint, unit and integration tests, schema validation of `dist/`, `validate` |
-| `weekly-update.yml` | cron weekly (e.g. Monday 04:00 UTC) + manual | restore `data-cache` → `update` → commit + release, or PR per §10.2 → push updated cache |
-| `rebuild.yml` | manual + quarterly cron | `rebuild` (optionally `--refetch`) → always a PR |
-| `release.yml` | push to `main` touching `dist/` | tag, GitHub Release, npm publish (version from `reports/meta.json`) |
+| `test.yml` | push, PR | typecheck, unit and integration tests (schema validation of `dist/` included), `validate`, `release -- check` |
+| `lint.yml` | push (not `main`) | ESLint, Prettier |
+| `weekly-update.yml` | cron weekly (Monday 04:00 UTC) + manual | restore the store → `update` → push the store → commit to `main` + release, or the `data-update` PR (below) |
+| `rebuild.yml` | manual | restore the store → offline `rebuild` (no network) → push the store → always the `data-update` PR |
+| `release.yml` | push to `main` touching `dist/**`; `workflow_dispatch` with the commit `sha` | tag, GitHub Release, npm publish (version from the first entry of `CHANGELOG.md`, checked against `reports/meta.json`) |
 
-Secrets: npm token only. Concurrency groups prevent overlapping data runs. Jobs must stay well under the 6-hour runner limit; bootstrap can resume across runs thanks to the cache.
+- **Store**: the composite action `.github/actions/store` clones `italian-territories-store` shallow into `.cache/store` (no command reads its history) and, at the end of every data run, also when it failed or was interrupted, commits and pushes it (`Store <today> (<command>, exit <n>)`, only when something changed). The push uses a deploy key with write access to that repository only (secret `STORE_DEPLOY_KEY`).
+- **Data PR**: a single fixed branch `data-update`, shared by `weekly-update` and `rebuild`. Every run regenerates the whole output, so the branch is force-pushed with the latest output and the open PR is updated (also by the maintainer's local refetch, Step 18); its body says what updated it last (`weekly-update`, `rebuild`, or a local `rebuild --refetch` of the maintainer, Step 18), the change counts and the retroactive reasons of the run summary. While the PR is open, no workflow commits data to `main`, not even with exit 0: the run updates the PR.
+- **Exit codes** of `update` and of the offline `rebuild`: 0 with changed public files → `release -- changelog`, `release -- check`, commit of `dist/`, `reports/`, `registry/` and `CHANGELOG.md` to `main`, then `release.yml` started with `workflow_dispatch` on that commit (the PR instead when one is open; `rebuild` always opens the PR); 0 with nothing changed → nothing; 2 → the PR; 1 → job failed; 3 → no data commit and no release, job successful with a warning annotation, but failed when the last complete update (`last-complete-update.json` in the store, Step 18) is missing or older than 21 days. The store is pushed in every case.
+- **Release**: `release.yml` is always the workflow the run starts from (npm trusted publishing checks the starting workflow, and `GITHUB_TOKEN` pushes do not trigger other workflows, so `weekly-update` uses `workflow_dispatch`). It checks that the `sha` is reachable from `main`, and is idempotent: a tag already on the same commit, an existing GitHub Release or a version already on npm are skipped; a tag on another commit fails.
+- **`dry_run`** input (`weekly-update`, `rebuild`, `release`): the run executes everything and uploads its artifacts (run summary and log), but pushes no store, commits nothing, opens or updates no PR and starts no release; `release.yml` creates no tag and no GitHub Release and runs `npm publish --dry-run`.
+- **Secrets**: `STORE_DEPLOY_KEY` only; npm uses trusted publishing (OIDC, provenance generated automatically once the repository is public). Concurrency groups `data` (`weekly-update`, `rebuild`) and `release` prevent overlapping runs, never cancelling one in progress. Jobs stay under the 6-hour runner limit (timeout 350 minutes). No workflow runs `rebuild --refetch` (about 7 h 50 min, and an interrupted refetch resumes only from the HTTP cache, which CI does not keep) nor `bootstrap`: both are run locally by the maintainer (Step 18).
 
 ---
 
@@ -894,10 +902,10 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
 | `registry/` | Id registry | committed |
 | `overrides/` | Curated corrections | committed |
 | `.cache/http/` | Response cache | ignored |
-| `.cache/store/` | Snapshot store; in CI it is the checkout of the `data-cache` branch | ignored |
+| `.cache/store/` | Snapshot store; in CI a shallow clone of the `italian-territories-store` repository (D47) | ignored |
 | `.cache/reports/` | Build reports that are neither data nor sources (e.g. `event-codes.json`, Step 7) | ignored |
 
-**npm package**: publishes only `dist/` (data and JSON Schemas), `README.md` and `LICENSE`. The generator code and the internal reports (`reports/`) are not published.
+**npm package**: publishes only `dist/` (data and JSON Schemas), `README.md` and the data licence as `LICENSE` (CC BY 4.0, `LICENSE-DATA` in the repository). The generator code (MIT, `LICENSE`) and the internal reports (`reports/`) are not published. The package is staged in a separate directory by `npm run release -- pack` (Step 18); the root `package.json` stays `private`.
 
 **Determinism**: build logic never reads the clock. "Today" comes from config (`dates.today`, set by `--today YYYY-MM-DD`, default the current date in `Europe/Rome`) and is passed explicitly. Only `generated_at` and `fetched_at` hold real timestamps. The `--today` flag is a Step 5 deliverable.
 
@@ -1236,7 +1244,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
   - **Effects by exit code**: 0 and 2 write `dist/`, `reports/` and `registry/`; 1 and 3 write none of them; the store and `calendar.json` are always written; `.cache/last-run.json` (`paths.runSummary`) always: when the command throws (outcome `error`, exit 1), on SIGINT/SIGTERM (outcome `interrupted`, `signal`, then the process exits with 130/143) and on an uncaught exception or unhandled rejection anywhere in the process (outcome `error`, exit 1); the summary is written once, a later ending never overwrites it. Blocking anomalies are also logged (the first 50).
   - **Progress**: every stage logs `stage start` and `stage done` (with `completed`, `total`, `errors` when it counted requests); while a stage runs, a `progress` line every 30 s with the same counts (a timer, so a stage stalled on retries still reports). Counted: event lists, internal reports, snapshots (calendar dates and probes), audit samples, refreshed snapshots.
   - **Disabled endpoints**: one `http endpoint disabled` line with the cause when an endpoint is disabled; the other schema violations of requests in flight and the requests refused afterwards are not logged one by one; at the end one `requests refused by a disabled endpoint` line per endpoint with the count, also in the run summary (`disabled_endpoints`).
-  - **`update`** without the state of a previous run (`calendar.json` in the store, a release in `dist/` and `reports/`) exits 1 asking to run `bootstrap`, which resumes from the cache; never an automatic bootstrap (a lost `data-cache` in CI must not trigger ~15,000 requests).
+  - **`update`** without the state of a previous run (`calendar.json` in the store, a release in `dist/` and `reports/`) exits 1 asking to run `bootstrap`, which resumes from the cache; never an automatic bootstrap (a lost store in CI must not trigger ~15,000 requests).
   - **Audit**: samples in `[start, today)` from a PRNG seeded with `today`; corrections per §10.2; `audit-discrepancy` warnings; `audit` alone writes the store and `calendar.json` (inferred dates kept for the next build), never `dist/` nor `reports/`.
   - `time`, `level` and `msg` are reserved to the logger: `LogFields` forbids them in the types, and at run time a field never replaces them; a territorial level is logged as `territoryLevel`.
 - **First release postponed** (2026-10-08): the full run (bootstrap and `rebuild --refetch` on the real sources) met the acceptance criteria, but the published model (§4, §9) is going to be revised before any release. Until then `dist/` and `registry/` are not committed (`.gitignore`, only their `.gitkeep`): no release and no registry with the current ids exist, so the revision starts from a clean state. The revision is specified in D39–D45 and in Steps 16–17; `reports/` follows the same rule as `dist/` until the first release.
@@ -1244,28 +1252,35 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 
 ### Step 18 — GitHub Actions
 
-- **Deliverables**: the workflows of §10.3:
-  - `data-cache` branch checkout and push;
-  - PR creation on exit code 2 (a pinned PR-creation action is allowed in workflows);
-  - release and npm publish.
-- **Schemas releases** (Step 16, §9): a release whose data files are unchanged and whose schemas changed keeps the previous `data_version` and increments the PATCH of the npm version (`MAJOR.YYYYMMDD.PATCH`, MAJOR following `schema_version`). The git tag scheme must distinguish it from the data release with the same `data_version`: today `data-YYYY.MM.DD` would collide (e.g. a suffix carrying the PATCH, to be decided in this step).
-- **Acceptance**: dry-run on a fork; no publish on exit codes 1, 2 or 3; a schemas release gets its own tag and npm PATCH.
-- **Open points** (to discuss or implement in this step):
-  - the automatic update must also update `CHANGELOG.md`. Releases created with the `GITHUB_TOKEN` do not trigger other workflows, so `update-changelog.yml` (manual releases only) is not enough: the update has to happen inside the release flow, or the release has to be created with a PAT/GitHub App;
-  - decide how the workflows that commit to `main` (changelog, data releases) behave when `main` is protected (bypass for GitHub Actions, PAT/GitHub App, or PR).
+- **Deliverables**: the workflows of §10.3 and the release tooling of §9 (D47):
+  - the store in the separate repository `italian-territories-store`: composite action `.github/actions/store` (shallow clone into `.cache/store`, commit and push at the end of every data run, also on failure or interruption), deploy key with write access to that repository only (secret `STORE_DEPLOY_KEY`);
+  - `last-complete-update.json` in the store (`{ today }`): written by a data command that ends with exit 0 or 2, keeping the maximum of the stored date and the run's `today` (an offline `rebuild` with an earlier `--today` never moves it back); the run summary carries it as `last_complete_update` (`null` when absent), for the 21-day rule of exit 3 (§10.3);
+  - `scripts/release.ts` (`npm run release -- <command>`): `changelog` (adds the CHANGELOG entry of `reports/meta.json` unless the first entry already describes it: version `MAJOR.YYYYMMDD.PATCH`, PATCH = the highest PATCH of the same `MAJOR.YYYYMMDD` already in the CHANGELOG + 1, else 0; release kind; change counts per level from `reports/changes.json`; retroactive flag; `schema_version`, `data_version` and `generated_at` in a comment of the entry; also the README date between its `data-version` markers, when they exist), `check` (the first entry matches `reports/meta.json`, and so does the README date between its `data-version` markers when they exist, Step 19), `version`, `notes` (the entry, for the GitHub Release), `pack <dir>` (stages the npm package: `dist/`, `README.md`, `LICENSE-DATA` as `LICENSE`, a generated `package.json` with the version and `license: "CC-BY-4.0"`; fails without `README.md`);
+  - `weekly-update.yml`, `rebuild.yml` and `release.yml` (§10.3); `test.yml` also runs `validate` and `release -- check`; `update-changelog.yml` removed (the CHANGELOG entry is written with the data, and releases created with `GITHUB_TOKEN` would not trigger it); third-party actions pinned by SHA (a pinned PR-creation action is allowed), explicit `permissions` per job;
+  - licences: `LICENSE` (MIT, the generator), `LICENSE-DATA` (CC BY 4.0, attribution to ISTAT), the first CHANGELOG entry (`1.20261007.0`).
+- **Schemas releases** (Step 16, §9): a release whose data files are unchanged and whose schemas changed keeps the previous `data_version` and increments the PATCH of the npm version (`MAJOR.YYYYMMDD.PATCH`, MAJOR following `schema_version`); its tag `v<npm version>` differs from the data release's.
+- **`rebuild --refetch` only local**: the refetch of 2026-10-07 took about 7 h 50 min (HTTP cache writes from 11:12 to 19:00), above the 350-minute job timeout, and an interrupted refetch does not resume in CI (§10.3). `rebuild.yml` runs only the offline `rebuild` from the store, manually; there is no scheduled rebuild.
+- **Maintainer procedure** (after the merge; the `gh` commands are run with the maintainer's confirmation, and the private key never appears in logs and is deleted from disk after `gh secret set`):
+  1. create the private repository `italian-territories-store`; an offline `rebuild` writes `last-complete-update.json`; `.cache/store` becomes a git repository with `.gitattributes` `* -text` (bytes as written), committed and pushed;
+  2. generate the deploy key, add it to the store repository with write access, store the private key as `STORE_DEPLOY_KEY`; allow GitHub Actions to create pull requests (repository setting, needed by the `data-update` PR);
+  3. refetch (whenever needed, e.g. after a projection change, D32): first `gh workflow disable weekly-update.yml` (a weekly run must not push the store while the refetch runs; wait for a run in progress to end), then, from an up-to-date `main` with `.cache/store` an up-to-date clone of the store repository: `npm run cli -- rebuild --refetch`; with exit 0 or 2 and changed public files, `npm run release -- changelog` and `npm run release -- check`; commit and push of the store (`Store <today> (rebuild --refetch, exit <n>)`, also with exit 1 or 3); the output (`dist/`, `reports/`, `registry/`, `CHANGELOG.md`) committed on the `data-update` branch (created from `main` or force-pushed over the open PR) and the `data-update` PR opened or updated, its body saying it comes from a local `rebuild --refetch`; finally `gh workflow enable weekly-update.yml`, also when the refetch failed;
+  4. first npm publish, after Step 19 (the package needs the README): `npm run release -- pack <dir>` and `npm publish` from it, by hand (npm allows a trusted publisher only on an existing package); then the trusted publisher on npmjs.com (repository `italian-territories`, workflow `release.yml`); then `release.yml` dispatched on `main`, which creates tag and GitHub Release and skips the publish.
+- **Acceptance**: dry-run on a fork (or on the repository, `dry_run: true`); no publish on exit codes 1, 2 or 3; a schemas release gets its own tag and npm PATCH; tests of `scripts/release.ts` (PATCH, schemas release, idempotent `changelog`, `check` failing on a mismatch, `pack` contents and failure without README) and of the marker (written on 0 and 2, not on 1 and 3, never moved back); `npm pack --dry-run` in the staged directory lists only `dist/`, `README.md`, `LICENSE` and `package.json`.
+- **Open points**:
+  - when `main` becomes protected (the repository is private on GitHub Free today, so the workflows push to `main` with `GITHUB_TOKEN`): decide how the data commits reach it (bypass for GitHub Actions, GitHub App, or the PR for every update). PRs and pushes made with `GITHUB_TOKEN` do not trigger `test.yml`, so a required check would never run on the `data-update` PR without a GitHub App or a PAT.
 
 ### Step 19 — Documentation
 
 - **Deliverables**:
   - README covering: purpose; scope and perimeter; what is published and what is not (D39: territories only, no ISTAT history, no ISTAT ids, no synchronisation files); de iure dates; inclusive `valid_until`; file formats; entity id format and stability (D42), versions identified by `(entity id, valid_from)` (D40); link kinds (`merged_into`, `split_into`, `detached_into`); resolution to the current territory (§7: for municipalities, automatic only with a single current successor and no former Italian successor, direct or indirect; provinces and regions through the municipalities, whose versions carry `province_id` and `region_id`; `current_successors` only on municipalities, D46); `is_former_italian` as "ceased because ceded abroad, directly or because all its successors were", not a measure of lost territory; the order of the entities in the files (by internal ISTAT id, `nk:` entities last) declared stable but presentation only, not part of the contract; bilingual names of regions and UTS (§4.2); update cadence; the npm version scheme as the date of the data.
   - README: for versions with an 8xx `istat_code` (§3.5 item 17), the code must not be used to derive the province; use `province_id`.
-  - README: the date of the last data update (`data_version` of the internal `reports/meta.json`, the same date as the `YYYYMMDD` of the npm version), clearly visible near the top, updated automatically by every data release (the release flow of Step 18 reads it from `reports/meta.json`, which stays committed in the repository and is the only place the published data's date is recorded besides the npm version; a schemas release leaves it unchanged). The published files themselves carry no date.
+  - README: the date of the last data update (`data_version` of the internal `reports/meta.json`, the same date as the `YYYYMMDD` of the npm version), clearly visible near the top, updated automatically by every data release (`npm run release -- changelog`, Step 18, writes it between the `<!-- data-version -->` and `<!-- /data-version -->` markers of the README in the same commit as the data, reading it from `reports/meta.json`, which stays committed in the repository and is the only place the published data's date is recorded besides the npm version; a schemas release leaves it unchanged). The published files themselves carry no date.
   - README: the internal reports (`reports/`) are mentioned only as part of the repository (for reviewers), not as part of the dataset.
   - README: an explicit note that partial cessions of entities that continue to exist (Gorizia and Trieste in 1947, parts of territory passed between municipalities) are not represented in the public files (D39): the files describe which territories exist and how one ceased into others, not the flows of territory between surviving entities.
+  - README: licences: the data are CC BY 4.0 (`LICENSE-DATA`, the `LICENSE` of the npm package) and are an elaboration of ISTAT data (reconstructed and normalised from SITUAS, with their own identifiers), not ISTAT data as published; the generator is MIT (`LICENSE`).
   - CONTRIBUTING: how to add an override and a fixture.
-  - CHANGELOG policy.
+  - CHANGELOG policy: one entry per release, written by `npm run release -- changelog` with the data (Step 18), only when the public files change; a developer whose change alters `dist/` runs it before committing (`test.yml` checks it).
 - **Acceptance**: every public field documented with type and semantics.
-- **Open points**: the CHANGELOG policy must update the changelog automatically only when the public outputs actually change.
 
 ---
 
@@ -1319,6 +1334,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 | D44 | Public link kinds: `split_into` when the origin ceases and its territory goes to several destinations on the same date (all variations of that date), `merged_into` for a single destination, `detached_into` unchanged; `transferred_to` stays internal (never in predecessors or successors); links are `{ id, kind, date }` without `variation_id` | Consumers must know whether a suppressed entity has one heir or several without counting links; variations are internal (D39) |
 | D45 | Resolution to the current territory (§7): automatic only when `current_successors` has exactly one element and no successor, direct or indirect, has `is_former_italian: true`; otherwise user supervision. No dedicated field (`partially_ceded`, introduced on 2026-10-08, removed on 2026-10-09) | The rule follows from the public data alone; a field duplicating it would be one more derived value to keep consistent. Occisla-Clanzo has a single current successor, but part of its territory ended in a municipality ceded in 1947: an automatic migration could move a reference that belongs to the ceded part |
 | D46 | `current_successors` only for municipalities (the closure of the links as before); regions and provinces keep `predecessors`, `successors` and `is_former_italian`; a reference to a province or region is resolved through the municipalities (§7) | For provinces and regions the closure of the links does not describe where the territory went (a reorganisation spreads a province over several others by its municipalities, not by the links of the act), and the real use goes through the municipalities, whose versions carry `province_id` and `region_id` |
+| D47 | The store lives in a separate repository (`italian-territories-store`, history kept, shallow clone in CI, pushed with a deploy key); every release starts from `release.yml` (push to `main` or `workflow_dispatch`), tagged `v<npm version>`, published to npm with trusted publishing; the CHANGELOG entry is written with the data, in the same commit or PR; a single `data-update` PR for every data run that cannot go straight to `main`, and no direct data commit while it is open | A clone of the project must not download the store (3.3 GB on disk); npm trusted publishing checks the workflow the run starts from and `GITHUB_TOKEN` pushes trigger no workflow, so one entry point for every release; a schemas release shares the `data_version` of the data release, so the tag carries the whole version; every run regenerates the whole output, so one PR with the latest output is never stale |
 
 ---
 
@@ -1354,7 +1370,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 ├── dist/                      # published outputs: three entity files + schemas (committed)
 ├── reports/                   # internal reports: variations, anomalies, changes, meta (committed, not in npm)
 ├── lib/                       # compiled generator code (gitignored)
-├── .cache/                    # http/ and store/ local caches (gitignored)
+├── .cache/                    # http/ and store/ local caches (gitignored; store/ is a clone of italian-territories-store in CI)
 ├── test/
 │   ├── fixtures/              # real SITUAS/ANPR responses (§11.1)
 │   │   ├── manifest.json
@@ -1363,7 +1379,15 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 │   │   └── situas-internal/r<n>-<name>/
 │   ├── helpers/fixtures.ts    # fixturePath(), mock transport
 │   └── golden/
-├── .github/workflows/
+├── scripts/
+│   ├── fixtures-fetch.ts      # §11.2 fixtures
+│   └── release.ts             # CHANGELOG entry, release checks, npm package staging (Step 18)
+├── CHANGELOG.md
+├── LICENSE                    # MIT, the generator
+├── LICENSE-DATA               # CC BY 4.0, the data (the npm package's LICENSE)
+├── .github/
+│   ├── actions/store/         # clone and push of the italian-territories-store repository
+│   └── workflows/
 └── docs/
     ├── GENERATOR_IMPLEMENTATION_PLAN.md
     └── sources/               # API documentation notes (public and internal SITUAS)

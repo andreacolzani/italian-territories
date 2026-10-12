@@ -10,7 +10,7 @@ jobs:
   auto-merge:
     name: Enable auto-merge
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'andreacolzani/italian-territories'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Dependabot metadata

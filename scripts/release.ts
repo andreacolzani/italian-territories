@@ -13,13 +13,18 @@
  * - `pack <dir>`: stages the npm package in `<dir>` (empty or missing): `dist/`, `README.md`, the
  *   data licence as `LICENSE` and a generated `package.json`. The root `package.json` stays
  *   private: only the staged directory is published.
+ * - `target <exit-code> <allow-main> <open-prs>`: where the output of a data run goes (`none`,
+ *   `main` or `pr`, §10.3), decided by `dist/` only: `reports/`, `registry/` and the CHANGELOG
+ *   are delivered only together with a change of `dist/`.
  *
  * The npm version is `MAJOR.YYYYMMDD.PATCH`: MAJOR is the major of `schema_version`, `YYYYMMDD`
  * the `data_version`, PATCH 0 for the first release of a `MAJOR.YYYYMMDD`, then incremented (a
  * schemas release, or a rebuild that changes the data without changing `data_version`).
  */
+import { execFile } from 'node:child_process';
 import { cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { z } from 'zod';
 import { changesSchema, metaSchema, type Changes, type Meta } from '../src/model/reports.ts';
 
@@ -332,7 +337,38 @@ export async function pack(root: string, dir: string): Promise<string> {
   return version;
 }
 
-const USAGE = 'usage: npm run release -- changelog | check | version | notes | pack <dir>';
+/** Where the output of a data run goes (§10.3): nothing, a commit to `main`, or the `data-update` PR. */
+export type DeliveryTarget = 'none' | 'main' | 'pr';
+
+/** Whether the working tree of `root` changes `dist/` (tracked or untracked files). */
+export async function distChanged(root: string): Promise<boolean> {
+  const { stdout } = await promisify(execFile)('git', ['status', '--porcelain', '--', 'dist'], { cwd: root });
+  return stdout.trim() !== '';
+}
+
+/**
+ * The delivery of a data run that ended with exit 0 or 2: only a change of `dist/` is delivered
+ * (`reports/`, `registry/` and the CHANGELOG go with it, never alone); exit 0 goes to `main` when
+ * allowed and no `data-update` PR is open, anything else to the PR.
+ */
+export async function deliveryTarget(
+  root: string,
+  options: { exitCode: number; allowMain: boolean; openPrs: number },
+): Promise<DeliveryTarget> {
+  if (options.exitCode !== 0 && options.exitCode !== 2) {
+    throw new ReleaseError(`no delivery for exit code ${options.exitCode} (only 0 or 2)`);
+  }
+  if (!(await distChanged(root))) return 'none';
+  return options.allowMain && options.exitCode === 0 && options.openPrs === 0 ? 'main' : 'pr';
+}
+
+const USAGE =
+  'usage: npm run release -- changelog | check | version | notes | pack <dir> | target <exit-code> <allow-main> <open-prs>';
+
+function integerArg(text: string | undefined): number {
+  if (text === undefined || !/^\d+$/.test(text)) throw new ReleaseError(USAGE);
+  return Number(text);
+}
 
 export async function main(argv: readonly string[], root: string, out: (text: string) => void): Promise<void> {
   const [command, ...args] = argv;
@@ -355,6 +391,17 @@ export async function main(argv: readonly string[], root: string, out: (text: st
       const [dir] = args;
       if (dir === undefined) throw new ReleaseError(USAGE);
       out(`staged ${await pack(root, resolve(dir))} in ${resolve(dir)}\n`);
+      return;
+    }
+    case 'target': {
+      const [exitCode, allowMain, openPrs] = args;
+      if (allowMain !== 'true' && allowMain !== 'false') throw new ReleaseError(USAGE);
+      const target = await deliveryTarget(root, {
+        exitCode: integerArg(exitCode),
+        allowMain: allowMain === 'true',
+        openPrs: integerArg(openPrs),
+      });
+      out(`${target}\n`);
       return;
     }
     default:

@@ -1,8 +1,9 @@
 name: Data output
 description: >-
-  Delivers the output of a data run (§10.3, Step 18): with changed public files it writes the
-  CHANGELOG entry and checks it, then commits to main and starts release.yml, or force-pushes the
-  data-update branch and creates or updates its PR. Runs only after exit 0 or 2.
+  Delivers the output of a data run (§10.3, Step 18): with a changed dist/ it writes the CHANGELOG
+  entry and checks it, then commits to main and starts release.yml, or force-pushes the
+  data-update branch and creates or updates its PR. reports/, registry/ and the CHANGELOG are
+  delivered only together with dist/. Runs only after exit 0 or 2.
 
 inputs:
   exit-code:
@@ -23,7 +24,7 @@ inputs:
 
 outputs:
   target:
-    description: '`none` (nothing changed), `main` or `pr`'
+    description: '`none` (dist/ unchanged), `main` or `pr`'
     value: ${{ steps.plan.outputs.target }}
 
 runs:
@@ -38,28 +39,25 @@ runs:
         ALLOW_MAIN: ${{ inputs.allow-main }}
       run: |
         set -euo pipefail
-        if [ -z "$(git status --porcelain -- dist reports registry)" ]; then
-          echo "nothing to deliver: the public files are unchanged"
+        # Only dist/ decides (scripts/release.ts, `target`): changes of reports/ or registry/ alone
+        # are never delivered, they go with the next change of dist/.
+        git status --porcelain -- dist reports registry CHANGELOG.md
+        open=$(gh pr list --head data-update --base main --state open --json number --jq length)
+        target=$(npm run --silent release -- target "$EXIT_CODE" "$ALLOW_MAIN" "$open")
+        echo "open data-update PRs: $open; target: $target"
+        if [ "$target" = none ]; then
+          echo "nothing to deliver: dist/ is unchanged"
+          if [ "$EXIT_CODE" = 2 ]; then
+            echo "::notice title=Nothing delivered::exit 2 (retroactive changes) but dist/ is unchanged: no commit and no PR"
+          fi
           echo "target=none" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        dist_changed=false
-        if [ -n "$(git status --porcelain -- dist)" ]; then dist_changed=true; fi
-        if [ "$dist_changed" = true ]; then
-          npm run --silent release -- changelog
-        fi
-        # Also when only the registry changed: the first entry must still describe reports/meta.json.
+        npm run --silent release -- changelog
         npm run --silent release -- check
-        open=$(gh pr list --head data-update --base main --state open --json number --jq length)
-        if [ "$ALLOW_MAIN" = true ] && [ "$EXIT_CODE" = 0 ] && [ "$open" = 0 ]; then
-          target='main'
-        else
-          target='pr'
-        fi
         data_version=$(jq -r .data_version reports/meta.json)
         {
           echo "target=$target"
-          echo "dist-changed=$dist_changed"
           echo "data-version=$data_version"
           # The files a data run may change (the README only once it exists, Step 19).
           echo 'paths<<EOF'
@@ -67,7 +65,6 @@ runs:
           if [ -f README.md ]; then echo README.md; fi
           echo EOF
         } >> "$GITHUB_OUTPUT"
-        echo "open data-update PRs: $open; target: $target; dist changed: $dist_changed"
 
     - name: Commit to main and start the release
       if: steps.plan.outputs.target == 'main' && inputs.dry-run != 'true'
@@ -75,25 +72,20 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         DATA_VERSION: ${{ steps.plan.outputs.data-version }}
-        DIST_CHANGED: ${{ steps.plan.outputs.dist-changed }}
         PATHS: ${{ steps.plan.outputs.paths }}
       run: |
         set -euo pipefail
         # shellcheck disable=SC2086
         git add -- $PATHS
-        message="Data update $DATA_VERSION"
-        if [ "$DIST_CHANGED" != true ]; then message="Registry update $DATA_VERSION"; fi
         git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-          commit --quiet -m "$message"
+          commit --quiet -m "Data update $DATA_VERSION"
         # Rejected when main moved during the run: the next run starts again from the new main.
         git push origin HEAD:main
         sha=$(git rev-parse HEAD)
-        if [ "$DIST_CHANGED" = true ]; then
-          # A push made with GITHUB_TOKEN triggers no workflow: release.yml is started explicitly,
-          # so it is always the workflow npm trusted publishing sees (D47).
-          gh workflow run release.yml --ref main -f sha="$sha"
-          echo "release.yml started on $sha"
-        fi
+        # A push made with GITHUB_TOKEN triggers no workflow: release.yml is started explicitly,
+        # so it is always the workflow npm trusted publishing sees (D47).
+        gh workflow run release.yml --ref main -f sha="$sha"
+        echo "release.yml started on $sha"
 
     - name: PR body
       if: steps.plan.outputs.target == 'pr'

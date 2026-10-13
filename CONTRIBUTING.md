@@ -1,6 +1,6 @@
 # Contributing
 
-The generator is specified by [`docs/GENERATOR_IMPLEMENTATION_PLAN.md`](docs/GENERATOR_IMPLEMENTATION_PLAN.md): read the sections a change touches before making it. The decisions of its §13 are not changed without discussion: open an issue first.
+The generator is specified by [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md): read the sections a change touches before making it. The decisions of its §13 are not changed without discussion: open an issue first.
 
 ## Development
 

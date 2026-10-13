@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A generator that builds a day-accurate historical dataset of Italian regions, UTS/provinces and municipalities from 1861-03-17 to today, from ISTAT SITUAS (source of truth) and ANPR (cross-check only), and keeps it updated via GitHub Actions. The published dataset is self-contained and agnostic about how and by whom it is used (D39): only the territories (`regions.json`, `provinces.json`, `municipalities.json` and their JSON Schemas).
 
-**`docs/GENERATOR_IMPLEMENTATION_PLAN.md` is the specification and the roadmap.** Read the relevant sections before any change:
+**`docs/SPECIFICATION.md` is the specification and the roadmap.** Read the relevant sections before any change:
 
 - Implement the steps of §12 **in order**; a step starts only when the previous one meets its acceptance criteria. When a step meets its acceptance criteria, mark its heading in §12 with `— DONE` (e.g. `### Step 1 — Scaffolding — DONE`).
 - §1–§11 are the spec. If the implementation reveals a contradiction or an uncovered case, **stop and ask** instead of improvising. The decisions in §13 must not be changed without discussion.
@@ -33,7 +33,7 @@ Node ≥ 22.18 runs `.ts` files natively (type stripping), so no transpiler is u
 - When asked for an implementation, **run `git pull` on the current branch before reading any code**, so you work on the up-to-date version.
 - Every implementation happens on a **feature branch** created from `main` (never commit directly to `main`).
 - When a step is finished, **ask the user before committing**.
-- Before every commit that touches `docs/GENERATOR_IMPLEMENTATION_PLAN.md`, **show the user the full diff of the plan** (`git diff docs/GENERATOR_IMPLEMENTATION_PLAN.md`) and wait for approval. Paste the diff into the reply text as a `diff` block: tool output is not visible to the user.
+- Before every commit that touches `docs/SPECIFICATION.md`, **show the user the full diff of the plan** (`git diff docs/SPECIFICATION.md`) and wait for approval. Paste the diff into the reply text as a `diff` block: tool output is not visible to the user.
 - After finishing a step, remind the user to **start a new session** instead of continuing in the current one.
 - Commit messages describe what was done (e.g. "Project scaffolding: …"), **never** the plan step (no "Step 1", "complete step N").
 

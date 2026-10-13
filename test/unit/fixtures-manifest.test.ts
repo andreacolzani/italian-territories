@@ -3,7 +3,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { describeRequest, FIXTURES_ROOT, loadManifest, subsetBasePath, type Manifest } from '../helpers/fixtures.ts';
 
-const PLAN_PATH = resolve(FIXTURES_ROOT, '../../docs/GENERATOR_IMPLEMENTATION_PLAN.md');
+const PLAN_PATH = resolve(FIXTURES_ROOT, '../../docs/SPECIFICATION.md');
 
 async function listFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true });

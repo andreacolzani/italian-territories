@@ -220,7 +220,7 @@ export function subsetBasePath(path: string): string {
   return path.replace(/__subset-[^/]*?(\.[a-z]+)$/, '$1');
 }
 
-export const manifestEntrySchema = z.strictObject({
+const manifestEntrySchema = z.strictObject({
   path: z.string().min(1),
   source: z.enum(['situas-public', 'situas-internal', 'anpr']),
   endpoint: z.string().min(1),
@@ -236,7 +236,7 @@ export const manifestEntrySchema = z.strictObject({
   used_by: z.array(z.string().regex(/^(golden|quirk)-\d+$/)).min(1),
 });
 
-export const manifestSchema = z.strictObject({
+const manifestSchema = z.strictObject({
   $comment: z.string().optional(),
   manifest_version: z.literal(1),
   fixtures: z.array(manifestEntrySchema),

@@ -104,7 +104,7 @@ const updateSchema = z
   })
   .prefault({});
 
-export const configSchema = z.object({
+const configSchema = z.object({
   paths: pathsSchema,
   http: httpSchema,
   sources: sourcesSchema,

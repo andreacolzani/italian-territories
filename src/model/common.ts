@@ -34,7 +34,7 @@ export const ISTAT_EVENT_CODES = [
 export type IstatEventCode = (typeof ISTAT_EVENT_CODES)[number];
 
 /** Events that move territory without changing the published attributes of the subject (§4.3). */
-export const TERRITORIAL_EVENT_CODES = ['AQ', 'CE', 'AQES', 'CECS'] as const satisfies readonly IstatEventCode[];
+const TERRITORIAL_EVENT_CODES = ['AQ', 'CE', 'AQES', 'CECS'] as const satisfies readonly IstatEventCode[];
 
 /**
  * Events whose counterpart may be a foreign state (`Stato estero`, no code): cession abroad,

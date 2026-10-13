@@ -43,7 +43,7 @@ const INTERNAL_EVENT_SOURCES = [
  * ANPR boundary, a regime boundary, today, or a breakpoint found by completeness bisection
  * (`inferred`, §6.5).
  */
-export const CALENDAR_SOURCES = [
+const CALENDAR_SOURCES = [
   ...EVENT_LIST_SOURCES,
   ...INTERNAL_EVENT_SOURCES,
   'anpr:start',
@@ -155,7 +155,7 @@ export function anprContributions(rows: readonly AnprRecord[]): CalendarContribu
 // calendar.json
 // ---------------------------------------------------------------------------------------------
 
-export const CALENDAR_FILE = 'calendar.json';
+const CALENDAR_FILE = 'calendar.json';
 
 const calendarFileSchema = z.strictObject({
   start: isoDateSchema,

@@ -23,7 +23,7 @@ import { CADASTRAL_CODE_PATTERN, ISTAT_CODE_PATTERNS } from '../../model/common.
 import { cleanText } from '../normalise.ts';
 
 /** Columns read from the CSV (§3.4); any other column is ignored. */
-export const ANPR_COLUMNS = [
+const ANPR_COLUMNS = [
   'DATAISTITUZIONE',
   'DATACESSAZIONE',
   'CODISTAT',
@@ -203,7 +203,7 @@ export const ANPR_ENDPOINT: Endpoint<AnprData> = {
   decode: (response) => parseAnprCsv(decodeText(response)),
 };
 
-export function anprRequest(csvUrl: string): HttpRequest {
+function anprRequest(csvUrl: string): HttpRequest {
   return { method: 'GET', url: csvUrl };
 }
 

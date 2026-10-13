@@ -844,7 +844,7 @@ Every update runs the whole pipeline (offline from the store wherever a source n
 | Workflow | Trigger | Behaviour |
 |---|---|---|
 | `test.yml` | push, PR | typecheck, unit and integration tests (schema validation of `dist/` included), `validate`, `release -- check` |
-| `lint.yml` | push (not `main`) | ESLint, Prettier |
+| `lint.yml` | push (not `main`) | ESLint, Prettier, Knip |
 | `weekly-update.yml` | cron weekly (Monday 04:00 UTC) + manual | restore the store → `update` → push the store → commit to `main` + release, or the `data-update` PR (below) |
 | `rebuild.yml` | manual | restore the store → offline `rebuild` (no network) → push the store → always the `data-update` PR |
 | `release.yml` | push to `main` touching `dist/**`; `workflow_dispatch` with the commit `sha` | tag, GitHub Release, npm publish (version from the first entry of `CHANGELOG.md`, checked against `reports/meta.json`) |
@@ -1040,7 +1040,7 @@ If a request in this table returns something that contradicts the expectations o
 
 - Node ≥ 22.18, TypeScript strict, ESM.
 - Runtime dependencies: only `zod` (v4, using its built-in JSON Schema export) and `csv-parse` (ANPR).
-- Dev dependencies: `typescript`, `vitest`, `eslint` with `typescript-eslint`, `@eslint/js` and `eslint-config-prettier`, `prettier`, `@types/node`, `ajv` (tests only, never at runtime: validation of the published files against the published JSON Schemas, §11.1). No transpiler or TS runner (`tsx`, `ts-node`): Node runs the `.ts` sources directly.
+- Dev dependencies: `typescript`, `vitest`, `eslint` with `typescript-eslint`, `@eslint/js` and `eslint-config-prettier`, `prettier`, `knip` (unused files, exports and dependencies; `knip.json`), `@types/node`, `ajv` (tests only, never at runtime: validation of the published files against the published JSON Schemas, §11.1). No transpiler or TS runner (`tsx`, `ts-node`): Node runs the `.ts` sources directly.
 - Adding any other dependency requires approval.
 - Platform APIs to use: global `fetch`, `node:crypto` (SHA-256), `node:util` `parseArgs` (CLI), `node:fs/promises`.
 

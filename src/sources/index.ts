@@ -5,10 +5,6 @@ import { AnprSource } from './anpr/index.ts';
 import { SituasInternalSource } from './situas-internal/index.ts';
 import { SituasPublicSource } from './situas-public/index.ts';
 
-export { AnprSource } from './anpr/index.ts';
-export { SituasInternalSource } from './situas-internal/index.ts';
-export { SituasPublicSource } from './situas-public/index.ts';
-
 export interface Sources {
   situasPublic: SituasPublicSource;
   situasInternal: SituasInternalSource;

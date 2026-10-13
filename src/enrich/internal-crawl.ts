@@ -69,7 +69,7 @@ export const INTERNAL_CRAWL_ANOMALIES = {
 } as const;
 
 /** Events without associated territories: no r7/r8 request. */
-export const EVENTS_WITHOUT_DETAILS: readonly IstatEventCode[] = ['PV', 'CD', 'RN'];
+const EVENTS_WITHOUT_DETAILS: readonly IstatEventCode[] = ['PV', 'CD', 'RN'];
 
 /** One internal request of the crawl, as given to `mustRefresh` and reported in anomalies. */
 export type CrawlItem =

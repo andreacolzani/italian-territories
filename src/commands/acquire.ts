@@ -39,7 +39,7 @@ export function refreshPolicy(mode: RunMode, today: IsoDate): CachePolicy {
 }
 
 /** `adapter_stats` key of the stored ANPR manifest: the issues of the dropped rows (canonical JSON). */
-export const ANPR_ROW_ISSUES = 'row_issues';
+const ANPR_ROW_ISSUES = 'row_issues';
 
 const EVENT_LIST_PFUNS = (Object.keys(EVENT_LISTS).map(Number) as EventListPfun[]).sort((a, b) => a - b);
 
@@ -54,7 +54,7 @@ export interface EventListsResult {
 }
 
 /** Stage 1: fetch and store the public event lists, then read back what the store knows. */
-export async function acquireEventLists(
+async function acquireEventLists(
   ctx: RunContext,
   mode: RunMode,
   previousToday: IsoDate | null,
@@ -121,7 +121,7 @@ export async function acquireEventLists(
 }
 
 /** Stage 2: the internal crawl, with the mandatory refreshes of the mode (§6.1, §6.8). */
-export async function acquireInternal(
+async function acquireInternal(
   ctx: RunContext,
   mode: RunMode,
   touchedCodes: EventListsResult['touchedCodes'],
@@ -187,7 +187,7 @@ export async function acquireInternal(
  * Stage 3: the ANPR archive, fetched (except offline) and stored; the rows come from the store.
  * `null`: the cross-check is skipped (already reported with `anpr-unavailable`).
  */
-export async function acquireAnpr(ctx: RunContext, mode: RunMode): Promise<AnprRecord[] | null> {
+async function acquireAnpr(ctx: RunContext, mode: RunMode): Promise<AnprRecord[] | null> {
   const { store, anomalies } = ctx;
   if (!isOffline(mode)) {
     const data = await loadAnpr({
@@ -226,7 +226,7 @@ async function storedAnprRows(ctx: RunContext): Promise<AnprRecord[]> {
  * Stage 7 inputs: the SITUAS counts of today's snapshot requests (I13), fetched (except offline)
  * and stored. `undefined` when a level has no count (already reported, blocking).
  */
-export async function acquireCounts(ctx: RunContext, mode: RunMode): Promise<Record<Level, number> | undefined> {
+async function acquireCounts(ctx: RunContext, mode: RunMode): Promise<Record<Level, number> | undefined> {
   const { store, today } = ctx;
   const counts: Partial<Record<Level, number>> = {};
   for (const level of LEVELS) {
@@ -261,7 +261,7 @@ export async function acquireCounts(ctx: RunContext, mode: RunMode): Promise<Rec
 }
 
 /** A source failure as a blocking anomaly by cause; anything else is a bug and is rethrown. */
-export function reportSourceFailure(
+function reportSourceFailure(
   ctx: RunContext,
   prefix: SourceFailurePrefix,
   error: unknown,
@@ -291,8 +291,4 @@ export async function acquireSources(ctx: RunContext, mode: RunMode, previousTod
   const anpr = await timed(ctx, 'anpr', () => acquireAnpr(ctx, mode));
   const counts = await timed(ctx, 'counts', () => acquireCounts(ctx, mode));
   return { eventLists: eventLists.lists, earliestChange: eventLists.earliestChange, internal, anpr, counts };
-}
-
-export function sortedDates(dates: Iterable<IsoDate>): IsoDate[] {
-  return [...new Set(dates)].sort(compareDates);
 }

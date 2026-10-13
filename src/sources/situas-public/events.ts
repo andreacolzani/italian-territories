@@ -11,7 +11,7 @@
 import { z } from 'zod';
 import type { IsoDate } from '../../dates/index.ts';
 import { CONTENT_TYPES, jsonRowsDecoder, type Endpoint } from '../../http/index.ts';
-import type { IstatEventCode, Level, RegionType, UtsType } from '../../model/common.ts';
+import type { IstatEventCode, RegionType, UtsType } from '../../model/common.ts';
 import {
   cadastralCode,
   eventCode,
@@ -244,9 +244,4 @@ export function eventListEndpoint<P extends EventListPfun>(
     endpoints.set(pfun, endpoint);
   }
   return endpoint as Endpoint<EventRowByLevel[(typeof EVENT_LISTS)[P]['level']][]>;
-}
-
-/** Level of an event list `pfun`. */
-export function eventListLevel(pfun: EventListPfun): Level {
-  return EVENT_LISTS[pfun].level;
 }

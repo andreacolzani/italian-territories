@@ -35,7 +35,7 @@ const abbreviationOverrideSchema = z.strictObject({
   source_url: z.url().nullable(),
 });
 
-export const overrideEntrySchema = z.discriminatedUnion('field', [abbreviationOverrideSchema]);
+const overrideEntrySchema = z.discriminatedUnion('field', [abbreviationOverrideSchema]);
 
 /** One override file: an array of entries. */
 export const overrideFileSchema = z.array(overrideEntrySchema);

@@ -95,7 +95,7 @@ export function variationEvents<
 }
 
 /** r8 fixtures (`<id_uts_origine>_<event>_<act>.json`) by origin id, event and act. */
-export async function utsDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
+async function utsDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
   return eventDetails('utsEventDetails', 'r8-uts-event-details', files);
 }
 
@@ -105,9 +105,7 @@ export async function regionDetails(files: readonly string[]): Promise<Map<strin
 }
 
 /** r9 fixtures (`<id_origine>_<event>_<act>.json`) by origin id, event and act. */
-export async function municipalityDetails(
-  files: readonly string[],
-): Promise<Map<string, InternalVariationEvent['details']>> {
+async function municipalityDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
   return eventDetails('municipalityEventDetails', 'r9-municipality-event-details', files);
 }
 

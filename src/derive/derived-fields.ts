@@ -33,7 +33,7 @@ import type { EntityId, Level, PublicLinkKind } from '../model/common.ts';
 import type { DerivedFields, Entity, EntityLink, Variation } from '../model/internal.ts';
 
 /** Stable anomaly codes of the derived fields (§8.2). */
-export const DERIVED_ANOMALIES = {
+const DERIVED_ANOMALIES = {
   /** The successors of suppressed entities form a cycle. */
   successorCycle: 'successor-cycle',
 } as const;

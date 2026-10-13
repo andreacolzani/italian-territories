@@ -150,7 +150,7 @@ export interface VariationBuild {
 }
 
 /** Stable anomaly codes of the variation builder (§8.2). */
-export const VARIATION_ANOMALIES = {
+const VARIATION_ANOMALIES = {
   /** An internal event whose identity component is the root of no entity. */
   unknownEntity: 'variation-entity-unknown',
   /** A public row matching internal events of several acts. */

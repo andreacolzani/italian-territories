@@ -44,13 +44,6 @@ export interface PublicData {
   municipalities: Public.Municipality[];
 }
 
-/** Data file name (without extension) of each level. */
-export const LEVEL_FILES = {
-  region: 'regions',
-  province: 'provinces',
-  municipality: 'municipalities',
-} as const satisfies Record<Level, keyof PublicData>;
-
 export function toPublicData(world: Pick<EmitWorld, 'entities'>): PublicData {
   return {
     regions: entities(world.entities.region, regionVersion),
@@ -71,7 +64,7 @@ export function toReportVariations(variations: readonly Variation[]): Reports.Va
  * identity component, §5.1), numerically; entities without one (`nk:` keys) last, by the start of
  * their first version, then by id. Stable when ISTAT codes change; presentation only.
  */
-export function comparePublicOrder(
+function comparePublicOrder(
   a: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
   b: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
 ): number {

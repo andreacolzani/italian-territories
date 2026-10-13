@@ -7,13 +7,12 @@
  */
 import type { HttpClientEvent, HttpRequest } from './http/index.ts';
 
-export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
-export type LogLevel = (typeof LOG_LEVELS)[number];
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /** Keys the logger writes itself; a field never uses them (e.g. a territorial level is `territoryLevel`). */
-export const RESERVED_LOG_KEYS = ['time', 'level', 'msg'] as const;
+type ReservedLogKey = 'time' | 'level' | 'msg';
 
-export type LogFields = Record<string, unknown> & Partial<Record<(typeof RESERVED_LOG_KEYS)[number], never>>;
+export type LogFields = Record<string, unknown> & Partial<Record<ReservedLogKey, never>>;
 
 export interface Logger {
   debug: (msg: string, fields?: LogFields) => void;

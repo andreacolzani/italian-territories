@@ -106,7 +106,7 @@ export function resolveLevelIdentity<L extends Level>(options: LevelIdentityOpti
  * which is the state of `D`. Other rows (code changes, territorial events) are not events of the
  * matcher: code changes are aliases.
  */
-export function publicTransitionEvent(row: EventRowByLevel[Level], source: string): TransitionEvent | null {
+function publicTransitionEvent(row: EventRowByLevel[Level], source: string): TransitionEvent | null {
   const cadastral = 'cadastralCode' in row ? row.cadastralCode : null;
   const base = { event: row.event, date: row.date, source };
   if (ENDING_EVENTS.includes(row.event) || STARTING_EVENTS.includes(row.event)) {
@@ -126,7 +126,7 @@ export function publicTransitionEvent(row: EventRowByLevel[Level], source: strin
 }
 
 /** Stable anomaly codes of the level identity (§8.2). */
-export const LEVEL_IDENTITY_ANOMALIES = {
+const LEVEL_IDENTITY_ANOMALIES = {
   /** A type change found in the internal events that the public lists (106/107, 112/113) do not show. */
   typeChangeUnconfirmed: 'type-change-unconfirmed',
 } as const;
@@ -140,7 +140,7 @@ export const LEVEL_IDENTITY_ANOMALIES = {
  * the member, or confirmed by the public lists (`ESCT` from → to, or `CSCT` to ← from on `d`), is
  * silent; otherwise a `warning`.
  */
-export function typeChanges<L extends Level>(
+function typeChanges<L extends Level>(
   level: L,
   index: IntervalIndex<L>,
   internal: InternalIdentity | null,

@@ -60,7 +60,7 @@ export async function runValidate(
 }
 
 /** The release of a directory holding `dist/` and `reports/` (e.g. a checkout). */
-export function releaseIn(dir: string): ReleaseDirs {
+function releaseIn(dir: string): ReleaseDirs {
   return { dist: join(dir, 'dist'), reports: join(dir, 'reports') };
 }
 

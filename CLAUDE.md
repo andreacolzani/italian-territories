@@ -20,6 +20,7 @@ npx vitest run test/unit/cli.test.ts   # single file
 npx vitest run -t "fixture manifest"   # by test name
 npm run lint                      # eslint (type-checked) + prettier --check
 npm run format                    # prettier --write
+npm run knip                      # unused files, exports and dependencies (knip.json)
 npm run build                     # tsc -p tsconfig.build.json → lib/
 npm run cli -- <command>          # runs src/cli.ts directly with Node (no build)
 npm run release -- changelog      # CHANGELOG entry (+ README date) of reports/meta.json; also check | version | notes | pack <dir> | target

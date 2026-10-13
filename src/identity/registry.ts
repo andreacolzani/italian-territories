@@ -41,18 +41,18 @@ import { isoDateSchema } from '../model/public.ts';
 import { readTextIfExists, toJsonDocument, writeFileAtomic } from '../store/fs.ts';
 import { ENTITY_ANOMALIES, type InternalDataCause } from './entities.ts';
 
-export const REGISTRY_KINDS = ['region', 'province', 'municipality', 'variation'] as const;
+const REGISTRY_KINDS = ['region', 'province', 'municipality', 'variation'] as const;
 export type RegistryKind = (typeof REGISTRY_KINDS)[number];
 
-export const REGISTRY_FILES: Readonly<Record<RegistryKind, string>> = {
+const REGISTRY_FILES: Readonly<Record<RegistryKind, string>> = {
   region: 'regions.json',
   province: 'provinces.json',
   municipality: 'municipalities.json',
   variation: 'variations.json',
 };
-export const REMAPS_FILE = 'remaps.json';
+const REMAPS_FILE = 'remaps.json';
 
-export const REMAP_REASONS = ['origin-id-available', 'root-changed'] as const;
+const REMAP_REASONS = ['origin-id-available', 'root-changed'] as const;
 export type RemapReason = (typeof REMAP_REASONS)[number];
 
 const intId = z.int().positive();
@@ -194,7 +194,7 @@ export class RegistryError extends Error {
   }
 }
 
-export function entityKind(level: Level): RegistryKind {
+function entityKind(level: Level): RegistryKind {
   return level;
 }
 

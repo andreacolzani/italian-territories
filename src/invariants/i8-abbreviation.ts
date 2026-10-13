@@ -9,8 +9,6 @@ import { ABBREVIATION_PATTERN } from '../model/common.ts';
 import type { Anomaly, Entity } from '../model/internal.ts';
 import { violation } from './anomaly.ts';
 
-export const I8_ANOMALY = 'invariant-i8';
-
 export function checkI8(provinces: readonly Entity<'province'>[]): Anomaly[] {
   const anomalies: Anomaly[] = [];
   for (const entity of provinces) {

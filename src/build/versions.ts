@@ -50,7 +50,7 @@ import {
 import { decomposeBilingual, isUnknownBilingual, regionalNames } from './bilingual-names.ts';
 
 /** Stable anomaly codes of the version builder (§8.2). */
-export const VERSION_ANOMALIES = {
+const VERSION_ANOMALIES = {
   /** A parent code identifies no entity of the parent level on some dates of a version. */
   parentUnresolved: 'version-parent-unresolved',
   /** The municipalities of a pre-1948 UTS report no abbreviation, or more than one. */

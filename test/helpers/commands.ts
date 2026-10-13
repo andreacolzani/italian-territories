@@ -18,7 +18,7 @@ export interface FakeProcess extends RunProcess {
   exits: number[];
 }
 
-export function fakeProcess(): FakeProcess {
+function fakeProcess(): FakeProcess {
   const listeners = new Map<RunProcessEvent, ((value?: unknown) => void)[]>();
   const exits: number[] = [];
   return {
@@ -77,7 +77,7 @@ export interface Sandbox {
 }
 
 /** Nuoro's abbreviation, reported by SITUAS as a full name (cf. `uts-801-abbreviation`). */
-export const TEST_OVERRIDES = [
+const TEST_OVERRIDES = [
   {
     key: 'uts-091-abbreviation',
     target: { level: 'province', istat_code: '091', date_from: '2000-01-01', date_to: null },

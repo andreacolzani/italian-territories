@@ -225,7 +225,20 @@ describe('pack', () => {
     expect(manifest).toEqual({
       name: 'italian-territories',
       version: '1.20261007.0',
-      description: 'Territories',
+      description:
+        'Day-accurate historical dataset of Italian regions, provinces and municipalities from 1861 to today, from ISTAT SITUAS, with TypeScript types.',
+      keywords: [
+        'italy',
+        'istat',
+        'municipalities',
+        'comuni',
+        'province',
+        'regioni',
+        'dataset',
+        'historical',
+        'codici-istat',
+        'codice-catastale',
+      ],
       license: 'CC-BY-4.0',
       repository: { type: 'git', url: 'git+https://example.org/repo.git' },
       homepage: 'https://example.org',

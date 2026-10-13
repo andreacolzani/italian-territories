@@ -12,7 +12,7 @@
  * - `notes`: prints the first entry without its heading (the GitHub Release notes).
  * - `pack <dir>`: stages the npm package in `<dir>` (empty or missing): the published files of
  *   `dist/` (data and JSON Schemas), their TypeScript declarations in `types/` (generated from
- *   the schemas), `README.md`, the data licence as `LICENSE` and a generated `package.json` whose
+ *   the schemas), `README.md`, the data licence as `LICENSE` and a generated `package.json` (with the description and keywords of the dataset, not those of the generator) whose
  *   `exports` map each data file to its declarations. No executable code. The root
  *   `package.json` stays private: only the staged directory is published.
  * - `target <exit-code> <allow-main> <open-prs>`: where the output of a data run goes (`none`,
@@ -35,6 +35,22 @@ import { typeDeclarations } from '../src/model/typescript.ts';
 export const CHANGELOG_FILE = 'CHANGELOG.md';
 export const README_FILE = 'README.md';
 export const DATA_LICENSE_FILE = 'LICENSE-DATA';
+/** The description of the npm package: the dataset, not the generator of the root `package.json`. */
+export const DATA_DESCRIPTION =
+  'Day-accurate historical dataset of Italian regions, provinces and municipalities from 1861 to today, from ISTAT SITUAS, with TypeScript types.';
+/** The keywords of the npm package. */
+export const DATA_KEYWORDS = [
+  'italy',
+  'istat',
+  'municipalities',
+  'comuni',
+  'province',
+  'regioni',
+  'dataset',
+  'historical',
+  'codici-istat',
+  'codice-catastale',
+];
 /** The licence of the published data (SPDX). */
 export const DATA_LICENSE = 'CC-BY-4.0';
 
@@ -317,7 +333,6 @@ export async function pack(root: string, dir: string): Promise<string> {
     join(root, 'package.json'),
     z.looseObject({
       name: z.string(),
-      description: z.string(),
       repository: z.unknown(),
       homepage: z.string(),
       bugs: z.unknown(),
@@ -354,7 +369,8 @@ export async function pack(root: string, dir: string): Promise<string> {
   const manifest = {
     name: project.name,
     version,
-    description: project.description,
+    description: DATA_DESCRIPTION,
+    keywords: DATA_KEYWORDS,
     license: DATA_LICENSE,
     repository: project.repository,
     homepage: project.homepage,

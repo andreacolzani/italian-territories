@@ -3,7 +3,7 @@ import { join, relative, resolve, sep } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { describeRequest, FIXTURES_ROOT, loadManifest, subsetBasePath, type Manifest } from '../helpers/fixtures.ts';
 
-const PLAN_PATH = resolve(FIXTURES_ROOT, '../../docs/GENERATOR_IMPLEMENTATION_PLAN.md');
+const SPECIFICATION_PATH = resolve(FIXTURES_ROOT, '../../docs/SPECIFICATION.md');
 
 async function listFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true });
@@ -14,7 +14,7 @@ async function listFiles(dir: string): Promise<string[]> {
 function section(markdown: string, heading: RegExp): string {
   const lines = markdown.split(/\r?\n/);
   const start = lines.findIndex((l) => heading.test(l));
-  if (start < 0) throw new Error(`Section ${heading} not found in the plan`);
+  if (start < 0) throw new Error(`Section ${heading} not found in the specification`);
   const depth = /^#+/.exec(lines[start] ?? '')?.[0].length ?? 0;
   const end = lines.findIndex((l, i) => i > start && /^#+ /.test(l) && (/^#+/.exec(l)?.[0].length ?? 0) <= depth);
   return lines.slice(start + 1, end < 0 ? undefined : end).join('\n');
@@ -56,10 +56,10 @@ describe('fixture manifest (§11.1)', () => {
     }
   });
 
-  it('references only golden cases and quirks that exist in the plan', async () => {
-    const plan = await readFile(PLAN_PATH, 'utf8');
-    const golden = numberedItems(section(plan, /^## 11\. /));
-    const quirks = numberedItems(section(plan, /^### 3\.5 /));
+  it('references only golden cases and quirks that exist in the specification', async () => {
+    const specification = await readFile(SPECIFICATION_PATH, 'utf8');
+    const golden = numberedItems(section(specification, /^## 11\. /));
+    const quirks = numberedItems(section(specification, /^### 3\.5 /));
     expect(golden.size).toBeGreaterThan(0);
     expect(quirks.size).toBeGreaterThan(0);
     for (const entry of manifest.fixtures) {

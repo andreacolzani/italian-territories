@@ -1,6 +1,6 @@
 /**
- * Summary of the `(level, event code)` pairs observed in the internal event histories (Step 7),
- * the input against which Step 11 checks that every pair has an explicit rule (D27).
+ * Summary of the `(level, event code)` pairs observed in the internal event histories,
+ * the input against which the variation builder (§4.3) checks that every pair has an explicit rule (D27).
  *
  * It is computed by every build from the crawled data and written to
  * `<paths.reports>/event-codes.json`: it describes the build, not the sources, so it never goes

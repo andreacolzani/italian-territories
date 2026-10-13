@@ -1,5 +1,5 @@
 /**
- * Identity resolution on real SITUAS fixtures (§6.7, Step 9): the identity parts of golden 1–5,
+ * Identity resolution on real SITUAS fixtures (§6.7): the identity parts of golden 1–5,
  * and stable ids across builds on the same store (§5.3).
  *
  * Worlds of two consecutive dates are complete snapshots: every change of that day must be

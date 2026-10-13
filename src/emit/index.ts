@@ -1,4 +1,4 @@
-/** Emit (§6.12, §9, Step 16): public files and JSON Schemas; internal reports (variations, anomalies, changes, meta). */
+/** Emit (§6.12, §9): public files and JSON Schemas; internal reports (variations, anomalies, changes, meta). */
 export * from './changes.ts';
 export * from './dataset.ts';
 export * from './emit.ts';

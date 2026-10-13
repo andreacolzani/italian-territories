@@ -1,6 +1,6 @@
 /**
- * Version builder (§4.2, §6.9, Step 10): the versions of every entity of a level, internally
- * half-open, from the snapshot intervals the identity stage attached to it (Step 9).
+ * Version builder (§4.2, §6.9): the versions of every entity of a level, internally
+ * half-open, from the snapshot intervals the identity stage attached to it.
  *
  * - A version is a maximal period in which every published field is constant: contiguous pieces
  *   with equal fields are merged, so changes of unpublished fields (`COD_PROV_STORICO`, a parent's
@@ -12,7 +12,7 @@
  *   region code; I5 checks it against the region of its UTS.
  * - UTS abbreviation: `SIGLA_AUTOMOBILISTICA` from 1948; before, the `SIGLA_UTS` reported by the
  *   municipalities of the UTS on each date, which must be unanimous. Non-conforming values (e.g.
- *   `Venezia Giulia`) are kept: overrides come later (Step 12) and I8 checks the result. A missing
+ *   `Venezia Giulia`) are kept: overrides come later (§6.10) and I8 checks the result. A missing
  *   `SIGLA_AUTOMOBILISTICA` stays null without an anomaly here, for the same reason.
  * - Regions and UTS: a denomination with `/` takes its Italian and foreign names from the closed
  *   table of `bilingual-names.ts` (§4.2); one missing from the table has null names and is a

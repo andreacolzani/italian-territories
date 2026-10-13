@@ -1,5 +1,5 @@
 /**
- * Release tooling (§9, Step 18): the CHANGELOG entry of a release, the checks of the release
+ * Release tooling (§9): the CHANGELOG entry of a release, the checks of the release
  * workflows and the staging of the npm package.
  *
  * Usage: npm run release -- <command>

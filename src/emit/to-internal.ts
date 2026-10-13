@@ -1,5 +1,5 @@
 /**
- * Release → internal model (Step 17, `validate`): the inverse of `toPublicData` and
+ * Release → internal model (`validate`, §10.1): the inverse of `toPublicData` and
  * `toReportVariations`, so the invariants (§8.1) run on a release (the public files and the
  * variation report). Inclusive `valid_until` becomes the half-open `validTo` with the `src/dates/`
  * conversion; derived fields are read as published.

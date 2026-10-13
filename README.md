@@ -318,4 +318,4 @@ npm test
 npm run cli -- validate    # checks the invariants on the published files
 ```
 
-The specification is [`docs/GENERATOR_IMPLEMENTATION_PLAN.md`](docs/GENERATOR_IMPLEMENTATION_PLAN.md); how to contribute (overrides, test fixtures, changelog) is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+The specification is [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md); how to contribute (overrides, test fixtures, changelog) is in [`CONTRIBUTING.md`](CONTRIBUTING.md).

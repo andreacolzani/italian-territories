@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const SRC = join(import.meta.dirname, '..', '..', 'src');
 
 /**
- * Files allowed to read the clock (§12.0 Determinism): the date library that wraps it, the CLI
+ * Files allowed to read the clock (§12 Determinism): the date library that wraps it, the CLI
  * boundary (default of `dates.today`), the HTTP client (`fetched_at`, cache freshness) and the
  * logger (`time` of log lines, which describe the run, never the data).
  */

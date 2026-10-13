@@ -12,7 +12,7 @@ interface DocumentedField {
   semantics: string;
 }
 
-/** The rows of the README tables whose first cell is a field name in backticks (Step 19). */
+/** The rows of the README tables whose first cell is a field name in backticks. */
 function documentedFields(text: string): Map<string, DocumentedField[]> {
   const fields = new Map<string, DocumentedField[]>();
   for (const line of text.split('\n')) {
@@ -43,7 +43,7 @@ function publishedFields(): Map<string, string[]> {
   return fields;
 }
 
-describe('README (Step 19)', () => {
+describe('README', () => {
   it('documents every public field with type and semantics', () => {
     const documented = documentedFields(readme);
     const published = publishedFields();

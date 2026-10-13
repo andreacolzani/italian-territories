@@ -1,6 +1,6 @@
 # Contributing
 
-The generator is specified by [`docs/GENERATOR_IMPLEMENTATION_PLAN.md`](docs/GENERATOR_IMPLEMENTATION_PLAN.md): read the sections a change touches before making it. The decisions of its §13 are not changed without discussion: open an issue first.
+The generator is specified by [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md): read the sections a change touches before making it. The decisions of its §13 are not changed without discussion: open an issue first.
 
 ## Development
 
@@ -18,7 +18,7 @@ Work on a branch created from `main` and open a pull request; `test.yml` runs th
 
 ## Adding an override
 
-Overrides are curated corrections of a published field, used only when ISTAT data are wrong or missing and a source documents the right value. They live in `overrides/`, one JSON file per topic, each an array of entries (§6.10 of the plan):
+Overrides are curated corrections of a published field, used only when ISTAT data are wrong or missing and a source documents the right value. They live in `overrides/`, one JSON file per topic, each an array of entries (§6.10 of the specification):
 
 ```json
 {
@@ -43,11 +43,11 @@ After adding an override, rebuild offline from the store (`npm run cli -- rebuil
 
 ## Adding a test fixture
 
-Fixtures are real SITUAS and ANPR responses in `test/fixtures/`, byte-identical to what the servers returned (the directory is `-text` in `.gitattributes`: never let an editor or git change their line endings). The rules are in §11.1 of the plan and enforced by `test/unit/fixtures-manifest.test.ts`:
+Fixtures are real SITUAS and ANPR responses in `test/fixtures/`, byte-identical to what the servers returned (the directory is `-text` in `.gitattributes`: never let an editor or git change their line endings). The rules are in §11.1 of the specification and enforced by `test/unit/fixtures-manifest.test.ts`:
 
 1. The **path is derived from the request** (table of §11.1, e.g. `situas-public/snapshots/provinces/pfun-64_2026-01-01.json`); `test/helpers/fixtures.ts` (`fixturePath`) computes it.
 2. Every file has **exactly one entry** in `test/fixtures/manifest.json`: path, source, endpoint, the unencoded request, `fetched_at`, `completeness` (`full` or `subset`), a note and `used_by`.
-3. `used_by` references the golden cases (`golden-<n>`, §11 of the plan) or the source quirks (`quirk-<n>`, §3.5) the fixture documents: a new case is added to the plan first.
+3. `used_by` references the golden cases (`golden-<n>`, §11 of the specification) or the source quirks (`quirk-<n>`, §3.5) the fixture documents: a new case is added to the specification first.
 4. A file that is not the whole response is a **subset**: named `<base>__subset-<description>.<ext>` and declared `subset`; tests never treat it as a complete source.
 
 To record a fixture, add its request to `scripts/fixtures-fetch.ts` (with its `used_by`) and download only it:

@@ -38,7 +38,7 @@ import { keyOf, subjectSide, type TransitionResult } from './transitions.ts';
  * unavailable (network, exhausted retries, open circuit, or a report missing from the store in an
  * offline `rebuild`); `absent` when every request succeeded (or failed otherwise, with its own
  * blocking anomaly) and the data is not there. With `unavailable` the anomaly counts among the
- * unavailabilities (exit 3, Step 17); with `absent` it is exit 1.
+ * unavailabilities (exit 3, §10.4); with `absent` it is exit 1.
  */
 export type InternalDataCause = 'unavailable' | 'absent';
 
@@ -47,7 +47,7 @@ export type IdentityEvent = InternalAliasEvent;
 
 /** The internal identity of one level, decoupled from the report row types. */
 export interface InternalIdentity {
-  /** Every listed record and every needed report was obtained (Step 7). */
+  /** Every listed record and every needed report was obtained. */
   complete: boolean;
   components: readonly { root: number; ids: readonly number[]; events: readonly IdentityEvent[] }[];
   /** Same-day aliases of the internal `RN` and type change events (UTS and regions, §6.6). */

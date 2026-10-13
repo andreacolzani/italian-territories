@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../src/config.ts';
 
 describe('config', () => {
-  it('applies the defaults of the plan', () => {
+  it('applies the defaults of the specification', () => {
     const config = resolveConfig();
     expect(config.http.concurrency).toBe(4);
     expect(config.http.maxConcurrency).toBe(8);

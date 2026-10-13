@@ -1,5 +1,5 @@
 /**
- * Variation builder (§4.3, Step 11) on synthetic worlds: event rules (D27), link kinds and dedup,
+ * Variation builder (§4.3) on synthetic worlds: event rules (D27), link kinds and dedup,
  * grouping by act and by connected components, effect per event, `indirect` participants,
  * `inferred` variations and unexplained boundaries, I14 accounting.
  */

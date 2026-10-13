@@ -1,5 +1,5 @@
 /**
- * Variations and links on real SITUAS fixtures (§4.3, Step 11): golden 1, 2, 4, 6, 9, 18, 19, 24, and
+ * Variations and links on real SITUAS fixtures (§4.3): golden 1, 2, 4, 6, 9, 18, 19, 24, and
  * I9, I10, I14 on the full worlds of two consecutive days.
  *
  * Event lists and internal events are restricted to the dates of each world (`onDates`): a row of

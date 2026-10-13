@@ -1,5 +1,5 @@
 /**
- * ANPR cross-check on real fixtures (§6.11, Step 14).
+ * ANPR cross-check on real fixtures (§6.11).
  *
  * - golden-3, Siamanna: the world of the golden-3 version test (Siamanna-Siapiccia 1947 → Siamanna →
  *   115064 in 2026); the ANPR archive is reduced to the cadastral codes of that entity (I719, I718),

@@ -1,5 +1,5 @@
 /**
- * Per-level interval index of the snapshot store (§6.6, Step 8): for every ISTAT code, the
+ * Per-level interval index of the snapshot store (§6.6): for every ISTAT code, the
  * maximal intervals `[validFrom, validTo)` during which the code identifies the same projected
  * snapshot row.
  *
@@ -7,7 +7,7 @@
  * the snapshot of the last date (today) is open. An interval ends when the code disappears or its
  * row changes, so consecutive intervals of a code may belong to the same entity (a rename) or to
  * different ones (code reuse, §3.5 item 4): the index says nothing about identity, which is
- * decided by Step 9.
+ * decided by identity resolution (§6.7).
  *
  * A code must be unique within a snapshot (§6.7). A duplicated code is a `blocking` anomaly and
  * the code is left out of that date, so every lookup of it there fails instead of guessing.
@@ -137,7 +137,7 @@ export async function buildIntervalIndex<L extends Level>(
  * Index of `level` from the snapshots stored for `dates` (the calendar, §6.4). Stored snapshots
  * of other dates (bisection probes inside a constant interval, dates after `--today`) are not
  * read. A calendar date without a stored snapshot of the current projection version is a bug:
- * the snapshot stage blocks the pipeline before (Step 6).
+ * the snapshot stage blocks the pipeline before (§6.5).
  */
 export function loadIntervalIndex<L extends Level>(
   store: Store,

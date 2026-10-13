@@ -1,5 +1,5 @@
 /**
- * Audit (§10.1–§10.2, Step 17): fresh SITUAS snapshots of random historical dates, to catch
+ * Audit (§10.1–§10.2): fresh SITUAS snapshots of random historical dates, to catch
  * retroactive ISTAT corrections over time.
  *
  * Samples are drawn in `[start, today)` by a PRNG seeded with `today`, so a run is reproducible.
@@ -19,7 +19,7 @@
  *
  * Within `update` the audit runs between the calendar and the snapshots, so its inferred dates and
  * changed snapshots enter the same build (which is then retroactive). Fetch failures are snapshot
- * failures (`snapshot-*`, Step 6).
+ * failures (`snapshot-*`, §6.5).
  */
 import {
   SNAPSHOT_ANOMALIES,

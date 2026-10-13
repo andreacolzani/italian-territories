@@ -1,5 +1,5 @@
 /**
- * Invariants on real SITUAS fixtures (§8.1, Step 15): the full worlds of two consecutive days pass
+ * Invariants on real SITUAS fixtures (§8.1): the full worlds of two consecutive days pass
  * every invariant that can run; golden-17 (I13) and I12 on the whole 2026-10-01 world; golden-4 and
  * golden-7 for I6, I7, I8 and I12 with the real `COD_PROV_STORICO` and the Venezia Giulia override.
  */

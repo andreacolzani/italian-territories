@@ -25,10 +25,10 @@ export interface CliIo {
 interface CommandContext {
   /** `dates.today` is always set: the flag, the configured value or the current date. */
   config: Config;
-  /** Reference date of the run (§12.0 Determinism); build code never reads the clock. */
+  /** Reference date of the run (§12 Determinism); build code never reads the clock. */
   today: IsoDate;
   io: CliIo;
-  /** NDJSON logger on stderr; `debug` only with `--verbose` (§12.0 Logging). */
+  /** NDJSON logger on stderr; `debug` only with `--verbose` (§12 Logging). */
   logger: Logger;
   values: Record<string, string | boolean | undefined>;
   positionals: string[];
@@ -64,7 +64,7 @@ function dataCommand(
   options: {
     /** Whether the run is offline (default never). */
     offline?: (command: CommandContext) => boolean;
-    /** A pipeline command: exit 0 or 2 records the last complete update (Step 18). */
+    /** A pipeline command: exit 0 or 2 records the last complete update (§10.4). */
     completeUpdate?: boolean;
   } = {},
 ) {
@@ -186,7 +186,7 @@ const defaultIo: CliIo = {
 
 /**
  * Reference date of the run: `--today`, else the configured `dates.today`, else the current date
- * in Europe/Rome. The only place where the build reads the clock (§12.0 Determinism).
+ * in Europe/Rome. The only place where the build reads the clock (§12 Determinism).
  */
 export function resolveToday(flag: string | undefined, config: Config, clock: () => IsoDate = currentDate): IsoDate {
   const today = flag ?? config.dates.today ?? clock();

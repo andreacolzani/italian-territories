@@ -1,9 +1,9 @@
 /**
- * Run summary (Step 17): `.cache/last-run.json`, written at the end of every run, including runs
+ * Run summary (§10.4): `.cache/last-run.json`, written at the end of every run, including runs
  * that failed, for the workflows and the maintainer. It describes the run, not the data: it holds
  * wall-clock timings and is never published.
  *
- * Besides the outcome it carries what Step 17 asks to measure on the complete run: the time of the
+ * Besides the outcome it carries the measures of the complete run: the time of the
  * offline build, of I12 and of `sourceSummaries`, the I12 abbreviations left uncompared, the count
  * of every anomaly code (ANPR included, with the items of the aggregated `info` anomalies) and the
  * golden-14 count (suppressed municipalities absent from ANPR).
@@ -27,7 +27,7 @@ export const runSummarySchema = z.strictObject({
   today: isoDateSchema.nullable(),
   started_at: z.iso.datetime(),
   finished_at: z.iso.datetime(),
-  /** 0–3 (Step 17); 130 / 143 when interrupted by SIGINT / SIGTERM. */
+  /** 0–3 (§10.4); 130 / 143 when interrupted by SIGINT / SIGTERM. */
   exit_code: z.union([z.int().min(0).max(3), z.literal(130), z.literal(143)]),
   outcome: z.enum(['success', 'blocking', 'retroactive', 'unavailable', 'error', 'interrupted']),
   /** The signal that interrupted the run. */
@@ -102,7 +102,7 @@ export const runSummarySchema = z.strictObject({
   disabled_endpoints: z.array(z.strictObject({ endpoint: z.string(), cause: z.string(), refused: count })),
   /**
    * The `today` of the last pipeline run ended with exit 0 or 2, this one included
-   * (`last-complete-update.json` in the store, Step 18); `null` when none is recorded.
+   * (`last-complete-update.json` in the store, §10.4); `null` when none is recorded.
    */
   last_complete_update: isoDateSchema.nullable(),
   error: z.strictObject({ name: z.string(), message: z.string(), stack: z.string().nullable() }).nullable(),

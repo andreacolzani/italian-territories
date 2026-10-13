@@ -1,17 +1,18 @@
-# Italian Territories History — Generator: Implementation Plan
+# Italian Territories History — Generator: Specification
 
 > **Audience:** Claude Code (and human maintainers).
-> **Purpose:** complete specification and step-by-step plan to implement the *generator* package, which builds a historically complete, day-accurate dataset of Italian regions, supra-municipal territorial units (UTS/provinces) and municipalities from 17 March 1861 to today, and keeps it up to date through GitHub Actions.
+> **Purpose:** complete specification of the *generator* package, which builds a historically complete, day-accurate dataset of Italian regions, supra-municipal territorial units (UTS/provinces) and municipalities from 17 March 1861 to today, and keeps it up to date through GitHub Actions.
 > The published dataset is **self-contained**: it describes the territories only, independently of how and by whom it is used and of any database structure (D39).
 
 ---
 
 ## 0. How to use this document
 
-- Implement the steps in **§12** in order. Each step lists deliverables and acceptance criteria. Do not start a step before the previous one passes its acceptance criteria.
-- Sections §1–§11 are the **specification**. When a step references a rule, the rule lives there. If implementation reveals a contradiction or a case not covered, **stop and ask** instead of improvising: the decisions in §13 were reached after analysing real SITUAS/ANPR data and must not be silently changed.
+- Sections §1–§11 are the **specification**; §12 holds the implementation conventions. If implementation reveals a contradiction or a case not covered, **stop and ask** instead of improvising: the decisions in §13 were reached after analysing real SITUAS/ANPR data and must not be silently changed.
+- Anything not decided here that is **purely an implementation detail** (internal function names, file splitting inside a module) is left to the implementer. Anything that changes behaviour, outputs, dependencies or conventions must be asked.
 - Every behaviour described as an *invariant* (§8) must be enforced by code, not by convention.
 - Real API responses used during design are listed in **§11 (golden cases)**. Store them as test fixtures.
+- Questions still open are listed in **§15**.
 
 ---
 
@@ -75,7 +76,7 @@ ISTAT event codes: `PV` first validity, `CS` establishment, `CSCT` establishment
 ### 3.2 SITUAS public APIs
 
 Base: `GET https://situas-servizi.istat.it/publish/reportspooljson?pfun=<id>&<params>`
-Count variant: same URL with `reportspooljsoncount` instead of `reportspooljson`.
+Count variant: same URL with `reportspooljsoncount` instead of `reportspooljson`, with endpoint id `count:pfun-<id>`. The response is `{ "resultset": [ { "NUM_ROWS": n } ] }`; zero is a valid count.
 Date parameters use `DD/MM/YYYY`. Responses: `{ "resultset": [ ... ] }`.
 
 **Snapshots** (param `pdata`):
@@ -85,6 +86,8 @@ Date parameters use `DD/MM/YYYY`. Responses: `{ "resultset": [ ... ] }`.
 | Regions / compartments | `pfun=44` | `pfun=46` | `pfun=68` |
 | UTS / provinces | `pfun=48` | `pfun=49` | `pfun=64` |
 | Municipalities | `pfun=51` | `pfun=50` | `pfun=61` |
+
+`fetchSnapshot(level, date)` chooses the `pfun` from the regime of `date`. The regime boundaries (`1927-01-12`, `1948-01-01`) are SITUAS constants defined next to the regime → `pfun` table in the public adapters; they are not configurable.
 
 Relevant fields (others must be ignored):
 
@@ -126,7 +129,7 @@ Responses: `{ "items": [ ... ] }`. Dates as `DD/MM/YYYY`. Verified encoding quir
 | 6 | `var_get_ua_comuni_lov_rs?procom=<code>&com=<name>` | Events of a municipality (`id_comune_origine`, `identificativo provvedimento`). Any historical (code, name) pair of the entity returns the same full history. |
 | 7 | `var_get_ua_reg_lov_rs_dett_ass?&reg_tipo=<t>&idprovv=<act>&mcrvar=<event>&id_regione_origine=<id>` | Associated regions of one event. |
 | 8 | `var_get_ua_uts_lov_rs_dett_ass?&id_uts_origine=<id>&idprovv=<act>&uts_tipo=<t>&mcrvar=<event>` | Associated UTS of one event. |
-| 9 | `var_get_ua_comuni_lov_rs_dett_ass?idcomuneorig=<id>&mcrvar=<event>&idprovv=<act>` | Associated municipalities of one event (optional in v1; public REL fields suffice). |
+| 9 | `var_get_ua_comuni_lov_rs_dett_ass?idcomuneorig=<id>&mcrvar=<event>&idprovv=<act>` | Associated municipalities of one event (only for the ambiguous events, §6.8, D37). |
 
 Event rows contain: event code (`tipo variazione`), date (`data evento`), code and name **at the time of the event** (`codice Istat`, `denominazione`), act id (`identificativo provvedimento`), origin id.
 
@@ -159,14 +162,14 @@ Known ANPR problems (all verified): rows split by territorial events with identi
     - the r8 UTS type label is converted with a closed table (the labels listed by r2); an unknown label is a schema violation. `Tipo Uts associato` may be blank only when the associated territory is `Stato estero` (verified: Cuneo, `CE` of 1947-09-16, act 2410); a blank label of any other associated territory is a schema violation;
     - for `<code>-<label>` values (r7/r8) the code is the text before the first `-`, validated against the vocabulary (§6.2);
     - a related territory named `Stato estero` with no code is a foreign state. It is allowed only in `AS`, `AN`, `CE` and `AQ` events, at every level (verified: `AS` in 98 and 112; `AN` in 100, 113 and 107; `CE` in 17 rows of 103, all on 1947-09-16, partial cessions abroad of surviving municipalities such as Bardonecchia, Gorizia and Trieste; `AQ` in r7, acquisitions of territory from abroad: Lombardia on 1866-11-20, act 3619, and Venezia Giulia on 1924-02-23, act 4307). It is never resolved by the code resolver (§6.6), never produces links and never appears as a related territory in the model: the row is flagged `abroad` and the participant gets `abroad: true` (§4.3, D31). In any other event, or with a code, it is a schema violation.
-16. **`COD_PROV_STORICO` absent in some periods**: pfun 64 on 1948-01-01 has no `COD_PROV_STORICO`; it is present in the 2024–2026 snapshots. Normalisation: `historicalCode = COD_PROV_STORICO ?? COD_UTS` for UTS rows and `historicalUtsCode = COD_PROV_STORICO ?? COD_UTS` (the row's own parent code) for municipality rows; before 1948 the historical code is the UTS code. The projection holds the **effective** value, so the field appearing or disappearing over time does not create false changes in equality and completeness checks (§6.5). The adapter reports the number of fallback rows and their distinct UTS codes, outside the projection; they become one `info` anomaly per level (Step 6). The fallback is checked by I7 (D29).
+16. **`COD_PROV_STORICO` absent in some periods**: pfun 64 on 1948-01-01 has no `COD_PROV_STORICO`; it is present in the 2024–2026 snapshots. Normalisation: `historicalCode = COD_PROV_STORICO ?? COD_UTS` for UTS rows and `historicalUtsCode = COD_PROV_STORICO ?? COD_UTS` (the row's own parent code) for municipality rows; before 1948 the historical code is the UTS code. The projection holds the **effective** value, so the field appearing or disappearing over time does not create false changes in equality and completeness checks (§6.5). The adapter reports the number of fallback rows and their distinct UTS codes, outside the projection; they become one `info` anomaly per level (§6.5). The fallback is checked by I7 (D29).
 17. **Codes with suffix ≥ 800**: codes assigned retroactively to suppressed municipalities. They appear in every snapshot in which the municipality exists, and their prefix does **not** indicate membership: it may be a later province (`005801` Bagnasco d'Asti in Alessandria 006 before Asti existed; `095809` Siamanna in Cagliari 092 before Oristano; `093801` Vallenoncello in Udine 030 before Pordenone) or an earlier one (`001xxx` municipalities in the province of Aosta 007). Membership comes only from `COD_PROV`/`COD_UTS`. Verified: in the 1921, 1927-01-11 and 1927-01-12 snapshots, 36, 41 and 63 rows have a prefix different from their historical UTS code, all with suffix ≥ 800; in 1942 and 2024 none (D30).
 18. **`CT`, change of UTS type without a new record**: an event code missing from the ISTAT documentation, found only in the internal UTS events (r5). Verified (2026-10):
     - r5 of Bolzano/Bozen (021, type 2) and Trento (022, type 2) return one row each: `CT` "Cambio Tipologia di statuto", 1972-12-05, act 6102, "RICONOSCIMENTO DELL'AUTONOMIA PER LE PROVINCE DI TRENTO E BOLZANO/BOZEN", with the same `id_uts` (83 and 75) as the type 1 records; r2 lists both records of each UTS with the same origin id;
     - pfun 64 on 1972-12-04 and 1972-12-05 (94 rows each): for 021 and 022 only `TIPO_UTS` changes (1 → 2); code, name, region and abbreviation are unchanged;
     - among the r4/r5 histories of every r1/r2 record, `CT` appears only in those two rows; the public lists cannot carry it (closed vocabularies per endpoint); r6 was not checked (it needs the full municipality crawl).
 
-    `CT` is part of the vocabulary of §2, accepted only by the internal reports, and is a change of attribute (the type) of the same entity (Step 11 rules).
+    `CT` is part of the vocabulary of §2, accepted only by the internal reports, and is a change of attribute (the type) of the same entity (rules of §4.3).
 
 ---
 
@@ -252,7 +255,7 @@ Variations are **internal** (D39): the generator builds them to derive the publi
 }
 ```
 
-Participant `role` is derived from the participant's **effect**, not from event codes alone. The effect is evaluated **per event** (Step 11): a closing event (`ES`, `ESCT`, `AS`) needs the entity's version ending on the date, an opening event (`CS`, `CSCT`, `AN`) the version starting on it, a change of attribute (`CD`, `AP`, `CDAP`, `RN`, `RNAPUTS`, `CT`, `VACST`) both; a territorial event needs the entity to exist around the date, and takes the version boundary of that date only when no other event of the same entity on that date (change of attribute, opening or closing, in any act) explains it already; otherwise it stays `territory_changed` without versions. Within one participant (same act) the role stays `changed`: e.g. a rename in one act and a cession of territory in another on the same day: only the variation of the rename references the boundary. `istat_events` lists the participant's events with an effect, sorted alphabetically.
+Participant `role` is derived from the participant's **effect**, not from event codes alone. The effect is evaluated **per event**: a closing event (`ES`, `ESCT`, `AS`) needs the entity's version ending on the date, an opening event (`CS`, `CSCT`, `AN`) the version starting on it, a change of attribute (`CD`, `AP`, `CDAP`, `RN`, `RNAPUTS`, `CT`, `VACST`) both; a territorial event needs the entity to exist around the date, and takes the version boundary of that date only when no other event of the same entity on that date (change of attribute, opening or closing, in any act) explains it already; otherwise it stays `territory_changed` without versions. Within one participant (same act) the role stays `changed`: e.g. a rename in one act and a cession of territory in another on the same day: only the variation of the rename references the boundary. `istat_events` lists the participant's events with an effect, sorted alphabetically.
 
 | Role | Condition |
 |---|---|
@@ -289,6 +292,14 @@ These are the kinds of the (internal) variation links. The published `predecesso
 The kind follows from the effect: `merged_into` when `from` no longer exists on the date, otherwise `detached_into` when `to` did not exist the day before, otherwise `transferred_to`. Territory flows: subject → related for `ES`, `ESCT`, `AS`, `CE`, `CECS`; related → subject for `CS`, `CSCT`, `AN`, `AQES`, `AQ`; none for changes of attribute. A link between two states of the same entity is not a link (e.g. `ESCT` Sassari `090` → `312`).
 
 Grouping: one variation per `(istat_act_id, date)`, across levels. When the act id is unknown (public rows without a matching internal event), the rows of one date and level are grouped into the **connected components** of the entities they mention (subject or related territory), with `istat_act_id = null`; such a group never joins a variation with an act id, whose events are exactly those matched to that act. A public row without act whose link `(date, level, from, to)`, the kind aside, already exists in a variation with an act is **explained by that variation** (D43): it forms no `nk:` variation and takes no part in the connected components, its account (I14) is that variation, and the rows explained this way are one aggregated `info` (`link-explained-by-act`, count and items in `context`). Verified on the full run of 2026-10-08: the two `ESCT` rows of pfun 106 of 1948-01-01, Piemonte → Valle d'Aosta and Veneto → Friuli-Venezia Giulia, repeat the `detached_into` links of act 6107 (Piemonte and Veneto have `ES` + `CSCT` there, §6.7) and formed two `nk:` variations, the only ones of this kind; they gave Valle d'Aosta and Friuli-Venezia Giulia duplicated predecessors (golden-15). `PV` never produces a variation: versions starting on 1861-03-17 with `PV` have no opening variation.
+
+**Matching and rules**:
+- Public rows are matched to internal events by `(date, entity resolved from the code at that date, event code)`, which provides `istat_act_id` and `description` (equivalent event codes: §6.9). An internal event belongs to the entity whose ISTAT origin id is the root of its identity component (§5.1); for regions and UTS its r7/r8 details add related territories.
+- Unmatched public rows keep `istat_act_id = null` and `description = null` and are grouped by connected components (above).
+- Every `(level, event code)` pair has an explicit rule (role and links); a pair without a rule is a `blocking` anomaly (D27). Coverage is checked against the event code summary computed by the build (§6.8).
+- **Rules** (`src/build/event-rules.ts`): per pair, the effect (closing, opening, change of attribute, territorial, first validity), the side identifying the subject and the related territory of a row (§3.5 item 6), and the direction of the territory flow (above). Pairs: those of the public lists plus those observed in the internal histories of every region and UTS record (regions: `PV CS CSCT AN ES ESCT AS AQES AQ CE CECS CD VACST`; UTS: `PV CS CSCT AN ES ESCT AS AQES AQ CE CECS CD AP RN CT`; municipalities: `PV CS AN ES AS AQES AQ CE CECS CD AP CDAP RN RNAPUTS`).
+- **Accounting (I14)**: every event row (public lists and internal events) is represented in a variation or dropped with a reason: `first-validity` (`PV`), `no-effect` (`info` anomaly `participation-without-effect`), `unresolved` (`code-unresolved`), `unknown-entity` (`variation-entity-unknown`, `blocking`), `rule-missing` (`event-rule-missing`, `blocking`), `future` (an event dated after `today`, §6.9). A public row matching internal events of several acts joins the act whose details (r9 for municipalities, §6.8; r7/r8 for regions and UTS) list its related territory **by code**, when exactly one act does; otherwise (no related territory, no details, r9 unavailable, or several acts listing it) it stays unmatched (`variation-act-ambiguous`, `warning`; golden-21).
+- **Variation ids**: assigned through the registry (§5.3) after building.
 
 ### 4.4 Published example (abridged)
 
@@ -328,6 +339,12 @@ Grouping: one variation per `(istat_act_id, date)`, across levels. When the act 
 - The same union-find approach is applied to regions (`id_regione_origine`) and municipalities (`id_comune_origine`) for uniformity, even where ISTAT currently exposes a single id per entity.
 - **Municipalities**: entity = `id_comune_origine`. Reconstituted municipalities with the same id are the **same entity** with a gap (Sassofeltrio). The cadastral code is a version attribute (it can change inside an entity: Siamanna I719 → I718 on 1974-09-13).
 - Identity is **never** inferred from names, abbreviations or codes across non-consecutive snapshots.
+- **Identity graph** per level: union-find over `id ↔ id_origine` producing components with:
+  - root id (the oldest record);
+  - member typed records `(id, code, name, type)`;
+  - merged event history.
+
+  Only the `id → id_origine` pointers of the internal reports are used, never inferences from public data. The root is the only end of the pointer chain and must be the oldest record (earliest first event); otherwise `identity-root-ambiguous` (`blocking`, falling back to the oldest record). A listed record whose origin id is not in the component of its events is `identity-record-inconsistent` (`blocking`).
 
 ### 5.2 Public-only identity path (municipalities)
 
@@ -335,7 +352,7 @@ Municipality structure (versions, links) is buildable from public data alone (§
 
 ### 5.3 Registry
 
-Files committed in `registry/`, one per kind: entities (`regions.json`, `provinces.json`, `municipalities.json`) and `variations.json`. Each maps a **natural key** to a stable id; `remaps.json` records the keys that changed (Step 9). The registry is internal: only the entity ids are published.
+Files committed in `registry/`, one per kind: entities (`regions.json`, `provinces.json`, `municipalities.json`) and `variations.json`. Each maps a **natural key** to a stable id; `remaps.json` records the keys that changed. The registry is internal: only the entity ids are published.
 
 - **Entity ids** (D42) are strings `<prefix>-<code>`: prefix `reg`, `prv` or `mun` by level; code of 6 characters in Crockford base32 (alphabet `0123456789ABCDEFGHJKMNPQRSTVWXYZ`, uppercase), i.e. 30 bits of the SHA-256 of the UTF-8 string `<level>|<natural key>` (`region`, `province` or `municipality`, e.g. `region|istat:9`), the natural key being the one with which the entity **first enters the registry**: the level in the hashed string makes the codes of different levels differ even without the prefix. Window `k` (`k = 0, 1, …, 7`) is bits `[30k, 30k + 30)` of the digest, most significant bit first, 5 bits per character; window 0 is used unless its id is already taken in the level's registry by another key (collisions are checked per level) (an entry of any time, whatever its current key), in which case the next window is used, deterministically. All eight windows taken is an error of the registry (never expected: about 10⁹ codes for about 10⁴ entities per level). The registry keeps the correspondence: the id **never changes**, also when the natural key changes (remap, re-keying): it is never recomputed from the current key. Pattern `^(reg|prv|mun)-[0-9A-HJKMNP-TV-Z]{6}$`.
 - **Variation ids** stay positive integers with a `next_id` counter; they are internal (§9).
@@ -347,11 +364,15 @@ Files committed in `registry/`, one per kind: entities (`regions.json`, `provinc
 | Variation | `act:<istat_act_id>:<date>`; fallback `nk:<date>:<level>:<entity id>` (the smallest subject entity id of the group, §4.3); inferred `inferred:<date>:<level>:<entity id>` |
 
 Rules:
-- Ids are assigned on first appearance and **never reused or renumbered**. New entity keys of one run are assigned in the total order of Step 9 (first `validFrom`, first ISTAT code, natural key), which decides the windows when two new keys collide.
+- Ids are assigned on first appearance and **never reused or renumbered**. New entity keys of one run are assigned in a total order (first `validFrom`, first ISTAT code, natural key; file format below), which decides the windows when two new keys collide.
 - If a retroactive correction changes the natural key of an entity (e.g. its root changes), the build does not silently create a new id: the remap is applied and recorded in `remaps.json`; a retroactive run reaches `main` only through a PR (§10.2).
 - An `nk:` entity that gains its ISTAT origin id is re-keyed to `istat:<root>` with the same id; the correspondence goes into `remaps.json`, but it is **not** retroactive (no published field changes: the id was derived from the `nk:` key and stays).
-- Re-keying goes from `nk:` to `istat:` only, **never back**: missing internal data must never change the id of a registered entity. A registered `istat:<root>` entity whose internal history is absent from the run (its key is not produced and none of its members is in any identity component of the run, e.g. an r6 missing from the store in an offline `rebuild`) is `internal-data-required` (`blocking`): the run never gives it an `nk:` key with a new id, and `dist/`, `reports/` and `registry/` are not written. The anomaly carries `cause`: `unavailable` when the history is missing because a request of the level could not be obtained (network, exhausted retries, open circuit, a report missing from the store in an offline `rebuild`), exit 3 when nothing else blocks; `absent` when every request succeeded and the history is not there, exit 1 (Step 17).
+- Re-keying goes from `nk:` to `istat:` only, **never back**: missing internal data must never change the id of a registered entity. A registered `istat:<root>` entity whose internal history is absent from the run (its key is not produced and none of its members is in any identity component of the run, e.g. an r6 missing from the store in an offline `rebuild`) is `internal-data-required` (`blocking`): the run never gives it an `nk:` key with a new id, and `dist/`, `reports/` and `registry/` are not written. The anomaly carries `cause`: `unavailable` when the history is missing because a request of the level could not be obtained (network, exhausted retries, open circuit, a report missing from the store in an offline `rebuild`), exit 3 when nothing else blocks; `absent` when every request succeeded and the history is not there, exit 1 (§10.4).
 - Registry changes are part of the data commit and are reviewed like data.
+- **File format**: one file per kind, `{ "kind", "entries": { "<natural key>": <entry> } }` (variations also `"next_id"`), keys sorted. Entries: entities `{ id, members }` (the ISTAT ids of the identity component, ascending; empty for `nk:` keys), variations `{ id }`. New keys of one call get ids in a total, deterministic order independent of the input order: entities by first `validFrom`, then first ISTAT code, then natural key; variations by date, then natural key. A natural key given twice in one call is a bug (error). Kinds: `region`, `province`, `municipality`, `variation` (the version kinds were removed in the revision of the published model, D40).
+- **Remaps**: a key that changes keeps its id, the entry moves to the new key and the correspondence is appended to `registry/remaps.json` (`{ kind, from_key, to_key, id, reason, recorded_on }`, `recorded_on` = `dates.today`; the remaps of one run sorted by `kind`, then `from_key`). Reasons: `origin-id-available` (not retroactive, `info`) and `root-changed` (retroactive, `warning`).
+- **Changed root**: when an identity component (§5.1) changes root between two runs but shares members with a registered entity whose key disappeared, **reuse its id** (the first by natural key when several: hashed ids have no order, D42), record the remap and mark the run as retroactive.
+- **Missing internal data**: an `internal-data-unavailable` gap (§6.8) becomes `blocking` only when a decision needs it (§6.1): `internal-data-required` for the rootless entities of §6.7, and for every registered `istat:` entity whose history is absent from the run (no key produced, no member in any component): one `blocking` `internal-data-required` per level listing `{ key, id, members }` of each, instead of an `nk:` key with a new id. Every `internal-data-required` (this one and the rootless entities) has `context.cause`: `unavailable` when some internal request of the level (lists, events, details) failed because the source was unavailable (network, exhausted retries, open circuit, `NotInStoreError` in an offline `rebuild`), `absent` otherwise (every request succeeded, or failed with its own blocking `*-request-rejected`/`*-schema-violation`). The cause decides the exit code (§10.4).
 
 ### 5.4 Ids and database friendliness
 
@@ -394,7 +415,7 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
   - **Requests out of attempts**: a request that exhausts its attempts (or its transient validation retries) fails with `RetriesExhaustedError` only when its family works, i.e. some other request of the family succeeded after this request's first failure (e.g. repeated timeouts of a single heavy snapshot while the others answer). Otherwise the family may be down and the request waits for the family's verdict instead of failing, spending no further attempt: a success of another request gives it a new attempt; an opening holds it like every other request (wait and probe, below); a lost family fails it with `CircuitOpenError`. While requests wait, one of them at a time tries again every `backoffMaxMs`, so the failure streak keeps moving towards a verdict even when no other request is running (a sequential stage). The client notifies `request-held` once per request.
   - **A request failing alone** (no other request failed in the streak, e.g. a URL that always fails with no other traffic) never opens the circuit: when its own failures reach the opening condition (threshold and duration, about 4 minutes with the defaults), it fails with `RetriesExhaustedError` and the streak ends without judging the family. If other requests of the family fail meanwhile, the streak becomes the family's and follows the circuit.
   - **Open**: requests of the family are not sent and do not fail: they wait, spending no attempt. After a cooldown (`circuitBreakerCooldownMs`, doubled at every reopening up to `circuitBreakerMaxCooldownMs`) the circuit is **half-open**: a single request is sent as a probe. Its success closes the circuit and every waiting request goes on; its failure reopens it with the next cooldown. A probe that ends without a verdict (permanent validation error, non-retryable status) lets the next request probe at once. A success of a request sent before the opening also closes it; failures of such requests do not reopen it or double the cooldown.
-  - **Lost**: once the open periods of the run add up to `circuitBreakerMaxOpenMs`, the family is given up for the rest of the run: every waiting and later request fails immediately with `CircuitOpenError`, and the run reports the source as unavailable (exit code 3). The last probe is scheduled at that limit, so a family is lost only after a failed probe. Elsewhere in this plan an "open circuit" as a cause of unavailability means a lost family.
+  - **Lost**: once the open periods of the run add up to `circuitBreakerMaxOpenMs`, the family is given up for the rest of the run: every waiting and later request fails immediately with `CircuitOpenError`, and the run reports the source as unavailable (exit code 3). The last probe is scheduled at that limit, so a family is lost only after a failed probe. Elsewhere in this specification an "open circuit" as a cause of unavailability means a lost family.
   - The client notifies `circuit-open` (with the delay before the probe; also on reopening, `warning`), `circuit-closed` (`info`) and `circuit-lost` (`error`).
 - **Encoding**: requests are built unencoded (§11.1); the client encodes every query parameter value strictly (RFC 3986: `encodeURIComponent` plus `!'()*`), both in public URLs and in the report URL inside the internal API body. Verified: unencoded values with spaces, `/` or apostrophes make the internal API answer `500 System Error`.
 - `User-Agent` identifying the project with a contact URL.
@@ -402,9 +423,9 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
 - **No global TTL.** Freshness is a **per-call policy chosen by the caller**, never decided by the client: `cache: "prefer"` (use the entry if present), `"refresh"` (always refetch), `{ maxAgeDays: n }`, or `{ fetchedSince: date }` (use the entry only if it was fetched on that date or later). The orchestrator (§10) decides which requests must be fresh:
   - requests parameterised with today's date (today's snapshots, event lists with `pdataa = today`) have new cache keys every day, so they are always fetched;
   - historical snapshots use `prefer`, because their URLs never change;
-  - `audit` uses `refresh`;
+  - `audit` uses `refresh` for the sampled snapshots, its only requests;
   - `rebuild --refetch` uses `{ fetchedSince: today }` for every request it must refresh (event lists, internal reports, ANPR, counts, every stored snapshot): what was downloaded from the run's `today` on counts as fresh, so a refetch interrupted (or ended with exit code 3) and run again the same day resumes where it stopped, and no request is sent twice in one run. It relies on the cache entry's `fetched_at`, never on the store manifest's, which records the first download of a content (D32);
-  - internal reports (Step 7): lists r1–r3 on every `update`, r4/r5 of the records touched by new variations or newly listed, r6 of new pairs use `refresh`; `audit` refreshes all of them, `rebuild --refetch` too with the policy above. Every other internal report is read from the store without network.
+  - internal reports (§6.8): on every `update`, the lists r1–r3, r4/r5 of the records newly listed or whose code appears in added or removed event-list rows, and r6 of the pairs whose code appears in those rows use `refresh` (new pairs are not in the store, so they are fetched anyway); `rebuild --refetch` refreshes all of them with the policy above. Every other internal report is read from the store without network.
 
   A global TTL is rejected for three reasons: it makes builds non-deterministic, it triggers mass refetches when many entries expire together, and it changes data in the middle of a pipeline without anyone deciding it.
 - **Changed content on refresh**: when a refreshed response differs from the cached one, the client keeps the previous content hash in the entry and emits a `changed` notification. The orchestrator treats it as a potential retroactive change (§10.2): data is never overwritten silently.
@@ -413,12 +434,12 @@ fetch ─► normalise ─► snapshot store ─► calendar ─► snapshots + 
     - the body is not parseable JSON;
     - the content type is not among those accepted by the endpoint, e.g. an HTML maintenance page (public API: `application/json`; internal API: `application/json` or `text/plain`, see §3.3; ANPR: `text/csv`);
     - the expected envelope (`resultset` / `items`) is missing;
-    - a snapshot or an internal list report (r1–r3) returns zero rows, which is impossible for those endpoints; a count response must have exactly one row (zero is a valid count). Public event lists and internal reports r4–r9 may be empty (an empty r4–r6 for a listed record is accepted by the client and becomes a blocking anomaly on that record, Step 7; D28).
+    - a snapshot or an internal list report (r1–r3) returns zero rows, which is impossible for those endpoints; a count response must have exactly one row (zero is a valid count). Public event lists and internal reports r4–r9 may be empty (an empty r4–r6 for a listed record is accepted by the client and becomes a blocking anomaly on that record, §6.8; D28).
 
     The 2 extra attempts are a separate budget inside the overall attempt limit. Each transient validation failure counts for the circuit breaker and halves the AIMD concurrency like a 5xx. If retries are exhausted it becomes a response error.
   - **Permanent `ResponseValidationError`** (no retry): the envelope is valid but rows violate the schema, e.g. a missing required field or an unparseable date or code. It disables **that endpoint** for the rest of the run (further requests to it fail immediately with `EndpointDisabledError`, without being sent) and produces a `blocking` anomaly with the request and offending rows. Neither error affects AIMD or the circuit breaker, and neither triggers `staleFallback` (D26). Other endpoints keep working, so a single run collects every problem; the run still ends with blocking anomalies (exit code 1).
   - Invalid responses of either class are **never cached**.
-- **Degradation**: if the internal API family is unavailable, the run uses the last stored internal data (the store copy, or the HTTP cache entry when the store has none) and reports a `warning` (Step 7). The client implements it as an opt-in per request (`staleFallback`): when the network fails (family lost by the circuit breaker or retries exhausted, never a validation error or a disabled endpoint) and a cache entry exists, whatever its age or the cache policy, the entry is returned marked as stale and a `degraded` notification is emitted; without an entry the request fails. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
+- **Degradation**: if the internal API family is unavailable, the run uses the last stored internal data (the store copy, or the HTTP cache entry when the store has none) and reports a `warning` (§6.8). The client implements it as an opt-in per request (`staleFallback`): when the network fails (family lost by the circuit breaker or retries exhausted, never a validation error or a disabled endpoint) and a cache entry exists, whatever its age or the cache policy, the entry is returned marked as stale and a `degraded` notification is emitted; without an entry the request fails. It becomes `blocking` only when a decision actually needs missing internal data (a new UTS/region entity, a municipality reconstitution, an unexplained UTS code change).
 
 ### 6.2 Normalisation
 
@@ -427,17 +448,32 @@ Per adapter, producing typed internal rows:
 - Numeric enums coerced from number-or-string.
 - Dates from `DD/MM/YYYY` or `YYYY-MM-DDT00:00:00Z` → `YYYY-MM-DD`.
 - `""`, `" "`, `"ND"` → `null`; strings trimmed and NFC-normalised.
-- **Event code vocabulary**: every event row must carry a code from §2, and the code must belong to the set allowed for its endpoint (§3.2 table; internal reports accept every code of §2, and whether a `(level, code)` pair is meaningful is decided by the explicit rules of Step 11, D27). An unknown or unexpected code is a permanent `ResponseValidationError` (blocking): the vocabulary and the mapping to roles/links must be updated on purpose.
+- **Event code vocabulary**: every event row must carry a code from §2, and the code must belong to the set allowed for its endpoint (§3.2 table; internal reports accept every code of §2, and whether a `(level, code)` pair is meaningful is decided by the explicit rules of §4.3, D27). An unknown or unexpected code is a permanent `ResponseValidationError` (blocking): the vocabulary and the mapping to roles/links must be updated on purpose.
 - Snapshot rows are reduced to a **projection** containing only the fields relevant to the model (§3.2). Volatile or unused fields (NUTS, circondari, capital flags, fiscal codes) never take part in equality checks.
 
 ### 6.3 Snapshot store
 
 - Content-addressed: each normalised projected row is stored once, keyed by its hash; a snapshot is a manifest `(level, date) → sorted list of row hashes`.
 - Layout: `rows/<level>.ndjson` (append-only) and `snapshots/<level>/<YYYY-MM-DD>.json`.
-- Persisted in a separate git repository, `italian-territories-store` (D47): one commit per run, history kept (git deltas between similar manifests keep it small: the store of 2026-10-07, 3.3 GB on disk, is a 506 MiB pack), so a clone of the project never downloads it. The workflows clone it shallow into `.cache/store` and push it at the end of every run (Step 18). Also cached, with the same approach: normalised event lists (`events/`), internal API responses (`internal/`), the counts of the snapshot requests (`counts/`, I13) and the ANPR archive (`anpr/`): every source of the build is in the store (Step 17).
+- Persisted in a separate git repository, `italian-territories-store` (D47): one commit per run, history kept (git deltas between similar manifests keep it small: the store of 2026-10-07, 3.3 GB on disk, is a 506 MiB pack), so a clone of the project never downloads it. The workflows clone it shallow into `.cache/store` and push it at the end of every run (§10.3). Also cached, with the same approach: normalised event lists (`events/`), internal API responses (`internal/`), the counts of the snapshot requests (`counts/`, I13) and the ANPR archive (`anpr/`): every source of the build is in the store.
 - Every manifest carries the `projection_version` of its projection (snapshots per level, event lists per endpoint, internal reports per report). Content comparisons (`history`, change detection, completeness) only involve manifests with the current version; a manifest with another version is never used by the build. Changing a projection bumps its version and requires `rebuild --refetch`, which is never a retroactive change (D32).
 - A refresh with the same content writes nothing. Event-list change detection is **semantic**: the rows of a new list dated in `[from, to]` are compared with everything the store knows in that date range (for each date, the most recently fetched list covering it), not with a previous manifest (D32).
 - A full rebuild must be possible from the store without network access (`rebuild` without `--refetch`), counts and ANPR included.
+
+Formats:
+- **Row hashing**: a row hash is the SHA-256 (hex) of the canonical JSON of the projected row (keys sorted, no whitespace).
+- **`rows/<level>.ndjson`**: append-only, one `{ "hash", "row" }` per line, never duplicated. A last line without its newline (interrupted append) is cut on load; a line that does not match its hash is a store corruption.
+- **Manifest `snapshots/<level>/<date>.json`**: `{ level, date, pfun, projection_version, fetched_at, content_hash, adapter_stats, row_hashes (sorted, duplicates kept), history: [{ fetched_at, content_hash }] }`.
+  - `content_hash` is the SHA-256 of the canonical JSON of the sorted `row_hashes`: only the normalised projection takes part, so changes to ignored fields are not changes.
+  - `adapter_stats` is a generic object of adapter counters and sorted code lists (e.g. `historical_code_fallbacks` and `historical_code_fallback_uts_codes`, §3.5 item 16), excluded from `content_hash`.
+  - A refresh with the same content writes nothing (`fetched_at` stays the date of the first fetch of that content; only a different `adapter_stats` is updated). A different content appends the replaced `{ fetched_at, content_hash }` to `history`.
+  - `projection_version` as above: a manifest with another version is replaced without `history` and is never returned to the build (D32).
+- **Normalised event lists and internal responses**: stored with the same approach.
+  - Event lists: `events/rows/pfun-<id>.ndjson` and `events/lists/pfun-<id>/<from>_<to>.json` (`{ pfun, level, from, to, … }`). Change detection is **semantic**: the rows of a new list dated in `[from, to]` are compared with every row the store knows in the same range (for each date, the most recently fetched list covering it), not with a previous manifest, which has a different `from` because of the lookback window (§10.2). The put returns the `added` and `removed` rows.
+  - Internal reports: `internal/rows/r<n>.ndjson` and `internal/reports/r<n>/<key>.json` (`{ report, endpoint, report_url, key, … }`), where `key` is the SHA-256 of the unencoded, normalised report URL (the form stored in the fixture manifest, §11.1).
+  - Counts: `counts/rows.ndjson` and one manifest per snapshot count request, `counts/pfun-<id>/<date>.json` (`{ pfun, date, … }`, one row `{ count }`).
+  - ANPR: `anpr/rows.ndjson` and one manifest `anpr/manifest.json` (`{ endpoint: "anpr:archivio-comuni", … }`). The stored projection drops the CSV `line`, which would change the hash of every following row at each insertion in the file; the issues of the dropped rows go into `adapter_stats.row_issues` (canonical JSON), so an offline rebuild reports the same `anpr-row-dropped`. Rows read back are sorted by cadastral code (rows without one last), ISTAT code, `validFrom`, canonical JSON, the order the cross-check iterates in; ANPR anomalies identify rows by their store row hash plus `{ istatCode, cadastralCode, validFrom, validTo }`, never by line.
+  - Both follow the same rules (same content → nothing written, `history`, `projection_version` entries `counts` and `anpr`, D32).
 
 ### 6.4 Breakpoint calendar
 
@@ -448,6 +484,8 @@ Union of:
 - today.
 
 Dates outside `[1861-03-17, today]` are discarded. A single calendar is used for all three levels.
+
+The calendar keeps its provenance: `calendar.json` in the store, `{ start, today, dates: { <date>: [sources] } }`. Sources are endpoint ids (`events:pfun-<id>`, `r4:region-events`, `r5:uts-events`, `r6:municipality-events`), `anpr:start`, `anpr:end` (half-open `validTo`, i.e. `DATACESSAZIONE + 1`), `regime`, `today` and `inferred` (bisection, §6.5; dropped when a published event covers the same date).
 
 ### 6.5 Snapshots and completeness verification
 
@@ -460,9 +498,33 @@ For each level and each calendar date `d_i`, fetch `S(d_i)` using the right `pfu
 
 Estimated bootstrap cost: ~2,500 breakpoints × 3 levels × 2 (verification) ≈ 15k calls, of which ~5k heavy municipality snapshots. At concurrency 4 this is roughly one hour; the resumable cache allows splitting across runs.
 
+Every `(level, date)` of the calendar is fetched in parallel.
+
+- **Bisection rules**:
+  - Search `[d_i + 1, d_{i+1} − 1]` for the first date whose snapshot differs from `S(d_i)`. After finding it, continue on the remaining sub-interval, which may hide further changes.
+  - An inferred date is added to the **global** calendar (source `inferred` in `calendar.json`), so all levels get snapshots on it.
+  - Intervals never cross regimes, because boundaries are in the calendar (asserted).
+  - Every snapshot obtained, bisection probes included, is stored (§6.3), so I12 and an offline rebuild see it.
+- **Snapshot source**: the store first. A stored manifest of the current `projection_version` is used without network, unless the request must be refreshed (today, `audit` samples, `rebuild --refetch`), which bypasses the store and the HTTP cache (in `rebuild --refetch`, except the responses downloaded from its `today` on, §6.1). Otherwise the snapshot is fetched (`cache: prefer`) and stored.
+- **Failures**: a snapshot that cannot be obtained does not stop the stage, so one run collects every problem. Failures only concern dates never stored or requests whose refresh is mandatory:
+  - `snapshot-unavailable` (`blocking`, exit code 3): the source is unavailable, i.e. open circuit or retries exhausted on timeouts, connection errors, 5xx or 429;
+  - `snapshot-request-rejected` (`blocking`, exit code 1): non-retryable HTTP status (4xx other than 429: 400, 401, 403, 404…), which is not unavailability;
+  - `snapshot-schema-violation` (`blocking`, exit code 1): `ResponseValidationError` or `EndpointDisabledError`;
+  - `completeness-unverified` (`blocking`): an interval whose check needs a missing snapshot;
+  - any other error is a bug and propagates.
+
+  The causes have distinct codes so that the commands map them to exit codes without reading messages (§10.4). With at least one failure the stage result is `blocked`: the pipeline stops before identity resolution, to avoid cascading anomalies.
+- **Inferred breakpoints across runs**:
+  - An inferred date whose snapshots (as currently stored or refetched) equal, at every level, those of the previous calendar date is no longer confirmed: its `inferred` source is removed (the date leaves the calendar unless another source keeps it), with an `inferred-breakpoint-removed` `info` anomaly, and no `inferred-breakpoint` warning is emitted for it. A date with a missing snapshot is kept.
+  - When a published event (public list or internal event report) covers an inferred date, the source becomes that event's endpoint: `inferred` is dropped.
+- **Anomalies**: `inferred-breakpoint` (`warning`), emitted by every run for each date still `inferred` in the final calendar and each level whose snapshot changes on it; `inferred-breakpoint-removed` (`info`); `historical-code-fallback` (`info`, §3.5 item 16), **one per level** with number of snapshots, total fallback rows, date range and the distinct UTS codes involved, computed from the manifests' `adapter_stats` so an offline rebuild reports the same.
+
 ### 6.6 Code resolver
 
-`resolve(level, code, date, side)` returns the **snapshot interval** identified by an ISTAT code: the maximal interval `[validFrom, validTo)` during which the code identifies the same projected snapshot row, built from the snapshots of the calendar dates. The resolver knows nothing of entities: Step 9 attaches intervals to entities.
+`resolve(level, code, date, side)` returns the **snapshot interval** identified by an ISTAT code: the maximal interval `[validFrom, validTo)` during which the code identifies the same projected snapshot row, built from the snapshots of the calendar dates. The resolver knows nothing of entities: identity resolution (§6.7) attaches intervals to entities.
+
+- **Interval index** per level: code → list of `(validFrom, validTo, row)`, built from the snapshots stored for the calendar dates; consecutive equal rows of a code are merged. A code duplicated in one snapshot is a `blocking` anomaly (`snapshot-duplicate-code`) and is left out of that date.
+- `resolve` returns `{ intervalKey, interval, path: "direct" | "alias" | "cadastral" }`. `intervalKey` is `<code>@<validFrom>` of the interval: it is not an identity (two consecutive intervals of the same entity have different keys). Unresolved or ambiguous codes raise `ResolutionError`, converted to the `blocking` anomaly `code-unresolved`.
 
 1. `side = successor` → look up the code on `date`; `side = predecessor` → on `date − 1`.
 2. If not found, apply **same-day aliases**: code-change events on `date` mapping the code of `date − 1` to the code of `date`; follow the chain towards the side. Sources:
@@ -498,27 +560,61 @@ For each level and each transition `S(d−1) → S(d)`:
 
 **Name changes** between snapshots must correspond to a `CD`/`CDAP` event (pfun 104/105 for municipalities, 114/108 or internal for UTS/regions) or to a new entity; otherwise `warning` (known ISTAT inconsistencies exist, e.g. *Pettoranello del Molise* vs *di Molise*). A change of name along a type-change link (`ESCT`/`CSCT`, or a pairing inferred by the rule above) is explained by that event: the new typed record brings its name (1948: Emilia → Emilia-Romagna, Puglie → Puglia, Calabrie → Calabria, Venezia Tridentina → Trentino-Alto Adige/Südtirol); no `name-change-without-event`.
 
+**Transition matcher** (per level, over the interval index of §6.6; every interval that closes or opens on a calendar date must be explained):
+- code changes (municipalities: pfun 105; UTS and regions: the internal `RN` and `ESCT`/`CSCT` aliases of §6.6) link the interval of the old code on `d − 1` to that of the new code on `d`;
+- the same code closed and reopened on `d` is the same territory, unless `ES` + `CS` on `d` reuse it, or a code change already links one of the two intervals (explicit evidence beats code equality, e.g. codes swapped on the same day);
+- otherwise a closed interval needs `ES`/`ESCT`/`AS` on `d` and an opened one `CS`/`CSCT`/`AN` on `d` (municipalities: pfun 98/100; UTS and regions: internal events; public 112/113 and 106/107 are cross-checks, `identity-public-event-unmatched` `warning`); events only count on dates where intervals open or close;
+- municipalities only: one closed and one opened interval with the same non-null cadastral code and no events are linked (`identity-cadastral-continuity`, `warning`; the variation builder creates the `inferred` variation, §4.3); anything else is `transition-unexplained` (`blocking`);
+- an interval with several successors or predecessors keeps none of those links (`identity-transition-conflict`, `blocking`);
+- a name change along a link needs a `CD`/`CDAP` event on `d` (pfun 104/105, 114/108 or internal), otherwise `name-change-without-event` (`warning`); those links are returned as `renamesWithoutEvent`, so that the variation builder recognises the boundaries already reported.
+
+**ISTAT ids win** (§5.2): every internal event is resolved to its interval (side rule of §3.5 item 6), which takes the root of its component.
+- A chain whose intervals carry two roots is cut where the root changes (`identity-public-internal-mismatch`, `warning`); with intervals without events between the two roots the cut cannot be placed (`identity-split-undetermined`, `blocking`). Events of two components on one interval: `identity-origin-conflict` (`blocking`).
+- Chains with the same root are one entity: no anomaly when the earlier one ends with a suppression and the later one starts with an establishment (documented reconstitution, e.g. Sassofeltrio); `identity-public-internal-mismatch` (`warning`) otherwise; `identity-overlap` (`blocking`) if they overlap.
+
+**Entities without root** (key `nk:`):
+- regions and UTS: always `blocking` (`identity-origin-missing` with internal data complete, `internal-data-required` otherwise);
+- municipalities: `identity-origin-missing` (`warning`) when the municipality crawl is complete; with internal data incomplete, `internal-data-required` (`blocking`) only for an entity starting with `CS`/`AN` after the first calendar date (a possible reconstitution, §6.1), no anomaly otherwise.
+
 ### 6.8 Internal data (crawl and identity graph)
 
 Internal data is **acquired before identity resolution** (UTS and region identity depend on it, §6.7) and **attached** during identity resolution and variation building.
 
-- **Source**: internal reports are read from the store first (§6.3) and fetched only when missing or when their refresh is mandatory (§6.1, Step 7); a history fetched in the run replaces the stored ones of the same ids.
+- **Source**: internal reports are read from the store first (§6.3) and fetched only when missing or when their refresh is mandatory (§6.1); a history fetched in the run replaces the stored ones of the same ids. A stored report of the current `projection_version` is used without network unless its refresh is mandatory; otherwise it is fetched (`cache: prefer`) and stored. The orchestrator (§10.4) decides which refreshes are mandatory (`mustRefresh`):
+  - r1–r3 on every `update`;
+  - r4/r5 for the records newly listed or whose code appears in added or removed event-list rows;
+  - r6 for the pairs whose code appears in those rows (new pairs are fetched anyway);
+  - everything for `rebuild --refetch`, as for snapshots. `audit` refreshes only the sampled snapshots, never internal reports.
 - **Regions and UTS** (hundreds of calls, required): lists 1–2, events 4–5 for **every** listed `(code, name, type)` record (each typed record returns only its own events; the entity history is the union over all records of the same union-find component), details 7–8 for every event that can carry associated territories. Gives origin ids, `RN`/`AP`/territorial events, act ids and links.
 - **Municipalities** (one-time crawl of ~10k light calls, then only new pairs): list 3, then report 6 for each `(pro_com_t, comune)` not covered by a known history; deduplicate by `id_comune_origine` (any historical pair returns the same history). Gives origin ids and act ids. Match internal events to public rows by `(date, code at that date, event code)`.
 - **Event code summary**: the observed `(level, event code)` pairs (D27) are computed by every build and written as a build report (`.cache/reports/event-codes.json`), never stored as source data.
-- **Report 9 (municipality details), only for ambiguous events**: after the municipality graph is built, r9 is crawled for the events of one component with the same date and event code under **more than one act** (e.g. Riola Sardo, two `CECS` of 1946-02-07, acts 5831 and 5841, golden-21), queried with the event row's own origin id, act and event. Store-first and stored like every internal report (a failure is aggregated per report like r7/r8 and leaves the event without details); downloaded only by `bootstrap`, `update` and `rebuild --refetch`: in an offline `rebuild` a missing r9 is `internal-data-unavailable` (`warning`) and the rows stay `variation-act-ambiguous` (D37). The associated territories of r9 are used **only** to match public rows to acts (Step 11); the related municipalities of a variation still come from the public rows. No other municipality event is detailed.
+- **Report 9 (municipality details), only for ambiguous events**: after the municipality graph is built, r9 is crawled for the events of one component with the same date and event code under **more than one act** (e.g. Riola Sardo, two `CECS` of 1946-02-07, acts 5831 and 5841, golden-21), queried with the event row's own origin id, act and event. Store-first and stored like every internal report (a failure is aggregated per report like r7/r8 and leaves the event without details); downloaded only by `bootstrap`, `update` and `rebuild --refetch`: in an offline `rebuild` a missing r9 is `internal-data-unavailable` (`warning`) and the rows stay `variation-act-ambiguous` (D37). The associated territories of r9 are used **only** to match public rows to acts (§4.3); the related municipalities of a variation still come from the public rows. No other municipality event is detailed.
+- **Crawl order, regions and UTS**: r1/r2 → r4/r5 for every listed record; r5 under an older code of the same `id_uts` (e.g. Cagliari 292 and 318, Nuoro 091 and 114) returns the same rows, merged without duplicates; r7/r8 for every distinct event except `PV`, `CD` and `RN`, which have no associated territories, queried with the **event row's own** origin id and type (verified: r8 answers the Milano metropolitan city `CSCT` for `id_uts_origine=9`, not for its `id_uts` 119).
+- **Crawl order, municipalities**:
+  - r3, then r6 per `(pro_com_t, comune)` pair, in code and name order (independent of whether the list came from the network or the store);
+  - each r6 response lists the codes and names the entity had over time; mark those pairs as covered and skip them. Stored responses are read first, so an incremental crawl only sends requests for pairs no stored history covers;
+  - deduplicate by `id_comune_origine`;
+  - then r9 only for the ambiguous events (above).
+- **Fresh replaces stored**: a history fetched in the run replaces, for the same ids, the stored histories read for other records or pairs of the entity; it is never merged with them, so a row ISTAT corrected does not survive next to its correction.
+- **Degradation** (§6.1):
+  - using the store without a mandatory refresh produces no anomaly;
+  - a mandatory refresh that fails because the source is unavailable falls back to the stored copy (or the HTTP cache entry when the store has none): `internal-data-stale` (`warning`), one per report with the list of requests;
+  - data missing with no copy: `internal-data-unavailable` (`warning`), one per report; it becomes `blocking` only in identity resolution, when a decision needs it (§5.3, §6.7);
+  - rejected requests (4xx) and schema violations never fall back (D26): `internal-request-rejected` and `internal-schema-violation` (`blocking`), one per report.
+- **Empty event reports**: an empty r4/r5/r6 response for a listed record is a `blocking` anomaly `listed-record-without-events` for that record; the client accepts the response and the endpoint stays enabled.
 
 ### 6.9 Version and attribute building
 
 - Build versions per entity by collapsing consecutive days with identical published attributes (internally half-open).
 - Parent references: municipality → UTS via `COD_PROV` (pre-1948) / `COD_UTS` (post-1948) resolved to entity ids on that date; UTS → region via `COD_COMP`/`COD_REG`; municipality `region_id` from its own region code, checked against the UTS region (I5).
   - The parent code is resolved **date by date** over the whole period of the row, to the entity that code identifies at the parent level on each date. A version therefore splits where the entity behind an unchanged parent code changes, and only there: attribute changes of the parent entity (§4.2) do not split it.
+  - Regions are built first, then UTS, then municipalities.
 - UTS type pre-1948 is always `province`.
-- **Public rows and internal events** (variations, Step 11): a public row is matched to the internal event (r4–r6) of the same `(date, entity, event code)`, which gives it act and description. Only without an exact match, an internal event of the same `(date, entity)` whose code is **equivalent** in a closed table (`EVENT_CODE_EQUIVALENCES` in `src/build/event-rules.ts`, each pair with its reason; never deduced from the codes; the two codes of a pair must have the same rule) is matched, when it is unique: the equivalent internal events of that `(date, entity)` are of one act and one code, and no public row of another code took them already; otherwise `event-code-equivalence-ambiguous` (`blocking`). The variation shows the code of the public list (the source of truth, §3); the matches are one aggregated `info` anomaly, `event-code-mismatch`, with the count and, per public code, internal code and act, their count (D48). Table: `RN` ↔ `RNAPUTS` (municipalities): a renumbering with or without the change of UTS; on 2026-10-12 pfun 105 reclassified as `RN` the 66 `RNAPUTS` rows of the municipalities moved from UTS 090 to 312 on 2026-01-01 (act 6151), while r6 kept `RNAPUTS` (golden-24).
+- **Public rows and internal events** (variations, §4.3): a public row is matched to the internal event (r4–r6) of the same `(date, entity, event code)`, which gives it act and description. Only without an exact match, an internal event of the same `(date, entity)` whose code is **equivalent** in a closed table (`EVENT_CODE_EQUIVALENCES` in `src/build/event-rules.ts`, each pair with its reason; never deduced from the codes; the two codes of a pair must have the same rule) is matched, when it is unique: the equivalent internal events of that `(date, entity)` are of one act and one code, and no public row of another code took them already; otherwise `event-code-equivalence-ambiguous` (`blocking`). The variation shows the code of the public list (the source of truth, §3); the matches are one aggregated `info` anomaly, `event-code-mismatch`, with the count and, per public code, internal code and act, their count (D48). Table: `RN` ↔ `RNAPUTS` (municipalities): a renumbering with or without the change of UTS; on 2026-10-12 pfun 105 reclassified as `RN` the 66 `RNAPUTS` rows of the municipalities moved from UTS 090 to 312 on 2026-01-01 (act 6151), while r6 kept `RNAPUTS` (golden-24).
 - **Events dated after today** (D49): public rows and internal events whose date is after the run's `today` are ignored by the variation builder until they take effect: accounted as dropped with reason `future` (I14) and reported as one aggregated `info` anomaly, `future-event-ignored`, with the count and the rows. The public lists are requested up to `today` and the calendar keeps only dates up to `today` (§6.4), so only the internal histories (r4–r6), which carry every event ISTAT recorded, can contain them; without this rule an establishment dated after `today` would be an internal event of an entity no snapshot contains yet (`variation-entity-unknown`, blocking). The event enters the build with the first run whose `today` is on or after its date.
 - UTS abbreviation: post-1948 `SIGLA_AUTOMOBILISTICA`; pre-1948 derived from `SIGLA_UTS` of the UTS's municipalities on that date (must be unanimous; otherwise `blocking`). Values not matching `^[A-Z]{2}$` must be covered by an override (§6.10), otherwise `blocking`.
   - Unanimity is checked on each date over the non-null `SIGLA_UTS` values; null values are ignored. A missing post-1948 `SIGLA_AUTOMOBILISTICA` is left to the overrides and to I8.
-- **Undetermined fields**: a parent code that identifies no entity on some date, or a pre-1948 abbreviation that is missing or not unanimous, is a `blocking` anomaly (`version-parent-unresolved`, `abbreviation-underived`, one per version and cause). The field is null in the internal model and the version is kept, so later stages still run; I4/I8 report the null field, the checks depending on it skip the version, and the emitter refuses to publish it (Steps 15–16).
+- **Undetermined fields**: a parent code that identifies no entity on some date, or a pre-1948 abbreviation that is missing or not unanimous, is a `blocking` anomaly (`version-parent-unresolved`, `abbreviation-underived`, one per version and cause). The field is null in the internal model and the version is kept, so later stages still run; I4/I8 report the null field, the checks depending on it skip the version, and the emitter refuses to publish it (§8.1, §6.12).
 
 ### 6.10 Overrides (curated corrections)
 
@@ -539,7 +635,7 @@ Directory `overrides/`, one JSON file per topic. Entry:
 - Each file is an array of entries. The target period is inclusive (`date_to` is the last day covered, `null` = no end), like the public model (§4.1).
 - **Fields**: a closed set, discriminated by `field`; v1 allows only the UTS `abbreviation` (value matching `^[A-Z]{2}$`). Adding a field is a deliberate extension of the schema and of the applier.
 - **Loading**: keys are unique across files, and two overrides of the same level, field and code must not overlap in time. An unreadable or invalid file, a duplicate key or an overlap is a defect of the repository: the loader throws `OverrideFileError` instead of reporting an anomaly.
-- **Day by day, before the merge** (D36): the version builder applies an override to the values of every day on which the UTS has the target code inside the target period, **before** contiguous days with equal fields are merged into versions. An override can therefore remove version boundaries (the overridden days merge with their neighbours), but it must never create one: a version boundary that exists only because of an override is `blocking` (`override-creates-boundary`). An abbreviation an override supplies is no longer undetermined (no `abbreviation-underived`). Overrides create no variation and change no version id beyond the merges they cause.
+- **Day by day, before the merge** (D36): the version builder applies an override to the values of every day on which the UTS has the target code inside the target period, **before** contiguous days with equal fields are merged into versions. An override can therefore remove version boundaries (the overridden days merge with their neighbours), but it must never create one: a version boundary that exists only because of an override is `blocking` (`override-creates-boundary`). An abbreviation an override supplies is no longer undetermined (no `abbreviation-underived`). Overrides create no variation and change no version beyond the merges they cause: `origin` is `istat` or `inferred` (a new value can be added later as a compatible change).
 - Each run checks whether every override is still needed; an override that matches no day, or whose matched days all hold its value already (ISTAT fixed it), is reported as **obsolete** (`warning`, `override-obsolete`).
 - I12 expects the override value on the days the override covered, the snapshot value elsewhere.
 - Overrides in `overrides/abbreviations.json`: the `VG` abbreviation above (UTS 801 exists in `[1921-01-05, 1923-02-08)`, inside the target period) and `LT` for UTS 059 (Littoria) from 1934-10-26 to 1934-11-05: the `SIGLA_UTS` column is absent from the ISTAT responses of that period, and ISTAT reports `LT` for the same province from 1934-11-06 (source ISTAT); the override removes the version boundary of 1934-11-06.
@@ -550,7 +646,7 @@ The ANPR adapter already converts dates to the internal half-open convention: `v
 
 ANPR is a **non-blocking source**:
 - **Row-level problems** (unparseable dates, cessation before institution, malformed codes): the adapter drops the row and returns an issue, which becomes an `info` anomaly.
-- **Structural problems** (download failure, missing columns): the cross-check is skipped for the run with a `warning`.
+- **Structural problems** (download failure, missing columns): the cross-check is skipped for the run with a `warning`. `fetchAnpr` returns `{ rows, issues }` and raises `AnprFormatError` for structural problems (unparseable CSV, missing columns): not retried, not cached, never a `ResponseValidationError`.
 - ANPR problems never raise a blocking `ResponseValidationError`.
 - **As of today** (D49): ANPR is compared only up to the run's `today`: rows starting after it are ignored, rows ending after it are treated as open. Anomalies still identify the rows as stored (row hash and stored dates).
 
@@ -581,7 +677,14 @@ Classify discrepancies (never blocking). Warnings are one anomaly per divergence
 
 - Convert to the public model (§4): inclusive `valid_until`, drop internal-only fields (§5.5).
 - Write the public files to `dist/` and the internal reports (variations without no-effect participations, anomalies, changes, meta) to `reports/` (§9).
-- Deterministic output: entities sorted by their internal ISTAT id (the root of their identity component, §5.1, i.e. the `istat:<root>` key of the registry), numerically ascending, at every level; entities without ISTAT id (`nk:` keys) come last, by the `valid_from` of their first version, then by `id`. The order is stable between releases also when an ISTAT code changes (the root does not change with codes); it is presentation only, not part of the contract (Step 19). Versions sorted by `valid_from`, participants by `(level, territory_id)`, links by `(level, from, to)`; fixed key order; 2-space indentation; trailing newline; UTF-8 without BOM.
+- Deterministic output: entities sorted by their internal ISTAT id (the root of their identity component, §5.1, i.e. the `istat:<root>` key of the registry), numerically ascending, at every level; entities without ISTAT id (`nk:` keys) come last, by the `valid_from` of their first version, then by `id`. The order is stable between releases also when an ISTAT code changes (the root does not change with codes); it is presentation only, not part of the contract. Versions sorted by `valid_from`, participants by `(level, territory_id)`, links by `(level, from, to)`; fixed key order; 2-space indentation; trailing newline; UTF-8 without BOM.
+- `src/emit/`: `toPublicData` (internal → public; inclusive ends only here; `role: null` participations dropped; participants and links with levels in the order region, province, municipality; `istat_events` alphabetically), `toReportAnomalies` (warnings then infos, by code, then by the canonical JSON of message and context), `emitDataset`, `computeChanges`, `buildMeta`/`sourceSummaries`, `loadPublishedDataset`. Every file is validated against its model before anything is written; the internal reports (variations, anomalies, meta, changes) have zod models too, but only the three public files get JSON Schemas (D39).
+- A field that the public schema does not admit as null but is null internally (§6.9) stops the emitter with an error, whatever the anomalies.
+- `generated_at` is an input (the CLI reads the clock, the emitter never does). `emitDataset` returns the kind of release (files written atomically, `meta.json` always last):
+  - `unchanged`: the three public data files (regions, provinces, municipalities) and the JSON Schemas are identical to the previous release: `dist/` and `reports/` are **not touched** (also when only internal reports such as `variations.json` would change, §9); `anomalies.json` stays the one of the build that produced the release and `generated_at` is not renewed; the current anomalies go to the run summary (§10.4);
+  - `schemas`: same data files, different schema files (a generator change): `dist/schema/`, an empty non-retroactive `changes.json` and `meta.json` are written, so the published schemas never lag behind the generator; the data files and `anomalies.json` stay those of the previous release, and so does its meta (`data_version`, which identifies the data content, sources, counts, anomaly counts) except `schema_version` and `generated_at`; `changes.json` goes from the previous release to the same `data_version` with the new `generated_at`. The commands treat it as an additive, non-retroactive release;
+  - `data`: every file is written.
+- The previous release is an input (`null` for the first one: everything added, nothing retroactive), read from `dist/` and `reports/`; the commands decide where it comes from (the checkout, `git show`, `diff <from> <to>`).
 
 ---
 
@@ -630,14 +733,21 @@ For provinces and regions there is no such rule and no `current_successors` (D46
 - **I14** Every event row from public lists and internal events is either represented in a variation or explicitly classified as dropped (no-effect), with a reason.
 - **I15** A participant with role `ceded` or `annexed` always has `abroad: true`, and `abroad: true` appears only on participants with at least one `AS`, `AN`, `CE` or `AQ` event (§4.3, D31).
 
+**How the checks run.** I1–I15 are independent, individually testable checks; next to them runs the `warning` check for active municipalities whose current version has an 8xx code (D30).
+- **Null fields** (§6.9): I4 reports a null `provinceId`/`regionId` and I8 a null `abbreviation`; the checks that depend on those fields (I5, I7 and similar) skip the versions where they are null instead of adding derived anomalies.
+- The invariants run on the **internal model** (derived entities, half-open intervals, `role: null` participations). `checkInvariants(world, anomalies?)` returns one result per invariant, `passed`, `failed` or `skipped` (with the reason): an invariant whose data the world lacks (I2 `existence`; I7 `historicalCodes`; I12 `snapshots`, `historicalCodes` and `overrides`; I13 `counts`; I14 `accounts` and `variationIdOf`) is **never** reported as passed. `validate` on `dist/` (§10.1) reads the files back with the `src/dates/` conversions (no local conversion) and so runs with I2, I7, I12, I13 and I14 skipped. `assertInvariants(report)` throws `InvariantViolation` when one failed.
+- Each violation is a `blocking` anomaly with code `invariant-i<n>` and `context.invariant`. I1 reports order, overlaps, inverted intervals and entities without versions; the zero-length version is I10's. I3 compares the published fields only. I6 reports one anomaly per pair of entities sharing a value over a common period (the versions of one entity are I1's). I9's only exemption is the versions starting on the first calendar date. I10 also requires every variation to have a participation with effect; participants with `role: null` are the ones the emitter drops. I11 recomputes the derived fields with `deriveFields` and compares them field by field (one violation per entity and field), then applies the rule on suppressed entities without current successors. I14 also checks that the variation key resolves to a variation that exists, and that the drop reason is known.
+- I7: the UTS codes "of some time in the dataset" are exclusively those of the checked world: the codes of every version of every UTS and their historical codes. Test worlds covering a few dates pass the missing ones through the explicit, test-only `extraUtsCodes` parameter. The `info` anomaly is `municipality-8xx-prefix-of-another-uts`; the D30 `warning` is `active-municipality-8xx-code` (`checkActive8xxCodes`).
+- I12 compares every snapshot it is given (`storeSnapshotSets(store)` streams every stored one, probes included; audit samples use the same `SnapshotSet` shape), per level and date, projecting each version: the three names (split as the builder does), codes, type, cadastral code, the codes of its UTS and region **on that date**, the historical codes (§5.5) and the abbreviation. The expected abbreviation of a version is the value of the override applied to it, if any; else `SIGLA_AUTOMOBILISTICA` of the snapshot; before 1948 the one the municipality rows of the same snapshot report, derived with the builder's `municipalityAbbreviations` (null when not unanimous; not compared when the date has no municipality rows: `checkI12Detailed` and the I12 result of `checkInvariants` then carry `uncompared.abbreviation`, the number of versions and of dates left out). One anomaly per level and date, listing at most 20 differences with the total.
+
 ### 8.2 Anomaly levels
 
-Anomalies go to the internal report `reports/anomalies.json` (§9) with `level`, `code` (stable machine identifier), `message`, `context` (entity/version/variation ids, codes, dates, source rows).
+Anomalies go to the internal report `reports/anomalies.json` (§9) with `level`, `code` (stable machine identifier), `message`, `context` (entity and variation ids, versions as `(entity id, valid_from)`, codes, dates, source rows). Anomaly codes are kebab-case (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`).
 
 | Level | Examples |
 |---|---|
 | `blocking` | Any invariant violation; unresolved code (§6.6); unexplained snapshot transition; missing internal data needed for a decision; `(level, event code)` pair without a rule (D27); version boundary created by an override (`override-creates-boundary`, §6.10); version boundary explained by no event, parent change or upstream warning (§4.3); cycle among the successors of suppressed entities (`successor-cycle`, §7); bilingual denomination missing from the table (`bilingual-name-unknown`, §4.2); public row whose equivalent internal events are not unique (`event-code-equivalence-ambiguous`, §6.9) |
-| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; abbreviation change without event (`abbreviation-change-without-event`, §4.3); type change not confirmed by the public lists (`type-change-unconfirmed`, §6.7); obsolete override; relevant ANPR divergences (ISTAT code, province or name never in the municipality's history, cadastral code never in its history on a stretch joined by ISTAT code, ANPR covering more than SITUAS in no known case, `EX` on an entity that is not former Italian, §6.11); current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (Step 7) |
+| `warning` | Inferred breakpoint; cadastral-based continuity without events; public/internal identity disagreement; name change without event; abbreviation change without event (`abbreviation-change-without-event`, §4.3); type change not confirmed by the public lists (`type-change-unconfirmed`, §6.7); obsolete override; relevant ANPR divergences (ISTAT code, province or name never in the municipality's history, cadastral code never in its history on a stretch joined by ISTAT code, ANPR covering more than SITUAS in no known case, `EX` on an entity that is not former Italian, §6.11); current version of an active municipality with a code of suffix ≥ 800 (checks the assumption behind D30); mandatory refresh of internal data replaced by older data; internal data unavailable with no copy (§6.8) |
 | `info` | Dropped no-effect participations; events dated after today, ignored until they take effect (`future-event-ignored`, one aggregated anomaly, §6.9); establishments listing the subject itself as associated territory (`self-reference-ignored`, one aggregated anomaly, golden-20); public rows without act whose link is already in a variation with an act (`link-explained-by-act`, one aggregated anomaly, §4.3); public rows matched to internal events with an equivalent event code (`event-code-mismatch`, one aggregated anomaly, §6.9); ANPR gaps (ANPR covering less), ANPR covering more in a known case (a key of another time, after a cession, within 365 days of an establishment or suppression) and off-by-one dates, split or ambiguous rows, names differing only in diacritics, lagging or anachronistic ISTAT codes, cadastral codes, provinces and names, missing `EX` on former Italian entities (§6.11); historical UTS code fallbacks (§3.5 item 16); municipality versions whose 8xx code prefix differs from their UTS (I7) |
 
 A run with any `blocking` anomaly never publishes and never commits data to `main`.
@@ -653,7 +763,7 @@ A run with any `blocking` anomaly never publishes and never commits data to `mai
 | `dist/municipalities.json` | Array of municipality entities |
 | `dist/schema/regions.schema.json`, `provinces.schema.json`, `municipalities.schema.json` | JSON Schemas of the three files above |
 
-Nothing else is published (D39): the dataset carries no date, no ISTAT history and no synchronisation file. The date of the data is in the npm version and in the README (Step 19).
+Nothing else is published (D39): the dataset carries no date, no ISTAT history and no synchronisation file. The date of the data is in the npm version and in the README.
 
 **Internal reports** (`reports/`, committed with the data, reviewed in PRs, never in the npm package nor attached to the GitHub Release): the generator still produces them, for the invariants, the classification of retroactive changes and the PRs.
 
@@ -661,12 +771,12 @@ Nothing else is published (D39): the dataset carries no date, no ISTAT history a
 |---|---|
 | `reports/variations.json` | Array of variations (§4.3) |
 | `reports/anomalies.json` | Non-blocking anomalies of the build that produced the release |
-| `reports/changes.json` | Diff vs the previous release: added/updated/removed entities (by id), versions (by `(entity id, valid_from)`) and variations (by internal id), each flagged `retroactive: true` when it changes the published state of a day before the previous release's `data_version`; updated and removed items carry `affected_from`, the first such day (Step 16) |
+| `reports/changes.json` | Diff vs the previous release: added/updated/removed entities (by id), versions (by `(entity id, valid_from)`) and variations (by internal id), each flagged `retroactive: true` when it changes the published state of a day before the previous release's `data_version`; updated and removed items carry `affected_from`, the first such day (below) |
 | `reports/meta.json` | `schema_version` (semver), `data_version` (`YYYY.MM.DD`, the today of the build that produced the data files: it identifies the data content), `generated_at`, per source family (§6.1) fetch time, content hash and number of stored responses, counts per level (entities, active, versions) and of variations, anomaly counts per level |
 
 The reports are zod-validated before writing, like the public files, but no JSON Schema is published for them.
 
-Releases (D47, Step 18):
+Releases (D47):
 - npm version `MAJOR.YYYYMMDD.PATCH`, where MAJOR follows `schema_version` and `YYYYMMDD` is the `data_version` of `reports/meta.json`; PATCH is 0 for the first release of a `MAJOR.YYYYMMDD`, then incremented (a schemas release, or a rebuild that changes the data without changing `data_version`);
 - `CHANGELOG.md`: one entry per release, generated from `reports/meta.json` and `reports/changes.json` in the same commit or PR as the data; the version is that of its first entry;
 - git tag `v<npm version>` (e.g. `v1.20261007.0`), so a schemas release, or a change of MAJOR with the same `data_version`, gets its own tag;
@@ -674,7 +784,25 @@ Releases (D47, Step 18):
 - npm package with the published files of `dist/` (data and JSON Schemas), their TypeScript declarations in `types/` (generated from the JSON Schemas when the package is staged: `<file>.d.mts` for `import`, `<file>.d.cts` for `require`, with an interface per schema definition, e.g. `Municipality`, `MunicipalityVersion`, `Link`), `README.md`, the data licence as `LICENSE` (CC BY 4.0, attribution to ISTAT) and `license: "CC-BY-4.0"`; no executable code; the generator code is MIT and is not published;
 - the package `exports` are explicit: `./regions.json`, `./provinces.json`, `./municipalities.json` (each with the `types` condition, `import` → `.d.mts`, `require` → `.d.cts`, and `default` → the JSON file in `dist/`), `./schema/*.json` (→ `dist/schema/*.json`) and `./package.json` (whose `version` carries the date of the data); any other path of the package is not exported.
 
-A release is either a **data** release (new public data files) or a **schemas** release (same public data files, new JSON Schemas after a generator change, Step 16): a schemas release keeps the previous `data_version`, data files and internal reports except `reports/meta.json`, where only `schema_version` and `generated_at` change, and writes an empty, non-retroactive `reports/changes.json`. It increments the npm PATCH and gets its own tag. Whether a release happens is decided by the **public** files only: when they are unchanged, nothing is written, the internal reports included (they always describe the build of the published release, even if, e.g., only the description of an act changed).
+A release is either a **data** release (new public data files) or a **schemas** release (same public data files, new JSON Schemas after a generator change, §6.12): a schemas release keeps the previous `data_version`, data files and internal reports except `reports/meta.json`, where only `schema_version` and `generated_at` change, and writes an empty, non-retroactive `reports/changes.json`. It increments the npm PATCH and gets its own tag. Whether a release happens is decided by the **public** files only: when they are unchanged, nothing is written, the internal reports included (they always describe the build of the published release, even if, e.g., only the description of an act changed).
+
+**Changes** (`reports/changes.json`):
+- Items: entities by id, versions by `(entity id, valid_from)` (a version whose start moves is removed and added), variations by internal id.
+- Retroactivity by **days modified**, the reference being the previous `data_version`. `affected_from` of a version: the earlier `valid_from` when any field other than `valid_until` changed, otherwise the day after the earlier end (null = open), so closing an open version at `U` is additive iff `U + 1` is not before the reference; of a variation: the earlier date; of an entity (entity-level fields only, its versions are items of their own): the earliest date among the links added or removed, and for `status` the day after the end of the last version (old or new); `is_former_italian` and `current_successors` carry no date (`affected_from` null, not retroactive: they follow from dated items flagged on their own). Removed items: their first day; added items are retroactive iff their first day precedes the reference.
+
+**Meta** (`reports/meta.json`): `meta.sources` per family `situas-public-snapshots`, `situas-public-reports` (stored event lists and counts), `situas-internal`, `anpr` (the stored archive, `manifests: 1`): `{ fetched_at, content_hash, manifests }`, the latest `fetched_at` of the store manifests of the current projection version, the SHA-256 of the canonical JSON of the sorted `[manifest key, content_hash]` pairs, their number; `null` for a family without stored responses. Every family comes from the store (§6.3), so an offline rebuild publishes the same summaries. `schema_version` starts at `1.0.0`.
+
+**Release tooling**: `scripts/release.ts` (`npm run release -- <command>`):
+- `changelog`: adds the CHANGELOG entry of `reports/meta.json` unless the first entry already describes it: version `MAJOR.YYYYMMDD.PATCH`, PATCH = the highest PATCH of the same `MAJOR.YYYYMMDD` already in the CHANGELOG + 1, else 0; release kind; change counts per level from `reports/changes.json`; retroactive flag; `schema_version`, `data_version` and `generated_at` in a comment of the entry; also the README date between its `data-version` markers, when they exist;
+- `check`: the first entry matches `reports/meta.json`, and so does the README date between its `data-version` markers when they exist;
+- `version`;
+- `notes`: the entry, for the GitHub Release;
+- `pack <dir>`: stages the npm package in a separate directory (the root `package.json` stays `private`): the six published files of `dist/` (never other files of the directory), their TypeScript declarations in `types/` (generated from the JSON Schemas, never committed), `README.md`, `LICENSE-DATA` as `LICENSE` and a generated `package.json` with the version, the explicit `exports` above and `license: "CC-BY-4.0"`; fails without `README.md` or `LICENSE-DATA`;
+- `target`: where a data run's output goes, `none`, `main` or `pr`, from `dist/` only (§10.3).
+
+**CHANGELOG policy**: one entry per release, written by `npm run release -- changelog` with the data, only when the public files change; a developer whose change alters `dist/` runs it before committing (`test.yml` checks it).
+
+**README date**: the README shows the date of the last data update (`data_version` of the internal `reports/meta.json`, the same date as the `YYYYMMDD` of the npm version), clearly visible near the top, updated automatically by every data release: `npm run release -- changelog` writes it between the `<!-- data-version -->` and `<!-- /data-version -->` markers of the README in the same commit as the data, reading it from `reports/meta.json`, which stays committed in the repository and is the only place the published data's date is recorded besides the npm version; a schemas release leaves it unchanged. The published files themselves carry no date.
 
 ---
 
@@ -691,23 +819,25 @@ A release is either a **data** release (new public data files) or a **schemas** 
 | `validate` | Run all invariants on the release: `dist/` plus `reports/variations.json` (those needing data that neither holds are `skipped`). |
 | `diff <from> <to> [--out FILE]` | Produce `changes.json` between two releases: each argument is a directory holding `dist/` and `reports/` (e.g. two checkouts). |
 
+**`--today YYYY-MM-DD`**: CLI flag, accepted by every command, setting `dates.today` (§12 Determinism). The CLI resolves the run date (flag, then the command's own default, i.e. the `today` of `calendar.json` for an offline `rebuild`, then `dates.today`, then the current date in Europe/Rome) and passes it to the command.
+
 ### 10.2 Incremental update
 
 Every update runs the whole pipeline (offline from the store wherever a source needs no refresh); there is no shortcut, because a new generator, an override or the registry can change the output as well as the sources.
 
-1. Fetch public event lists with `pdatada` = previous run date (the `today` of `calendar.json`) **minus 365 days** (ISTAT often publishes past-dated events late) and diff them semantically against the store: rows dated in `[pdatada, pdataa]` are compared with everything the store knows in that range, not with the previous run's list, whose range differs (§6.3, D32). Refresh the internal lists r1–r3, the internal events of UTS/regions newly listed or whose code appears in added or removed event-list rows, r6 for new pairs and for the pairs whose code appears in added or removed rows (Step 7, Step 17).
+1. Fetch public event lists with `pdatada` = previous run date (the `today` of `calendar.json`) **minus 365 days** (ISTAT often publishes past-dated events late) and diff them semantically against the store: rows dated in `[pdatada, pdataa]` are compared with everything the store knows in that range, not with the previous run's list, whose range differs (§6.3, D32). Refresh the internal lists r1–r3, the internal events of UTS/regions newly listed or whose code appears in added or removed event-list rows, r6 for new pairs and for the pairs whose code appears in added or removed rows (§6.8).
 2. Fetch the ANPR CSV and the counts of today's snapshots; both are stored (§6.3).
 3. Build the calendar (§6.4): sources plus the `inferred` dates kept in `calendar.json`.
-4. Run `audit` on `update.auditSamples` random historical dates (catches retroactive ISTAT corrections over time), between the calendar and the snapshots, so what it finds enters the same run (Step 17):
+4. Run `audit` on `update.auditSamples` random historical dates (catches retroactive ISTAT corrections over time), between the calendar and the snapshots, so what it finds enters the same run:
    - a sampled calendar date whose content changed is replaced in the store (`history`, D32);
-   - a sampled date outside the calendar that differs from the stored snapshot of the previous calendar date `p` means ISTAT changed the history after it was stored: `p` is fetched again (a change is a correction on a calendar date, as above); if the fresh `p` still differs, `(p, d]` is bisected with fresh snapshots (as in Step 6) and the first differing date becomes `inferred`, stored. The sampled date itself never becomes a breakpoint.
+   - a sampled date outside the calendar that differs from the stored snapshot of the previous calendar date `p` means ISTAT changed the history after it was stored: `p` is fetched again (a change is a correction on a calendar date, as above); if the fresh `p` still differs, `(p, d]` is bisected with fresh snapshots (as in §6.5) and the first differing date becomes `inferred`, stored. The sampled date itself never becomes a breakpoint.
 5. Late events and audit corrections make the stored snapshots after them obsolete: every stored snapshot (calendar dates and probes, every level) from the earliest date of the added or removed event-list rows, of the changed calendar dates and of the `p` of the audit corrections, up to the previous run's today, is fetched again with `refresh` (same content → nothing written; different → `history`). Corrections and refreshes share `update.maxRefreshSnapshots`: above it nothing more is fetched and the run blocks (`refresh-too-large`, exit 1) asking for `rebuild --refetch`.
 6. Fetch today's snapshots, verify completeness (stored intervals are read from the store, new ones fetched), rebuild, validate, emit. "Nothing changed" means the emitter finds the public files identical (`unchanged`): `dist/` and `reports/` are not touched and there is nothing to commit.
 7. Classify the result:
    - **additive** (only new versions/variations after the previous generation date, closing of open versions, new entities) → commit and publish;
    - **retroactive** (anything touching earlier dates, registry remaps, audit discrepancies) → open a PR, **no publish** until merged.
 
-   Events ISTAT publishes late (dated before the previous release's `data_version`) change days already published, so they make the run retroactive (PR), closings of open versions included (Step 16). The previous release is `dist/` plus `reports/` (its `data_version` is in `reports/meta.json`); the classification is in `reports/changes.json`.
+   Events ISTAT publishes late (dated before the previous release's `data_version`) change days already published, so they make the run retroactive (PR), closings of open versions included (§9). The previous release is `dist/` plus `reports/` (its `data_version` is in `reports/meta.json`); the classification is in `reports/changes.json`.
 
 ### 10.3 Workflows
 
@@ -720,11 +850,36 @@ Every update runs the whole pipeline (offline from the store wherever a source n
 | `release.yml` | push to `main` touching `dist/**`; `workflow_dispatch` with the commit `sha` | tag, GitHub Release, npm publish (version from the first entry of `CHANGELOG.md`, checked against `reports/meta.json`) |
 
 - **Store**: the composite action `.github/actions/store` clones `italian-territories-store` shallow into `.cache/store` (no command reads its history) and, at the end of every data run, also when it failed or was interrupted, commits and pushes it (`Store <today> (<command>, exit <n>)`, only when something changed). The push uses a deploy key with write access to that repository only (secret `STORE_DEPLOY_KEY`).
-- **Data PR**: a single fixed branch `data-update`, shared by `weekly-update` and `rebuild`. Every run regenerates the whole output, so the branch is force-pushed with the latest output and the open PR is updated (also by the maintainer's local refetch, Step 18); its body says what updated it last (`weekly-update`, `rebuild`, or a local `rebuild --refetch` of the maintainer, Step 18), the change counts and the retroactive reasons of the run summary. While the PR is open, no workflow commits data to `main`, not even with exit 0: the run updates the PR.
-- **Exit codes** of `update` and of the offline `rebuild`: 0 with a changed `dist/` → `release -- changelog`, `release -- check`, commit of `dist/`, `reports/`, `registry/` and `CHANGELOG.md` to `main`, then `release.yml` started with `workflow_dispatch` on that commit (the PR instead when one is open; `rebuild` always opens the PR); 0 with `dist/` unchanged → nothing; 2 with a changed `dist/` → the PR. Only `dist/` decides (`release -- target`): changes of `reports/` or `registry/` alone are never committed nor proposed, they go with the next change of `dist/`; 1 → job failed; 3 → no data commit and no release, job successful with a warning annotation, but failed when the last complete update (`last-complete-update.json` in the store, Step 18) is missing or older than 21 days. The store is pushed in every case.
+- **Data PR**: a single fixed branch `data-update`, shared by `weekly-update` and `rebuild`. Every run regenerates the whole output, so the branch is force-pushed with the latest output and the open PR is updated (also by the maintainer's local refetch, §10.5); its body says what updated it last (`weekly-update`, `rebuild`, or a local `rebuild --refetch` of the maintainer, §10.5), the change counts and the retroactive reasons of the run summary. While the PR is open, no workflow commits data to `main`, not even with exit 0: the run updates the PR.
+- **Exit codes** of `update` and of the offline `rebuild`: 0 with a changed `dist/` → `release -- changelog`, `release -- check`, commit of `dist/`, `reports/`, `registry/` and `CHANGELOG.md` to `main`, then `release.yml` started with `workflow_dispatch` on that commit (the PR instead when one is open; `rebuild` always opens the PR); 0 with `dist/` unchanged → nothing; 2 with a changed `dist/` → the PR. Only `dist/` decides (`release -- target`): changes of `reports/` or `registry/` alone are never committed nor proposed, they go with the next change of `dist/`; 1 → job failed; 3 → no data commit and no release, job successful with a warning annotation, but failed when the last complete update (`last-complete-update.json` in the store, §10.4) is missing or older than 21 days. The store is pushed in every case.
 - **Release**: `release.yml` is always the workflow the run starts from (npm trusted publishing checks the starting workflow, and `GITHUB_TOKEN` pushes do not trigger other workflows, so `weekly-update` uses `workflow_dispatch`). It checks that the `sha` is reachable from `main`, and is idempotent: a tag already on the same commit, an existing GitHub Release or a version already on npm are skipped; a tag on another commit fails.
 - **`dry_run`** input (`weekly-update`, `rebuild`, `release`): the run executes everything and uploads its artifacts (run summary and log), but pushes no store, commits nothing, opens or updates no PR and starts no release; `release.yml` creates no tag and no GitHub Release and runs `npm publish --dry-run`.
-- **Secrets**: `STORE_DEPLOY_KEY` only; npm uses trusted publishing (OIDC, provenance generated automatically once the repository is public). Concurrency groups `data` (`weekly-update`, `rebuild`) and `release` prevent overlapping runs, never cancelling one in progress. Jobs run on a pinned runner image (`ubuntu-26.04`, never `ubuntu-latest`) and stay under the 6-hour runner limit (timeout 350 minutes). No workflow runs `rebuild --refetch` (about 7 h 50 min, and an interrupted refetch resumes only from the HTTP cache, which CI does not keep) nor `bootstrap`: both are run locally by the maintainer (Step 18).
+- **Secrets**: `STORE_DEPLOY_KEY` only; npm uses trusted publishing (OIDC, provenance generated automatically once the repository is public). Concurrency groups `data` (`weekly-update`, `rebuild`) and `release` prevent overlapping runs, never cancelling one in progress. Jobs run on a pinned runner image (`ubuntu-26.04`, never `ubuntu-latest`) and stay under the 6-hour runner limit (timeout 350 minutes). No workflow runs `rebuild --refetch` (about 7 h 50 min, and an interrupted refetch resumes only from the HTTP cache, which CI does not keep) nor `bootstrap`: both are run locally by the maintainer (§10.5).
+- **Actions**: third-party actions pinned by SHA (a pinned PR-creation action is allowed), explicit `permissions` per job.
+- **`rebuild --refetch` only local**: the refetch of 2026-10-07 took about 7 h 50 min (HTTP cache writes from 11:12 to 19:00), above the 350-minute job timeout, and an interrupted refetch does not resume in CI. `rebuild.yml` runs only the offline `rebuild` from the store, manually; there is no scheduled rebuild.
+
+### 10.4 Run behaviour
+
+- `src/commands/`: `acquire.ts` (event lists, internal crawl with the mandatory refreshes of the mode, ANPR, counts; every source stored and read back from the store), `audit.ts`, `refresh.ts` (stored snapshots), `build.ts` (identity → invariants, no network), `pipeline.ts` (`bootstrap`, `update`, `rebuild [--refetch]`, `audit`), `published.ts` (`validate`, `diff`), `exit-codes.ts`, `summary.ts`, `context.ts` (the runtime the CLI provides: transport, wall clock for `generated_at`, monotonic clock for timings). Stage order: event lists → internal crawl → ANPR → counts → calendar → audit (update) → refresh of stored snapshots (update; `rebuild --refetch`: all of them) → snapshots and completeness → build → emit.
+- **Exit codes**: `0` success; `1` blocking anomalies; `2` retroactive changes (PR required); `3` source unavailable. Mapped by anomaly code (and, for `internal-data-required`, by its `context.cause`), never by message: `*-unavailable` (`snapshot-`, `event-list-`, `count-`, `internal-list-`) and `internal-data-required` with `cause: unavailable` → 3 when no other blocking anomaly is present (`completeness-unverified` follows them); `internal-data-required` with `cause: absent`, `*-request-rejected`, `*-schema-violation` and every other blocking anomaly → 1; the blocking anomalies are logged with their `cause` when they have one; else 2 when retroactive (`changes.json` retroactive, retroactive registry remaps, audit discrepancies), else 0. The internal crawl keeps its warnings for r4–r8; a list r1–r3 unavailable with no copy adds `internal-list-unavailable`. A missing event list blocks the build like a blocked snapshot stage (§6.5).
+- **Effects by exit code**: 0 and 2 write `dist/`, `reports/` and `registry/`; 1 and 3 write none of them; the store and `calendar.json` are always written; `.cache/last-run.json` (`paths.runSummary`, the run summary for the workflows) always: when the command throws (outcome `error`, exit 1), on SIGINT/SIGTERM (outcome `interrupted`, `signal`, then the process exits with 130/143) and on an uncaught exception or unhandled rejection anywhere in the process (outcome `error`, exit 1); the summary is written once, a later ending never overwrites it. Blocking anomalies are also logged (the first 50).
+- **Last complete update**: `last-complete-update.json` in the store (`{ today }`): written by a data command that ends with exit 0 or 2, keeping the maximum of the stored date and the run's `today` (an offline `rebuild` with an earlier `--today` never moves it back); the run summary carries it as `last_complete_update` (`null` when absent), for the 21-day rule of exit 3 (§10.3).
+- **Inferred breakpoints** are kept in `calendar.json` across runs (source `inferred`): a calendar rebuilt from the sources must not lose them. The snapshot stage removes those no longer confirmed, and a published event on the same date replaces the `inferred` source (§6.5).
+- **Progress**: every stage logs `stage start` and `stage done` (with `completed`, `total`, `errors` when it counted requests); while a stage runs, a `progress` line every 30 s with the same counts (a timer, so a stage stalled on retries still reports). Counted: event lists, internal reports, snapshots (calendar dates and probes), audit samples, refreshed snapshots.
+- **Disabled endpoints**: one `http endpoint disabled` line with the cause when an endpoint is disabled; the other schema violations of requests in flight and the requests refused afterwards are not logged one by one; at the end one `requests refused by a disabled endpoint` line per endpoint with the count, also in the run summary (`disabled_endpoints`).
+- **`update`** without the state of a previous run (`calendar.json` in the store, a release in `dist/` and `reports/`) exits 1 asking to run `bootstrap`, which resumes from the cache; never an automatic bootstrap (a lost store in CI must not trigger ~15,000 requests).
+- **Audit**: samples in `[start, today)` from a PRNG seeded with `today`; corrections per §10.2; `audit-discrepancy` warnings; `audit` alone writes the store and `calendar.json` (inferred dates kept for the next build), never `dist/` nor `reports/`.
+
+### 10.5 Maintainer procedures
+
+`rebuild --refetch` and `bootstrap` run only locally (§10.3). The `gh` commands are run with the maintainer's confirmation, and the private key never appears in logs and is deleted from disk after `gh secret set`.
+
+**One-time setup**:
+1. create the private repository `italian-territories-store`; an offline `rebuild` writes `last-complete-update.json`; `.cache/store` becomes a git repository with `.gitattributes` `* -text` (bytes as written), committed and pushed;
+2. generate the deploy key, add it to the store repository with write access, store the private key as `STORE_DEPLOY_KEY`; allow GitHub Actions to create pull requests (repository setting, needed by the `data-update` PR);
+3. first npm publish (the package needs the README): `npm run release -- pack <dir>` and `npm publish` from it, by hand (npm allows a trusted publisher only on an existing package); then the trusted publisher on npmjs.com (repository `italian-territories`, workflow `release.yml`); then `release.yml` dispatched on `main`, which creates tag and GitHub Release and skips the publish.
+
+**Refetch** (whenever needed, e.g. after a projection change, D32): first `gh workflow disable weekly-update.yml` (a weekly run must not push the store while the refetch runs; wait for a run in progress to end), then, from an up-to-date `main` with `.cache/store` an up-to-date clone of the store repository: `npm run cli -- rebuild --refetch`; with exit 0 or 2 and changed public files, `npm run release -- changelog` and `npm run release -- check`; commit and push of the store (`Store <today> (rebuild --refetch, exit <n>)`, also with exit 1 or 3); the output (`dist/`, `reports/`, `registry/`, `CHANGELOG.md`) committed on the `data-update` branch (created from `main` or force-pushed over the open PR) and the `data-update` PR opened or updated, its body saying it comes from a local `rebuild --refetch`; finally `gh workflow enable weekly-update.yml`, also when the refetch failed.
 
 ---
 
@@ -780,9 +935,11 @@ Fixtures fetched later (by tests or by a `fixtures:fetch` script) must follow th
 
 API documentation notes written during design live in `docs/sources/` and are not fixtures.
 
-### 11.2 Fixtures to download (Step 4)
+**Validation of the outputs.** Every output is validated with Ajv (dev dependency, tests only) against the JSON Schema published next to it (`test/helpers/json-schema.ts`; formats `date` and `date-time` defined with the generator's date rules): emitted datasets of the unit and golden tests, and the repository `dist/` once it holds a release.
 
-The design-time fixtures do not cover every adapter. Download the following **once**, through the Step 3 client (encoded, rate-limited). Store them byte-identical under the §11.1 paths, with `fetched_at` = actual download date and the listed `used_by`. Show the final list to the maintainer before committing.
+### 11.2 Downloaded fixtures
+
+The design-time fixtures do not cover every adapter. Download the following **once**, through the HTTP client (§6.1; `npm run fixtures:fetch`, encoded, rate-limited). Store them byte-identical under the §11.1 paths, with `fetched_at` = actual download date and the listed `used_by`. Show the final list to the maintainer before committing.
 
 | Request | `used_by` |
 |---|---|
@@ -791,25 +948,25 @@ The design-time fixtures do not cover every adapter. Download the following **on
 | pfun 48 and 51 on 1927-01-11; pfun 46, 49 and 50 on 1927-01-12 | golden-6, golden-16 |
 | pfun 46 and 49 on 1947-12-31; pfun 68 and 64 on 1948-01-01 | golden-15 |
 | pfun 68 on 2025-12-31 and 2026-01-01 | golden-4 |
-| pfun 51 on 1923-02-07 and 1923-02-08; pfun 50 on 1936-06-03 and 1936-06-04 (Step 8) | golden-6 |
-| pfun 50 on 1929-05-13, 1929-05-14, 1947-11-24 and 1947-11-25; pfun 61 on 2021-06-16 and 2021-06-17 (Step 9) | golden-2 |
-| pfun 50 on 1928-05-03, 1928-05-04, 1947-11-27 and 1947-11-28 (Step 9) | golden-3 |
-| pfun 61 on 2025-12-31 and 2026-01-01; r5 for Gallura Nord-Est Sardegna (113, type 1) and Oristano (115, type 1) (Step 9) | golden-4 |
-| pfun 64 on 2014-12-31 and 2015-01-01 (Step 9) | golden-5 |
-| pfun 46 and 49 on 1929-05-13, 1929-05-14, 1947-11-24 and 1947-11-25; pfun 68 and 64 on 2021-06-16 and 2021-06-17 (Step 10) | golden-2 |
-| pfun 46 and 49 on 1947-11-27 and 1947-11-28; pfun 68, 64 and 61 on 1974-08-20 and 1974-09-13 (Step 10) | golden-3 |
-| pfun 68 and 61 on 2014-12-31 and 2015-01-01 (Step 10) | golden-5 |
-| pfun 46 and 49 on 1936-06-04, 1939-10-21 and 1946-01-30; pfun 50 on 1939-10-21 and 1946-01-30 (Step 10) | golden-10 |
-| pfun 44, 48 and 51 on 1920-10-15 and 1920-10-16 (Step 10) | golden-11 |
-| pfun 68, 64 and 61 on 2009-01-28 and 2009-01-29 (Step 10) | golden-12 |
-| pfun 44 on 1927-01-11 (Step 10) | golden-16 |
-| pfun 46, 49 and 50 on 1947-09-15 and 1947-09-16 (Step 11) | golden-9, golden-18, golden-19 |
-| pfun 44, 48 and 51 on 1923-02-07 and 1923-02-08 (Step 12; pfun 51 shared with golden-6) | golden-7 |
-| r6 for Setteville (025075), Quero Vas (025070) and Alano di Piave (025002) (Step 11) | golden-1 |
-| pfun 61 on 2013-12-27 and 2013-12-28; r6 for Quero (025042) and Vas (025064) (Step 13: Quero → Quero Vas → Setteville) | golden-1 |
+| pfun 51 on 1923-02-07 and 1923-02-08; pfun 50 on 1936-06-03 and 1936-06-04 | golden-6 |
+| pfun 50 on 1929-05-13, 1929-05-14, 1947-11-24 and 1947-11-25; pfun 61 on 2021-06-16 and 2021-06-17 | golden-2 |
+| pfun 50 on 1928-05-03, 1928-05-04, 1947-11-27 and 1947-11-28 | golden-3 |
+| pfun 61 on 2025-12-31 and 2026-01-01; r5 for Gallura Nord-Est Sardegna (113, type 1) and Oristano (115, type 1) | golden-4 |
+| pfun 64 on 2014-12-31 and 2015-01-01 | golden-5 |
+| pfun 46 and 49 on 1929-05-13, 1929-05-14, 1947-11-24 and 1947-11-25; pfun 68 and 64 on 2021-06-16 and 2021-06-17 | golden-2 |
+| pfun 46 and 49 on 1947-11-27 and 1947-11-28; pfun 68, 64 and 61 on 1974-08-20 and 1974-09-13 | golden-3 |
+| pfun 68 and 61 on 2014-12-31 and 2015-01-01 | golden-5 |
+| pfun 46 and 49 on 1936-06-04, 1939-10-21 and 1946-01-30; pfun 50 on 1939-10-21 and 1946-01-30 | golden-10 |
+| pfun 44, 48 and 51 on 1920-10-15 and 1920-10-16 | golden-11 |
+| pfun 68, 64 and 61 on 2009-01-28 and 2009-01-29 | golden-12 |
+| pfun 44 on 1927-01-11 | golden-16 |
+| pfun 46, 49 and 50 on 1947-09-15 and 1947-09-16 | golden-9, golden-18, golden-19 |
+| pfun 44, 48 and 51 on 1923-02-07 and 1923-02-08 (pfun 51 shared with golden-6) | golden-7 |
+| r6 for Setteville (025075), Quero Vas (025070) and Alano di Piave (025002) | golden-1 |
+| pfun 61 on 2013-12-27 and 2013-12-28; r6 for Quero (025042) and Vas (025064) (Quero → Quero Vas → Setteville) | golden-1 |
 | Event lists 100, 103, 106, 107, 108, 112, 113, 114, full range (`17/03/1861` → download date) | golden-1, golden-2, golden-4, golden-6, golden-15 |
 | Counts for pfun 61, 64, 68 on the download date | golden-17 |
-| pfun 68, 64 and 61 on the download date of the counts, 2026-10-01 (Step 15: I13 compares the reconstruction with the counts, I12 with the snapshots) | golden-17 |
+| pfun 68, 64 and 61 on the download date of the counts, 2026-10-01 (I13 compares the reconstruction with the counts, I12 with the snapshots) | golden-17 |
 | r1, r2, r3 (full lists) | golden-4, golden-15 |
 | r4 for Piemonte: every record listed by r1 with that name (compartment and region) | golden-15 |
 | r5 for the province records of Sassari (090, type 1), Cagliari (092, type 1), Milano (015, type 1) | golden-4, golden-5 |
@@ -853,7 +1010,7 @@ If a request in this table returns something that contradicts the expectations o
 11. **Bolzano/Bozen** (internal 6): `official_name = "Bolzano/Bozen"`, `italian_name = "Bolzano"`, `foreign_name = "Bozen"` from 1920-10-16 (`AN`, code 802039).
 12. **Bilingual chronology**: rename rows from 2009-01-29 (e.g. Duino Aurisina → Duino Aurisina-Devin Nabrežina, `COMUNE_A_REL` Devin Nabrežina) produce new versions with `foreign_name` set from that date.
 13. **Name/snapshot consistency**: the 1921 snapshot agrees with the last preceding pfun 104 rename for all 1,725 matched municipalities.
-14. **ANPR classification**: suppressed municipalities absent from ANPR (§3.4: about 490 at design time, mostly 1866–1873 and 1924) → `info` (`anpr-missing-entity`), never blocking. Fixed by the first full run (Step 17, 2026-10-06): 493; **491**, all suppressed, since the ISTAT-code join of ANPR rows without a cadastral code and the retry by ISTAT code (§6.11, 2026-10-08: San Siro and Quintosole are joined); asserted on the release (`test/golden/golden-14.test.ts`, on `reports/anomalies.json` and `dist/municipalities.json`, skipped while the repository holds no release).
+14. **ANPR classification**: suppressed municipalities absent from ANPR (§3.4: about 490 at design time, mostly 1866–1873 and 1924) → `info` (`anpr-missing-entity`), never blocking. Fixed by the first full run (2026-10-06): 493; **491**, all suppressed, since the ISTAT-code join of ANPR rows without a cadastral code and the retry by ISTAT code (§6.11, 2026-10-08: San Siro and Quintosole are joined); asserted on the release (`test/golden/golden-14.test.ts`, on `reports/anomalies.json` and `dist/municipalities.json`, skipped while the repository holds no release).
 15. **1948 regime boundary**: compartments on 1947-12-31 and regions on 1948-01-01 with the same origin are the same entities with a new version (`type` compartment → region). The regions of 1871 (e.g. Piemonte, origin 14, `CS` act 6109) are linked to their predecessor compartment through r7 details.
    - The internal events of the compartments do not always carry `ESCT`: Piemonte has `ES` (compartment) and `CSCT` (region), Venezia Tridentina (`82`, origin 22) has no event on 1948-01-01 and becomes Trentino-Alto Adige/Südtirol (`04`, `CSCT`, origin 22). Both are type changes of one entity (§6.7): a link between the two intervals, no `transition-unexplained`, no `identity-public-internal-mismatch`, and the `ESCT` rows of pfun 106 of that day are explained (no `identity-public-event-unmatched`).
    - The `ESCT` rows of pfun 106 Piemonte → Valle d'Aosta and Veneto → Friuli-Venezia Giulia (no act) repeat links of act 6107: they are explained by its variation (§4.3, `link-explained-by-act`) and form no `nk:` variation; Valle d'Aosta has one predecessor (Piemonte, `detached_into`), Friuli-Venezia Giulia two (Veneto `detached_into`, Venezia Giulia `merged_into`), none duplicated. Asserted on the fixtures of these regions (§11.2).
@@ -872,24 +1029,18 @@ If a request in this table returns something that contradicts the expectations o
    - The r8 details of the 1945 `CS` list Caserta itself among the associated territories: in an establishment, an associated territory equal to the subject (same code, same identity component) is not a predecessor: it is not resolved, produces no link and is listed in the build's single aggregated `info` (`self-reference-ignored`, with the count and the items in `context`; 53 in the full run of 2026-10-06, mostly the `CSCT` of the regions of 1948 whose r7 details list the compartment with the same code); no `code-unresolved`. The 1945 variation links Napoli, Benevento and Campobasso (`CECS`) to Caserta.
 21. **Ambiguous acts (Riola Sardo, 1946-02-07)**: Riola Sardo (`092092`, origin 7543) has two `CECS` of the same day in r6, acts 5831 (Baratili San Pietro reconstituted) and 5841 (Nurachi reconstituted), and pfun 103 has two `CECS` rows with related Baratili San Pietro (`092014`) and Nurachi (`092074`). The r9 details of the two events (crawled only because they are ambiguous, §6.8) list the associated territory of each act: each public row joins the act whose details contain its related code; no `variation-act-ambiguous`.
 22. **A single current successor next to a former Italian one (1923, 1947)**: Occisla-Clanzo (`801136`, suppressed on 1923-02-08, `split_into` San Dorligo della Valle-Dolina and Erpelle-Cosina, the latter ceded on 1947-09-16).
-   - Expect: `is_former_italian: false`, `current_successors = [San Dorligo della Valle-Dolina]`, and Erpelle-Cosina among its successors with `is_former_italian: true`: by the rule of §7, computed from the public files only, the reference is **not** migrated automatically. Asserted on the release like golden-14; the rule itself on a synthetic world.
+   - Expect: `is_former_italian: false`, `current_successors = [San Dorligo della Valle-Dolina]`, and Erpelle-Cosina among its successors with `is_former_italian: true`: by the rule of §7, computed from the public files only, the reference is **not** resolved automatically. Asserted on the release like golden-14; the rule itself on a synthetic world.
 23. **Bilingual names of regions and UTS** (§4.2): `Trentino-Alto Adige/Südtirol` → `Trentino-Alto Adige` / `Trentino-Südtirol`; `Valle d'Aosta/Vallée d'Aoste` (region `02` and UTS `007`) → `Valle d'Aosta` / `Vallée d'Aoste`; `Bolzano/Bozen` (UTS `021`) → `Bolzano` / `Bozen`. The decomposition rule reproduces every entry of the table; a denomination with `/` not in the table (synthetic) is `bilingual-name-unknown` (`blocking`) and its message carries the suggested decomposition.
 
 ---
 
-## 12. Implementation steps
-
-### 12.0 Global implementation decisions
-
-Steps 1–3 are already implemented. Where the existing code differs from a **naming or structural detail** of this section (config keys, script names, error class names, module paths), the existing code wins: update this section to match it. Raise only **behavioural** conflicts.
-
-These apply to every step. Anything not decided here or in §1–§11 that is **purely an implementation detail** (internal function names, file splitting inside a module) is left to the implementer. Anything that changes behaviour, outputs, dependencies or conventions must be asked.
+## 12. Implementation conventions
 
 **Stack and dependencies**
 
 - Node ≥ 22.18, TypeScript strict, ESM.
 - Runtime dependencies: only `zod` (v4, using its built-in JSON Schema export) and `csv-parse` (ANPR).
-- Dev dependencies: `typescript`, `vitest`, `eslint` with `typescript-eslint`, `@eslint/js` and `eslint-config-prettier`, `prettier`, `@types/node`, `ajv` (tests only, never at runtime: validation of the published files against the published JSON Schemas, Step 16). No transpiler or TS runner (`tsx`, `ts-node`): Node runs the `.ts` sources directly.
+- Dev dependencies: `typescript`, `vitest`, `eslint` with `typescript-eslint`, `@eslint/js` and `eslint-config-prettier`, `prettier`, `@types/node`, `ajv` (tests only, never at runtime: validation of the published files against the published JSON Schemas, §11.1). No transpiler or TS runner (`tsx`, `ts-node`): Node runs the `.ts` sources directly.
 - Adding any other dependency requires approval.
 - Platform APIs to use: global `fetch`, `node:crypto` (SHA-256), `node:util` `parseArgs` (CLI), `node:fs/promises`.
 
@@ -911,16 +1062,14 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
 | `overrides/` | Curated corrections | committed |
 | `.cache/http/` | Response cache | ignored |
 | `.cache/store/` | Snapshot store; in CI a shallow clone of the `italian-territories-store` repository (D47) | ignored |
-| `.cache/reports/` | Build reports that are neither data nor sources (e.g. `event-codes.json`, Step 7) | ignored |
+| `.cache/reports/` | Build reports that are neither data nor sources (e.g. `event-codes.json`, §6.8) | ignored |
 
-**npm package**: publishes only the published files of `dist/` (data and JSON Schemas), their TypeScript declarations (`types/`, generated from the JSON Schemas by `src/model/typescript.ts` when the package is staged, never committed), `README.md` and the data licence as `LICENSE` (CC BY 4.0, `LICENSE-DATA` in the repository), with the explicit `exports` of §9. No executable code: a JavaScript/TypeScript API on the data would be a separate package (Step 19, open points). The generator code (MIT, `LICENSE`) and the internal reports (`reports/`) are not published. The package is staged in a separate directory by `npm run release -- pack` (Step 18); the root `package.json` stays `private`.
+**Determinism**: build logic never reads the clock. "Today" comes from config (`dates.today`, set by `--today YYYY-MM-DD`, §10.1, default the current date in `Europe/Rome`) and is passed explicitly. Only `generated_at` and `fetched_at` hold real timestamps.
 
-**Determinism**: build logic never reads the clock. "Today" comes from config (`dates.today`, set by `--today YYYY-MM-DD`, default the current date in `Europe/Rome`) and is passed explicitly. Only `generated_at` and `fetched_at` hold real timestamps. The `--today` flag is a Step 5 deliverable.
-
-**Logging**: a minimal internal logger writing NDJSON to stderr, with levels `debug|info|warn|error` and `--verbose` to enable `debug`. No logging dependency. Logger and `--verbose` are Step 6 deliverables. Each line carries a wall-clock `time`: logs describe the run, never the data, so the logger is allowed to read the clock.
+**Logging**: a minimal internal logger writing NDJSON to stderr, with levels `debug|info|warn|error` and `--verbose` to enable `debug`. No logging dependency. Each line carries a wall-clock `time`: logs describe the run, never the data, so the logger is allowed to read the clock. The HTTP client notifications (`retry`, `concurrency`, `circuit-open`, `circuit-closed`, `circuit-lost`, `request-held`, `validation-error`, `changed`, `degraded`) are logged. `time`, `level` and `msg` are reserved to the logger: `LogFields` forbids them in the types, and at run time a field never replaces them; a territorial level is logged as `territoryLevel`.
 
 **Errors**: typed classes:
-- HTTP (`src/http/`, Step 3):
+- HTTP (`src/http/`):
   - `NetworkError`: connection-level failure reported by the transport (retried);
   - `TransientResponseError`: 2xx response unusable as a whole (retried within `transientValidationRetries`);
   - `HttpStatusError`: non-retryable status (4xx other than 429);
@@ -928,10 +1077,13 @@ These apply to every step. Anything not decided here or in §1–§11 that is **
   - `CircuitOpenError`: the family was given up by the circuit breaker (open for `circuitBreakerMaxOpenMs` in total);
   - `ResponseValidationError`: permanent, rows violate the schema;
   - `EndpointDisabledError`: the endpoint was disabled by an earlier `ResponseValidationError`.
-- `ResolutionError` (Step 8)
-- `OverrideFileError` (Step 12): invalid or inconsistent override files (§6.10)
-- `InvariantViolation` (Step 15)
-- `EmitError` (Step 16): the emitter refuses to publish (an undetermined field, a blocking anomaly, a file violating its public model, an invalid previous release)
+- `AnprFormatError`: structural problem of the ANPR CSV (§6.11)
+- `NotInStoreError`: a source missing from the store in an offline `rebuild`, classified `unavailable` (§10.1)
+- `OfflineRequestError`: a request reaching the transport of an offline run, a programming error (not retried, never degraded)
+- `ResolutionError` (§6.6)
+- `OverrideFileError`: invalid or inconsistent override files (§6.10)
+- `InvariantViolation` (§8.1)
+- `EmitError`: the emitter refuses to publish (an undetermined field, a blocking anomaly, a file violating its public model, an invalid previous release)
 
 Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` passed through the pipeline.
 
@@ -957,343 +1109,9 @@ Anomalies (§8.2) are data, not exceptions: collected in an `AnomalyCollector` p
 | `http.userAgent` | `italian-territories-generator (+https://github.com/andreacolzani/italian-territories)` |
 | `update.lookbackDays` | 365 |
 | `update.auditSamples` | 50 |
-| `update.maxRefreshSnapshots` | 300 (stored snapshots an update may fetch again, Step 17) |
+| `update.maxRefreshSnapshots` | 300 (stored snapshots an update may fetch again, §10.2) |
 | `dates.start` | `1861-03-17` |
 | `dates.today` | `null` (current date in `Europe/Rome`) |
-
-### Step 1 — Scaffolding — DONE
-
-- **Deliverables**: repository layout (§14), fixtures moved to the §11.1 layout with `manifest.json`, `test/helpers/fixtures.ts` (`fixturePath`, mock transport) and the manifest validation test, `package.json` scripts (`build`, `test`, `lint`, `typecheck`), `tsconfig` (strict), ESLint + Prettier, `vitest`, CLI entry (`src/cli.ts`) with the commands of §10.1 as stubs, config module (concurrency, timeouts, rate limit, paths, dates, lookback days).
-- **Acceptance**: `npm run typecheck && npm test` pass (including manifest validation); CLI prints help.
-
-### Step 2 — Calendar-date utilities and domain types — DONE
-
-- **Deliverables**: pure date library (parse/format ISO, add/subtract days, compare, half-open ↔ inclusive conversion, `DD/MM/YYYY` conversion); internal domain types; public zod models of §4; JSON Schema generation.
-- **Acceptance**: exhaustive unit tests including leap years, 1861-03-17 lower bound, conversion round-trips.
-
-### Step 3 — HTTP client — DONE
-
-- **Deliverables**: client per §6.1 (pool, AIMD and token bucket per host, retries, timeouts, circuit breaker per family, endpoints disabled by permanent validation errors, UA, response cache).
-- **Acceptance**: tests with a mocked server covering 429/5xx/timeouts, `Retry-After`, concurrency limits, cache hits, resume after interruption.
-
-### Step 4 — Source adapters and normalisation — DONE
-
-- **Deliverables**: one adapter per call type, each returning normalised internal rows (§6.2).
-  - `fetchSnapshot(level, date)` chooses the `pfun` from the regime of `date`. The regime boundaries (`1927-01-12`, `1948-01-01`) are SITUAS constants defined next to the regime → `pfun` table in the public adapters; they are not configurable.
-  - `fetchEventList(level, pfun, from, to)`.
-  - `fetchCount(pfun, params)`, with endpoint id `count:pfun-<id>`. The response is `{ "resultset": [ { "NUM_ROWS": n } ] }`; zero is a valid count.
-  - Internal `r1`…`r9`.
-  - `fetchAnpr()`, returning `{ rows, issues }` with half-open dates (§6.11).
-  - Endpoint schemas, including the per-endpoint event code vocabulary (§6.2).
-  - Download of the §11.2 fixtures via `fixtures:fetch` (`scripts/fixtures-fetch.ts`, through the HTTP client; bodies stored as served, internal ones double-encoded), with manifest entries.
-  - Explicit field mapping per endpoint (§3.5 items 15–16, D29); `fetchSnapshot` reports the historical code fallbacks as `info`.
-  - `fetchAnpr` raises `AnprFormatError` for structural problems (unparseable CSV, missing columns): not retried, not cached, never a `ResponseValidationError`.
-- **Acceptance**:
-  - fixture-based tests for every adapter (§11.1 and §11.2 fixtures);
-  - type-quirk tests (§3.5 items 1–3);
-  - an unknown event code yields `ResponseValidationError`;
-  - ANPR malformed rows become issues, not errors;
-  - for every fixture request, the endpoint id declared by the adapter equals `describeRequest(request).endpoint` (§11.1), and its family is the one of the §6.1 scope table;
-  - internal decoders accept both double-encoded and plain JSON bodies;
-  - on every real municipality snapshot fixture, the code prefix equals the effective `historicalUtsCode` for every row except codes with suffix ≥ 800 (§3.5 item 17).
-
-### Step 5 — Snapshot store and calendar — DONE
-
-- **Deliverables**:
-  - **Row hashing**: a row hash is the SHA-256 (hex) of the canonical JSON of the projected row (keys sorted, no whitespace).
-  - **`rows/<level>.ndjson`**: append-only, one `{ "hash", "row" }` per line, never duplicated. A last line without its newline (interrupted append) is cut on load; a line that does not match its hash is a store corruption.
-  - **Manifest `snapshots/<level>/<date>.json`**: `{ level, date, pfun, projection_version, fetched_at, content_hash, adapter_stats, row_hashes (sorted, duplicates kept), history: [{ fetched_at, content_hash }] }`.
-    - `content_hash` is the SHA-256 of the canonical JSON of the sorted `row_hashes`: only the normalised projection takes part, so changes to ignored fields are not changes.
-    - `adapter_stats` is a generic object of adapter counters and sorted code lists (e.g. `historical_code_fallbacks` and `historical_code_fallback_uts_codes`, §3.5 item 16), excluded from `content_hash`.
-    - A refresh with the same content writes nothing (`fetched_at` stays the date of the first fetch of that content; only a different `adapter_stats` is updated). A different content appends the replaced `{ fetched_at, content_hash }` to `history`.
-    - `projection_version` per §6.3: a manifest with another version is replaced without `history` and is never returned to the build (D32).
-  - **Normalised event lists and internal responses**: stored with the same approach.
-    - Event lists: `events/rows/pfun-<id>.ndjson` and `events/lists/pfun-<id>/<from>_<to>.json` (`{ pfun, level, from, to, … }`). Change detection is **semantic**: the rows of a new list dated in `[from, to]` are compared with every row the store knows in the same range (for each date, the most recently fetched list covering it), not with a previous manifest, which has a different `from` because of the lookback window (§10.2). The put returns the `added` and `removed` rows.
-    - Internal reports: `internal/rows/r<n>.ndjson` and `internal/reports/r<n>/<key>.json` (`{ report, endpoint, report_url, key, … }`), where `key` is the SHA-256 of the unencoded, normalised report URL (the form stored in the fixture manifest, §11.1).
-    - Counts (added in Step 17): `counts/rows.ndjson` and one manifest per snapshot count request, `counts/pfun-<id>/<date>.json` (`{ pfun, date, … }`, one row `{ count }`).
-    - ANPR (added in Step 17): `anpr/rows.ndjson` and one manifest `anpr/manifest.json` (`{ endpoint: "anpr:archivio-comuni", … }`). The stored projection drops the CSV `line`, which would change the hash of every following row at each insertion in the file; the issues of the dropped rows go into `adapter_stats.row_issues` (canonical JSON), so an offline rebuild reports the same `anpr-row-dropped`. Rows read back are sorted by cadastral code (rows without one last), ISTAT code, `validFrom`, canonical JSON, the order the cross-check iterates in; ANPR anomalies identify rows by their store row hash plus `{ istatCode, cadastralCode, validFrom, validTo }`, never by line.
-    - Both follow the same rules (same content → nothing written, `history`, `projection_version` entries `counts` and `anpr`, D32).
-  - **Calendar builder** (§6.4) with provenance: `calendar.json` in the store, `{ start, today, dates: { <date>: [sources] } }`. Sources are endpoint ids (`events:pfun-<id>`, `r4:region-events`, `r5:uts-events`, `r6:municipality-events`), `anpr:start`, `anpr:end` (half-open `validTo`, i.e. `DATACESSAZIONE + 1`), `regime`, `today` and `inferred` (bisection, Step 6; dropped when a published event covers the same date).
-  - **`--today YYYY-MM-DD`** CLI flag, accepted by every command, setting `dates.today` (§12.0 Determinism). The CLI resolves the run date (flag, then `dates.today`, then the current date in Europe/Rome) and passes it to the command.
-- **Acceptance**: dedup verified; store round-trip; calendar tests with fixture event lists; regime boundaries always present; `--today` reaches the calendar builder; the clock is read only at the CLI boundary (default of `dates.today`) and for `generated_at` / `fetched_at`; no other build code reads it.
-
-### Step 6 — Snapshot orchestration and completeness — DONE
-
-- **Deliverables**:
-  - parallel fetch of every `(level, date)` in the calendar;
-  - completeness verification per level (§6.5);
-  - NDJSON logger and the `--verbose` flag (§12.0 Logging), with the HTTP client notifications (`retry`, `concurrency`, `circuit-open`, `circuit-closed`, `circuit-lost`, `request-held`, `validation-error`, `changed`, `degraded`) logged.
-- **Bisection rules**:
-  - Search `[d_i + 1, d_{i+1} − 1]` for the first date whose snapshot differs from `S(d_i)`. After finding it, continue on the remaining sub-interval, which may hide further changes.
-  - An inferred date is added to the **global** calendar (source `inferred` in `calendar.json`), so all levels get snapshots on it.
-  - Intervals never cross regimes, because boundaries are in the calendar (asserted).
-  - Every snapshot obtained, bisection probes included, is stored (§6.3), so I12 and an offline rebuild see it.
-- **Snapshot source**: the store first. A stored manifest of the current `projection_version` is used without network, unless the request must be refreshed (today, `audit` samples, `rebuild --refetch`), which bypasses the store and the HTTP cache (in `rebuild --refetch`, except the responses downloaded from its `today` on, §6.1). Otherwise the snapshot is fetched (`cache: prefer`) and stored.
-- **Failures**: a snapshot that cannot be obtained does not stop the stage, so one run collects every problem. Failures only concern dates never stored or requests whose refresh is mandatory:
-  - `snapshot-unavailable` (`blocking`, exit code 3): the source is unavailable, i.e. open circuit or retries exhausted on timeouts, connection errors, 5xx or 429;
-  - `snapshot-request-rejected` (`blocking`, exit code 1): non-retryable HTTP status (4xx other than 429: 400, 401, 403, 404…), which is not unavailability;
-  - `snapshot-schema-violation` (`blocking`, exit code 1): `ResponseValidationError` or `EndpointDisabledError`;
-  - `completeness-unverified` (`blocking`): an interval whose check needs a missing snapshot;
-  - any other error is a bug and propagates.
-
-  The causes have distinct codes so that Step 17 maps them to exit codes without reading messages. With at least one failure the stage result is `blocked`: the pipeline stops before identity resolution, to avoid cascading anomalies.
-- **Inferred breakpoints across runs**:
-  - An inferred date whose snapshots (as currently stored or refetched) equal, at every level, those of the previous calendar date is no longer confirmed: its `inferred` source is removed (the date leaves the calendar unless another source keeps it), with an `inferred-breakpoint-removed` `info` anomaly, and no `inferred-breakpoint` warning is emitted for it. A date with a missing snapshot is kept.
-  - When a published event (public list or internal event report) covers an inferred date, the source becomes that event's endpoint: `inferred` is dropped.
-- **Anomalies**: `inferred-breakpoint` (`warning`), emitted by every run for each date still `inferred` in the final calendar and each level whose snapshot changes on it; `inferred-breakpoint-removed` (`info`); `historical-code-fallback` (`info`, §3.5 item 16), **one per level** with number of snapshots, total fallback rows, date range and the distinct UTS codes involved, computed from the manifests' `adapter_stats` so an offline rebuild reports the same.
-- **Acceptance**: a simulated provider where hidden changes between breakpoints, including two in the same interval, are found in `O(log n)` calls each.
-
-### Step 7 — Internal crawl and identity graph — DONE
-
-- **Deliverables**: crawl per §6.8, using the cache and an incremental mode.
-- **Source of internal reports**: the store first, as for snapshots (Step 6). A stored report of the current `projection_version` is used without network unless its refresh is mandatory; otherwise it is fetched (`cache: prefer`) and stored. The orchestrator (Step 17) decides which refreshes are mandatory (`mustRefresh`):
-  - r1–r3 on every `update`;
-  - r4/r5 for the records touched by new variations or newly listed;
-  - r6 for new pairs;
-  - everything for `audit` and `rebuild --refetch`, as for snapshots.
-- **Regions and UTS**:
-  - r1/r2 → r4/r5 for every listed record; r5 under an older code of the same `id_uts` (e.g. Cagliari 292 and 318, Nuoro 091 and 114) returns the same rows, merged without duplicates;
-  - r7/r8 for every distinct event except `PV`, `CD` and `RN`, which have no associated territories, queried with the **event row's own** origin id and type (verified: r8 answers the Milano metropolitan city `CSCT` for `id_uts_origine=9`, not for its `id_uts` 119).
-- **Municipalities**:
-  - r3, then r6 per `(pro_com_t, comune)` pair, in code and name order (independent of whether the list came from the network or the store);
-  - each r6 response lists the codes and names the entity had over time; mark those pairs as covered and skip them. Stored responses are read first, so an incremental crawl only sends requests for pairs no stored history covers;
-  - deduplicate by `id_comune_origine`;
-  - then r9 only for the ambiguous events (§6.8).
-- **Fresh replaces stored**: a history fetched in the run replaces, for the same ids, the stored histories read for other records or pairs of the entity; it is never merged with them, so a row ISTAT corrected does not survive next to its correction.
-- **Identity graph** per level: union-find over `id ↔ id_origine` (§5.1) producing components with:
-  - root id (the oldest record);
-  - member typed records `(id, code, name, type)`;
-  - merged event history.
-
-  Only the `id → id_origine` pointers of the internal reports are used, never inferences from public data. The root is the only end of the pointer chain and must be the oldest record (earliest first event); otherwise `identity-root-ambiguous` (`blocking`, falling back to the oldest record). A listed record whose origin id is not in the component of its events is `identity-record-inconsistent` (`blocking`).
-- **Degradation** (§6.1):
-  - using the store without a mandatory refresh produces no anomaly;
-  - a mandatory refresh that fails because the source is unavailable falls back to the stored copy (or the HTTP cache entry when the store has none): `internal-data-stale` (`warning`), one per report with the list of requests;
-  - data missing with no copy: `internal-data-unavailable` (`warning`), one per report; it becomes `blocking` only in Step 9, when a decision needs it;
-  - rejected requests (4xx) and schema violations never fall back (D26): `internal-request-rejected` and `internal-schema-violation` (`blocking`), one per report.
-- **Empty event reports**: an empty r4/r5/r6 response for a listed record is a `blocking` anomaly `listed-record-without-events` for that record; the client accepts the response and the endpoint stays enabled.
-- **Event code summary**: the crawl computes the summary of the observed `(level, event code)` pairs (distinct events per code), input to the Step 11 rules (D27). It is computed by every build and written to `.cache/reports/event-codes.json` (`paths.reports`), never to the store, which holds source data only.
-- **Acceptance**:
-  - Milano, Cagliari and Sassari components (roots 9, 59, 58);
-  - Sassofeltrio single component;
-  - Ogliastra and Medio Campidano 2026 as separate components;
-  - incremental crawl touches only new pairs;
-  - degradation test with the internal family unavailable.
-
-### Step 8 — Code resolver — DONE
-
-- **Deliverables**:
-  - Per-level interval index: code → list of `(validFrom, validTo, row)`, built from the snapshots stored for the calendar dates; consecutive equal rows of a code are merged. A code duplicated in one snapshot is a `blocking` anomaly (`snapshot-duplicate-code`) and is left out of that date.
-  - `resolve(level, code, date, side)` per §6.6, returning `{ intervalKey, interval, path: "direct" | "alias" | "cadastral" }`. `intervalKey` is `<code>@<validFrom>` of the interval: it is not an identity (two consecutive intervals of the same entity have different keys); Step 9 maps intervals to entities.
-  - Same-day aliases from pfun 105 (municipalities) and from the internal `RN`/type change events (UTS and regions).
-  - Unresolved or ambiguous codes raise `ResolutionError`, converted to a `blocking` anomaly `code-unresolved`.
-- **Acceptance**: golden-6 (all 20 same-day suppressions resolve through aliases on the real snapshots of `D − 1` and `D` and the real pfun 98/105 fixtures; none via `cadastral`); the cadastral fallback covered by a synthetic test; the Sud Sardegna/Ogliastra side-rule example.
-
-### Step 9 — Identity resolution and registry — DONE
-
-- **Deliverables**:
-  - transition matcher per §6.7, using the identity graph from Step 7;
-  - registry (§5.3).
-- **Transition matcher** (per level, over the interval index of Step 8; every interval that closes or opens on a calendar date must be explained):
-  - code changes (municipalities: pfun 105; UTS and regions: the internal `RN` and `ESCT`/`CSCT` aliases of §6.6) link the interval of the old code on `d − 1` to that of the new code on `d`;
-  - the same code closed and reopened on `d` is the same territory, unless `ES` + `CS` on `d` reuse it, or a code change already links one of the two intervals (explicit evidence beats code equality, e.g. codes swapped on the same day);
-  - otherwise a closed interval needs `ES`/`ESCT`/`AS` on `d` and an opened one `CS`/`CSCT`/`AN` on `d` (municipalities: pfun 98/100; UTS and regions: internal events; public 112/113 and 106/107 are cross-checks, `identity-public-event-unmatched` `warning`); events only count on dates where intervals open or close;
-  - municipalities only: one closed and one opened interval with the same non-null cadastral code and no events are linked (`identity-cadastral-continuity`, `warning`; Step 11 creates the `inferred` variation); anything else is `transition-unexplained` (`blocking`);
-  - an interval with several successors or predecessors keeps none of those links (`identity-transition-conflict`, `blocking`);
-  - a name change along a link needs a `CD`/`CDAP` event on `d` (pfun 104/105, 114/108 or internal), otherwise `name-change-without-event` (`warning`); those links are returned as `renamesWithoutEvent`, so that Step 11 recognises the boundaries already reported.
-- **ISTAT ids win** (§5.2): every internal event is resolved to its interval (side rule of §3.5 item 6), which takes the root of its component.
-  - A chain whose intervals carry two roots is cut where the root changes (`identity-public-internal-mismatch`, `warning`); with intervals without events between the two roots the cut cannot be placed (`identity-split-undetermined`, `blocking`). Events of two components on one interval: `identity-origin-conflict` (`blocking`).
-  - Chains with the same root are one entity: no anomaly when the earlier one ends with a suppression and the later one starts with an establishment (documented reconstitution, e.g. Sassofeltrio); `identity-public-internal-mismatch` (`warning`) otherwise; `identity-overlap` (`blocking`) if they overlap.
-- **Entities without root** (key `nk:`):
-  - regions and UTS: always `blocking` (`identity-origin-missing` with internal data complete, `internal-data-required` otherwise);
-  - municipalities: `identity-origin-missing` (`warning`) when the municipality crawl is complete; with internal data incomplete, `internal-data-required` (`blocking`) only for an entity starting with `CS`/`AN` after the first calendar date (a possible reconstitution, §6.1), no anomaly otherwise.
-- **Registry file format**: one file per kind (§5.3), `{ "kind", "entries": { "<natural key>": <entry> } }` (variations also `"next_id"`), keys sorted. Entries: entities `{ id, members }` (the ISTAT ids of the identity component, ascending; empty for `nk:` keys), variations `{ id }`. New keys of one call get ids in a total, deterministic order independent of the input order: entities by first `validFrom`, then first ISTAT code, then natural key; variations by date, then natural key. A natural key given twice in one call is a bug (error). Kinds: `region`, `province`, `municipality`, `variation` (the version kinds were removed in the revision of the published model, D40).
-- **Remaps**: a key that changes keeps its id, the entry moves to the new key and the correspondence is appended to `registry/remaps.json` (`{ kind, from_key, to_key, id, reason, recorded_on }`, `recorded_on` = `dates.today`; the remaps of one run sorted by `kind`, then `from_key`). Reasons: `origin-id-available` (§5.3, not retroactive, `info`) and `root-changed` (retroactive, `warning`).
-- **Changed root**: when an identity component (Step 7) changes root between two runs but shares members with a registered entity whose key disappeared, **reuse its id** (the first by natural key when several: hashed ids have no order, D42), record the remap and mark the run as retroactive.
-- **Missing internal data**: an `internal-data-unavailable` gap (Step 7) becomes `blocking` here only when a decision needs it (§6.1): `internal-data-required` above, and for every registered `istat:` entity whose history is absent from the run (no key produced, no member in any component; §5.3): one `blocking` `internal-data-required` per level listing `{ key, id, members }` of each, instead of an `nk:` key with a new id (changed in Step 17). Every `internal-data-required` (this one and the rootless entities above) has `context.cause`: `unavailable` when some internal request of the level (lists, events, details) failed because the source was unavailable (network, exhausted retries, open circuit, `NotInStoreError` in an offline `rebuild`), `absent` otherwise (every request succeeded, or failed with its own blocking `*-request-rejected`/`*-schema-violation`). The cause decides the exit code (Step 17). Re-keying is only `nk:` → `istat:` (`origin-id-available`); a root change keeps the id through the shared members (`root-changed`).
-- **Acceptance**:
-  - golden 1–5 (identity parts);
-  - two builds on the same store produce identical ids;
-  - moved-key scenario reuses the id and is classified retroactive (removed with the version registry in the revision of the published model, D40).
-
-### Step 10 — Versions — DONE
-
-- **Deliverables**: version builder (§6.9), internally half-open:
-  - parent resolution;
-  - abbreviation derivation. Non-conforming abbreviations are allowed here and checked by I8 after overrides.
-- **Parents**: the parent code of a row (`COD_PROV`/`COD_UTS`, `COD_COMP`/`COD_REG`) is resolved, on every date of the row, to the entity that code identifies at the parent level (from the Step 9 entities), so a version also splits where the parent entity behind an unchanged code changes. Regions are built first, then UTS, then municipalities.
-- **Abbreviations**: `SIGLA_AUTOMOBILISTICA` from 1948; before, the `SIGLA_UTS` of the municipalities of the UTS on each date (null values ignored), which must be unanimous. A missing `SIGLA_AUTOMOBILISTICA` stays null without an anomaly here: an override may supply it, and I8 checks the result.
-- **Undetermined fields**: a parent code identifying no entity (`version-parent-unresolved`) or a pre-1948 abbreviation missing or not unanimous (`abbreviation-underived`) is a `blocking` anomaly, one per version and cause. The field is null in the internal model (`provinceId`, `regionId`, `abbreviation` are nullable there) and the version is kept, so later stages still run.
-- **Acceptance**: golden 2, 3, 5, 10, 11, 12, 15, 16; I1–I3 unit tests.
-
-### Step 11 — Variations and links — DONE
-
-- **Deliverables**: grouping by act id, participants with roles, links with kinds, dedup, and dropping no-effect participations (§4.3).
-  - Public rows are matched to internal events by `(date, entity resolved from the code at that date, event code)`, which provides `istat_act_id` and `description`. An internal event belongs to the entity whose ISTAT origin id is the root of its identity component (§5.1); for regions and UTS its r7/r8 details add related territories.
-  - Unmatched public rows keep `istat_act_id = null` and `description = null` and are grouped by connected components (§4.3).
-  - Every `(level, event code)` pair has an explicit rule (role and links); a pair without a rule is a `blocking` anomaly (D27). Coverage is checked against the event code summary computed by the build (Step 7).
-- **Rules** (`src/build/event-rules.ts`): per pair, the effect (closing, opening, change of attribute, territorial, first validity), the side identifying the subject and the related territory of a row (§3.5 item 6), and the direction of the territory flow (§4.3). Pairs: those of the public lists plus those observed in the internal histories of every region and UTS record (regions: `PV CS CSCT AN ES ESCT AS AQES AQ CE CECS CD VACST`; UTS: `PV CS CSCT AN ES ESCT AS AQES AQ CE CECS CD AP RN CT`; municipalities: `PV CS AN ES AS AQES AQ CE CECS CD AP CDAP RN RNAPUTS`).
-- **Effect** per event, links, `indirect` participants, `inferred` variations and `version-boundary-unexplained`: §4.3. Territorial events fall back to `date − 1` (§6.6).
-- **Accounting (I14)**: every event row (public lists and internal events) is represented in a variation or dropped with a reason: `first-validity` (`PV`), `no-effect` (`info` anomaly `participation-without-effect`), `unresolved` (`code-unresolved`), `unknown-entity` (`variation-entity-unknown`, `blocking`), `rule-missing` (`event-rule-missing`, `blocking`). A public row matching internal events of several acts joins the act whose details (r9 for municipalities, §6.8; r7/r8 for regions and UTS) list its related territory **by code**, when exactly one act does; otherwise (no related territory, no details, r9 unavailable, or several acts listing it) it stays unmatched (`variation-act-ambiguous`, `warning`; golden-21).
-- **Variation ids**: assigned through the registry (§5.3) after building.
-- **Acceptance**: golden 1, 2, 4, 6, 9, 18, 19 (variation part); I9, I10, I14 on the full worlds of two consecutive days; a pair without a rule is blocking.
-
-### Step 12 — Overrides — DONE
-
-- **Deliverables**: loader with zod schema, applier, obsolescence check (§6.10); `overrides/abbreviations.json` with the VG entry.
-  - Overrides apply day by day, before the versions are merged (changed in Step 17, D36): they may remove version boundaries, never create one (`override-creates-boundary`, `blocking`); no override variations, so `origin` is `istat` or `inferred` (a new value can be added later as a compatible change).
-  - I8 is implemented here as the definitive invariant (`src/invariants/`); Step 15 integrates it into the overall check.
-- **Acceptance**: golden-7 (world 1921-06-01 → 1923-02-08, so the 801 version is closed inside the target period); obsolete-override test; I8 passes on the real 1921 fixture only after the override.
-
-### Step 13 — Derived fields — DONE
-
-- **Deliverables**: the computations of §7.
-- **Acceptance**:
-  - Quero → Quero Vas → Setteville chain;
-  - Sud Sardegna with multiple successors;
-  - Fiume former Italian;
-  - golden-18: municipalities with a partial cession abroad are not former Italian;
-  - golden-19: Tenda former Italian with `current_successors = [Briga Alta, Limone Piemonte]`;
-  - Sassofeltrio active with no successors.
-
-### Step 14 — ANPR cross-check — DONE
-
-- **Deliverables**: join and classification (§6.11). Any ANPR failure (`AnprFormatError`, download failure, exhausted retries, open circuit, HTTP errors) skips the cross-check with a single `warning` and never blocks (D22).
-- **Acceptance**: golden 3 (`warning`); every `info` case on synthetic data (golden-14 needs the full municipality world: its count is fixed and asserted in Step 17); a structurally broken CSV yields one `warning` and a successful run.
-  - Ambiguity: consecutive rows of the join key are compared day by day; only the days on which rows of the join key overlap are `anpr-not-comparable`, with both methods.
-  - Names: `Sampèire`/`SAMPEIRE` is `info` (`anpr-name-diacritics`); a name different even without diacritics is a `warning`.
-  - ISTAT codes and provinces: a value of an earlier time of the municipality is a lag, of a later time an anachronism (both `info`), a value never in its history a `warning`. On the 2025-12-31/2026-01-01 world the 377 + 377 Sardinian divergences are `anpr-lagging-istat-code` and `anpr-lagging-province`.
-  - `EX`: Tenda (former Italian, ANPR region `01`) is `info` (`anpr-former-italian-missing`); `EX` on an entity that is not former Italian is a `warning`.
-
-### Step 15 — Invariants — DONE
-
-- **Deliverables**: I1–I15 as independent, individually testable checks; anomaly reporting (§8.2); the `warning` check for active municipalities whose current version has an 8xx code (D30).
-- **Null fields** (Step 10): I4 reports a null `provinceId`/`regionId` and I8 a null `abbreviation`; the checks that depend on those fields (I5, I7 and similar) skip the versions where they are null instead of adding derived anomalies.
-- **Acceptance**:
-  - a negative test for each invariant (a crafted dataset violating it is rejected); golden-17 for I13;
-  - I15: a `ceded` or `annexed` participant with `abroad: false`, and an `abroad: true` participant without `AS`, `AN`, `CE` or `AQ`, are both rejected;
-  - I7: a wrong `COD_PROV_STORICO` fallback (§3.5 item 16) makes I7 fail;
-  - I7: an 8xx code whose prefix is the code of a UTS of another time is `info`; one whose prefix never was a UTS code is blocking; a mismatch with suffix < 800 is blocking at any date;
-  - the 8xx `warning` fires for an active municipality whose current code has suffix ≥ 800.
-- **Implementation notes** (decided with the maintainer):
-  - The invariants run on the **internal model** (derived entities, half-open intervals, `role: null` participations). `checkInvariants(world, anomalies?)` returns one result per invariant, `passed`, `failed` or `skipped` (with the reason): an invariant whose data the world lacks (I2 `existence`; I7 `historicalCodes`; I12 `snapshots`, `historicalCodes` and `overrides`; I13 `counts`; I14 `accounts` and `variationIdOf`) is **never** reported as passed. `validate` on `dist/` (Step 17) reads the files back with the `src/dates/` conversions (no local conversion) and so runs with I2, I7, I12, I13 and I14 skipped. `assertInvariants(report)` throws `InvariantViolation` when one failed.
-  - Each violation is a `blocking` anomaly with code `invariant-i<n>` and `context.invariant`. I1 reports order, overlaps, inverted intervals and entities without versions; the zero-length version is I10's. I3 compares the published fields only. I6 reports one anomaly per pair of entities sharing a value over a common period (the versions of one entity are I1's). I9's only exemption is the versions starting on the first calendar date. I10 also requires every variation to have a participation with effect; participants with `role: null` are the ones the emitter drops. I11 recomputes the derived fields with `deriveFields` and compares them field by field (one violation per entity and field), then applies the rule on suppressed entities without current successors. I14 also checks that the variation key resolves to a variation that exists, and that the drop reason is known.
-  - I7: the UTS codes "of some time in the dataset" are exclusively those of the checked world: the codes of every version of every UTS and their historical codes. Test worlds covering a few dates pass the missing ones through the explicit, test-only `extraUtsCodes` parameter. The `info` anomaly is `municipality-8xx-prefix-of-another-uts`; the D30 `warning` is `active-municipality-8xx-code` (`checkActive8xxCodes`).
-  - I12 compares every snapshot it is given (`storeSnapshotSets(store)` streams every stored one, probes included; audit samples use the same `SnapshotSet` shape), per level and date, projecting each version: the three names (split as the builder does), codes, type, cadastral code, the codes of its UTS and region **on that date**, the historical codes (§5.5) and the abbreviation. The expected abbreviation of a version is the value of the override applied to it, if any; else `SIGLA_AUTOMOBILISTICA` of the snapshot; before 1948 the one the municipality rows of the same snapshot report, derived with the builder's `municipalityAbbreviations` (null when not unanimous; not compared when the date has no municipality rows: `checkI12Detailed` and the I12 result of `checkInvariants` then carry `uncompared.abbreviation`, the number of versions and of dates left out). One anomaly per level and date, listing at most 20 differences with the total.
-  - Fixtures downloaded for golden-17: pfun 68, 64 and 61 on 2026-10-01, the date of the count fixtures (§11.2).
-
-### Step 16 — Emitters, meta and changes — DONE
-
-Implemented on the first published model, reopened by its revision (2026-10-08, D39–D45; deliverables below) and completed again on the revised model.
-
-- **Deliverables**:
-  - public emitters (§6.12, §9) with inclusive dates and deterministic formatting: `dist/` holds only the three entity files and their JSON Schemas;
-  - internal reports in `reports/` (§9): `variations.json`, `anomalies.json`, `changes.json`, `meta.json`, zod-validated, without JSON Schemas;
-  - JSON Schemas in `dist/schema/`;
-  - `changes.json`: diff against the previous release. An item is `retroactive` if it changes the published state of any day before the previous `meta.data_version`; closing a version that was open changes only the days after its new end (implementation notes below).
-  - a field that the public schema does not admit as null but is null internally (Step 10) stops the emitter with an error, whatever the anomalies.
-- **Acceptance**: byte-identical output across two runs on the same store; schema validation of all outputs; §4.4 example reproduced.
-- **Implementation notes** (decided with the maintainer):
-  - `src/emit/`: `toPublicData` (internal → public; inclusive ends only here; `role: null` participations dropped; entities by `id`, versions by `valid_from`, participants by `(level, territory_id)` and links by `(level, from, to)` with levels in the order region, province, municipality; `istat_events` alphabetically), `toPublicAnomalies` (warnings then infos, by code, then by the canonical JSON of message and context), `emitDataset`, `computeChanges`, `buildMeta`/`sourceSummaries`, `loadPublishedDataset`. Every file is validated against its model before anything is written; the internal reports (variations, anomalies, meta, changes) have zod models too, but only the three public files get JSON Schemas (revised, D39). Anomaly codes are kebab-case (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`).
-  - `generated_at` is an input (the CLI reads the clock, the emitter never does). `emitDataset` returns the kind of release (files written atomically, `meta.json` always last):
-    - `unchanged`: the three public data files (regions, provinces, municipalities) and the JSON Schemas are identical to the previous release: `dist/` and `reports/` are **not touched** (also when only internal reports such as `variations.json` would change, §9); `anomalies.json` stays the one of the build that produced the release and `generated_at` is not renewed; the current anomalies go to the run summary (Step 17);
-    - `schemas`: same data files, different schema files (a generator change): `dist/schema/`, an empty non-retroactive `changes.json` and `meta.json` are written, so the published schemas never lag behind the generator; the data files and `anomalies.json` stay those of the previous release, and so does its meta (`data_version`, which identifies the data content, sources, counts, anomaly counts) except `schema_version` and `generated_at`; `changes.json` goes from the previous release to the same `data_version` with the new `generated_at`. Step 17 treats it as an additive, non-retroactive release;
-    - `data`: every file is written.
-  - The previous release is an input (`null` for the first one: everything added, nothing retroactive), read from `dist/` and `reports/`; Step 17 decides where it comes from (the checkout, `git show`, `diff <from> <to>`).
-  - Items: entities by id, versions by `(entity id, valid_from)` (a version whose start moves is removed and added), variations by internal id.
-  - Retroactivity by **days modified**, the reference being the previous `data_version`. `affected_from` of a version: the earlier `valid_from` when any field other than `valid_until` changed, otherwise the day after the earlier end (null = open), so closing an open version at `U` is additive iff `U + 1` is not before the reference; of a variation: the earlier date; of an entity (entity-level fields only, its versions are items of their own): the earliest date among the links added or removed, and for `status` the day after the end of the last version (old or new); `is_former_italian` and `current_successors` carry no date (`affected_from` null, not retroactive: they follow from dated items flagged on their own). Removed items: their first day; added items are retroactive iff their first day precedes the reference.
-  - `meta.sources` per family `situas-public-snapshots`, `situas-public-reports` (stored event lists and counts), `situas-internal`, `anpr` (the stored archive, `manifests: 1`): `{ fetched_at, content_hash, manifests }`, the latest `fetched_at` of the store manifests of the current projection version, the SHA-256 of the canonical JSON of the sorted `[manifest key, content_hash]` pairs, their number; `null` for a family without stored responses. Every family comes from the store (Step 17), so an offline rebuild publishes the same summaries. `schema_version` starts at `1.0.0`.
-  - Every output is validated with Ajv (dev dependency, tests only) against the JSON Schema published next to it (`test/helpers/json-schema.ts`; formats `date` and `date-time` defined with the generator's date rules): emitted datasets of the unit and golden tests, and the repository `dist/` once it holds a release.
-- **Revision of the published model** (2026-10-08, D39–D45), touching the modules of earlier steps; implemented here because it is a change of the published contract:
-  - entity ids (§5.3, D42): `<prefix>-<code>` from the SHA-256 of the first natural key, next window on collision, stored in the registry entries (no `next_id` for entity kinds); `province_id`, `region_id`, link ids and `current_successors` become strings;
-  - versions without id (D40): the public model drops `versions[].id`; the version registry, `registerVersions` and the moved-key rule (`key-moved`) are removed; internal versions, participants (`versionBefore`/`versionAfter`: `valid_from` dates), anomaly contexts and `changes.json` identify a version by `(entity id, validFrom)`;
-  - no ISTAT ids in the output (D41): `istat_origin_id` removed;
-  - links `{ id, kind, date }` without `variation_id`; `split_into` derived per origin and date (§7, D44); `transferred_to` never published;
-  - public rows without act whose link is in a variation with an act are explained by it (§4.3, D43, `link-explained-by-act`);
-  - (`partially_ceded`, added here, was removed by the second revision of 2026-10-09, below);
-  - bilingual names of regions and UTS from the closed table (§4.2, D7), `bilingual-name-unknown`; I12 projects the names with the same table;
-  - the public JSON Schemas regenerated; `schema_version` stays `1.0.0`, since no release exists yet (Step 17 note).
-- **Second revision of the public model** (2026-10-09, after evaluating the first release):
-  - entity order in the public files: by internal ISTAT id (root), numerically, `nk:` entities last by first `valid_from`, then `id` (§6.12); presentation only, stable between releases;
-  - `partially_ceded` removed (public model, schemas, derived fields, I11); the resolution rule of §7 decides on the public data alone (D45): automatic only with exactly one current successor and no former Italian successor, direct or indirect; golden-22 asserts it on Occisla-Clanzo;
-  - `is_former_italian` documented as "ceased because ceded abroad, directly or through all its successors", not a measure of lost territory (§7, JSON Schema, Step 19).
-  - Acceptance: determinism tests on the new order (the same order for any input order, `nk:` last, unchanged when an ISTAT code changes); golden-22 on the rule; release regenerated from the store, `validate` and the whole suite passing on it.
-- **Third revision of the public model** (2026-10-10): `current_successors` only for municipalities (D46), removed from regions and provinces (public model, schemas, derived fields, I11, the golden cases asserting it on Sud Sardegna and on the regions); §7 resolves provinces and regions through the municipalities. Acceptance: the region and province files and schemas have no `current_successors`; I11 requires non-empty `current_successors` for suppressed municipalities only; release regenerated from the store, `validate` and the whole suite passing on it.
-- **Acceptance of the revision**: golden 4, 15, 19, 22, 23 and the §4.4 example (shape) on the new model; a collision test (two keys with the same window 0 get windows 0 and 1, deterministically, in both input orders of one run; a key colliding with a registered one takes the next window) and a stability test (a remapped or re-keyed entity keeps its id); `dist/` contains exactly the three files and their schemas; the npm package contents (`npm pack --dry-run`) exclude `reports/`.
-
-### Step 17 — Commands: bootstrap, update, rebuild, audit, validate, diff — DONE
-
-Implemented on the first published model, reopened by its revision (2026-10-08, D39–D45; deliverables below) and completed again on the revised model.
-
-- **Deliverables**:
-  - Full orchestration per §10.1–§10.2.
-  - **Revision of the published model**: the release is `dist/` plus `reports/` (`paths.releaseReports`, default `reports`, next to `paths.dist`): the commands write, read and compare both (previous release, `data_version` from `reports/meta.json`); `validate` reads `dist/` and `reports/variations.json`; `diff <from> <to>` takes two directories holding `dist/` and `reports/`; `update` without a previous run requires `calendar.json`, `dist/` and `reports/meta.json`; golden-14 reads `reports/anomalies.json`. Acceptance: the end-to-end scenarios of this step pass on the new model (the retroactive one detected through `reports/changes.json`), and a full run reports the counts of `link-explained-by-act` (2 expected) and `split_into` links to the maintainer. Offline `rebuild` of 2026-10-08 on the revised model: exit 0; `link-explained-by-act` 2 (the two pfun 106 `ESCT` rows of 1948-01-01; Valle d'Aosta has one predecessor, Friuli-Venezia Giulia two); `split_into` successor links 9 (regions), 13 (UTS), 339 (municipalities); golden-14 still 491; the npm package (`npm pack --dry-run`) contains `dist/` only.
-  - Exit codes: `0` success; `1` blocking anomalies; `2` retroactive changes (PR required); `3` source unavailable. Mapped from anomaly codes, never from messages: `snapshot-unavailable` → 3 (timeouts, connection errors, 5xx or 429 after exhausted retries, open circuit); `snapshot-request-rejected` (non-retryable 4xx) and `snapshot-schema-violation` → 1.
-  - A `blocked` snapshot stage (Step 6) stops the pipeline before identity resolution.
-  - Inferred breakpoints are kept in `calendar.json` across runs (source `inferred`): a calendar rebuilt from the sources must not lose them. Step 6 removes those no longer confirmed, and a published event on the same date replaces the `inferred` source.
-  - Run summary written to `.cache/last-run.json`, for the workflows.
-  - **`validate` on the release** (`dist/` and, after the revision, `reports/variations.json`): implemented as a command that reads the files back into the internal model (inclusive → half-open with the `src/dates/` conversions, no local conversion) and runs `checkInvariants` with I2, I7, I12, I13 and I14 reported as `skipped`, never as passed (they need unpublished data, snapshots, counts or event accounts).
-- **Acceptance**:
-  - **I12 timing**: measure the time I12 takes on the complete run (every stored snapshot, probes included) and report it to the maintainer, who decides whether it needs optimising. Also report `uncompared.abbreviation` of the I12 result.
-  - **`sourceSummaries` timing**: measure the time `sourceSummaries` (Step 16, `meta.json`) takes on the complete store (it reads every snapshot manifest, the municipality ones holding thousands of row hashes each) and report it to the maintainer, who decides whether it needs optimising.
-  - end-to-end tests on a declarative world (`test/helpers/world.ts`: two regions, four UTS, a dozen municipalities of Veneto and Sardinia from 2000-01-01, a fusion, a rename, a municipality without cadastral code, an override loaded from a temporary `overrides/`) whose transport answers every request in the raw formats of the real sources; a test checks that every kind of generated row has the field set of a real fixture row and decodes with the production adapters. The regime crossings are covered by the golden cases of Steps 6 and 10;
-  - offline `rebuild` with a working transport: no request reaches it, exit 0, same data, I13 and ANPR from the store; without stored counts: `count-unavailable` (exit 3) asking for `update` or `rebuild --refetch`; without a stored snapshot: `snapshot-unavailable` (exit 3); without a stored internal report: `internal-data-unavailable` (`warning`), never fetched; when it is the history of a registered entity (Alghero's r6), also `internal-data-required` (`blocking`, `cause: unavailable`, exit 3): no id change, `dist/` and `registry/` not written (§5.3); an `update` whose requests all succeed while the history of a registered entity is absent (no longer listed in r3, not in the store): `internal-data-required` with `cause: absent`, exit 1, nothing written; the offline run context refuses every request with a programming error (`OfflineRequestError`, not retried, never degraded), and an offline mode requires an offline context;
-  - audit: a change hidden between `p` and the sampled date `d` is placed on its own date, not on `d`;
-  - incremental scenario adding a fusion (exit 0);
-  - retroactive scenario (exit 2);
-  - removed inferred breakpoint: an `inferred` date already published as a version boundary is no longer confirmed (Step 6) and leaves the calendar; the two versions it separated merge into one, and the run is classified as retroactive (exit 2).
-  - golden-14 on the full run: the number of suppressed municipalities absent from ANPR (`anpr-missing-entity`) is reported to the maintainer, fixed in §11.3 and asserted.
-  - the full run is executed by the maintainer; `.cache/last-run.json` holds every measure above (I12 time and `uncompared`, `sourceSummaries` time, offline build time, golden-14 count, count of every anomaly code).
-  - ANPR counts are evaluated only on the full run: the test worlds cover a few days and lack the history the classification needs (a later province, a cession of 1947, the continuation of a suppressed municipality), so their counts are not significant. The count of every ANPR `warning` code (`anpr-divergent-*`, `anpr-unmatched-period`, `anpr-former-italian-divergence`) is reported to the maintainer, to decide whether to downgrade any of them to `info` (decided after the first full run: dates classified by direction, names by the history, the known cases of ANPR covering more as `info`, §6.11).
-
-- **Implementation notes** (decided with the maintainer):
-  - `src/commands/`: `acquire.ts` (event lists, internal crawl with the mandatory refreshes of the mode, ANPR, counts; every source stored and read back from the store), `audit.ts`, `refresh.ts` (stored snapshots), `build.ts` (identity → invariants, no network), `pipeline.ts` (`bootstrap`, `update`, `rebuild [--refetch]`, `audit`), `published.ts` (`validate`, `diff`), `exit-codes.ts`, `summary.ts`, `context.ts` (the runtime the CLI provides: transport, wall clock for `generated_at`, monotonic clock for timings). Stage order: event lists → internal crawl → ANPR → counts → calendar → audit (update) → refresh of stored snapshots (update; `rebuild --refetch`: all of them) → snapshots and completeness → build → emit.
-  - **Exit codes**, by anomaly code (and, for `internal-data-required`, by its `context.cause`), never by message: `*-unavailable` (`snapshot-`, `event-list-`, `count-`, `internal-list-`) and `internal-data-required` with `cause: unavailable` → 3 when no other blocking anomaly is present (`completeness-unverified` follows them); `internal-data-required` with `cause: absent`, `*-request-rejected`, `*-schema-violation` and every other blocking anomaly → 1; the blocking anomalies are logged with their `cause` when they have one; else 2 when retroactive (`changes.json` retroactive, retroactive registry remaps, audit discrepancies), else 0. The internal crawl keeps its warnings for r4–r8; a list r1–r3 unavailable with no copy adds `internal-list-unavailable`. A missing event list blocks the build like a blocked snapshot stage.
-  - **Effects by exit code**: 0 and 2 write `dist/`, `reports/` and `registry/`; 1 and 3 write none of them; the store and `calendar.json` are always written; `.cache/last-run.json` (`paths.runSummary`) always: when the command throws (outcome `error`, exit 1), on SIGINT/SIGTERM (outcome `interrupted`, `signal`, then the process exits with 130/143) and on an uncaught exception or unhandled rejection anywhere in the process (outcome `error`, exit 1); the summary is written once, a later ending never overwrites it. Blocking anomalies are also logged (the first 50).
-  - **Progress**: every stage logs `stage start` and `stage done` (with `completed`, `total`, `errors` when it counted requests); while a stage runs, a `progress` line every 30 s with the same counts (a timer, so a stage stalled on retries still reports). Counted: event lists, internal reports, snapshots (calendar dates and probes), audit samples, refreshed snapshots.
-  - **Disabled endpoints**: one `http endpoint disabled` line with the cause when an endpoint is disabled; the other schema violations of requests in flight and the requests refused afterwards are not logged one by one; at the end one `requests refused by a disabled endpoint` line per endpoint with the count, also in the run summary (`disabled_endpoints`).
-  - **`update`** without the state of a previous run (`calendar.json` in the store, a release in `dist/` and `reports/`) exits 1 asking to run `bootstrap`, which resumes from the cache; never an automatic bootstrap (a lost store in CI must not trigger ~15,000 requests).
-  - **Audit**: samples in `[start, today)` from a PRNG seeded with `today`; corrections per §10.2; `audit-discrepancy` warnings; `audit` alone writes the store and `calendar.json` (inferred dates kept for the next build), never `dist/` nor `reports/`.
-  - `time`, `level` and `msg` are reserved to the logger: `LogFields` forbids them in the types, and at run time a field never replaces them; a territorial level is logged as `territoryLevel`.
-- **First release postponed** (2026-10-08): the full run (bootstrap and `rebuild --refetch` on the real sources) met the acceptance criteria, but the published model (§4, §9) is going to be revised before any release. Until then `dist/` and `registry/` are not committed (`.gitignore`, only their `.gitkeep`): no release and no registry with the current ids exist, so the revision starts from a clean state. The revision is specified in D39–D45 and in Steps 16–17; `reports/` follows the same rule as `dist/` until the first release.
-- **First release prepared** (2026-10-08): after the revision, `dist/`, `reports/` and `registry/` were generated by an offline `rebuild` from the store (`data_version` 2026.10.07, the `today` of `calendar.json`) and committed; `validate` and the whole suite pass on them, golden-14 and golden-22 included. Tag, GitHub Release and npm publication are Step 18's.
-
-### Step 18 — GitHub Actions — DONE
-
-- **Deliverables**: the workflows of §10.3 and the release tooling of §9 (D47):
-  - the store in the separate repository `italian-territories-store`: composite action `.github/actions/store` (shallow clone into `.cache/store`, commit and push at the end of every data run, also on failure or interruption), deploy key with write access to that repository only (secret `STORE_DEPLOY_KEY`);
-  - `last-complete-update.json` in the store (`{ today }`): written by a data command that ends with exit 0 or 2, keeping the maximum of the stored date and the run's `today` (an offline `rebuild` with an earlier `--today` never moves it back); the run summary carries it as `last_complete_update` (`null` when absent), for the 21-day rule of exit 3 (§10.3);
-  - `scripts/release.ts` (`npm run release -- <command>`): `changelog` (adds the CHANGELOG entry of `reports/meta.json` unless the first entry already describes it: version `MAJOR.YYYYMMDD.PATCH`, PATCH = the highest PATCH of the same `MAJOR.YYYYMMDD` already in the CHANGELOG + 1, else 0; release kind; change counts per level from `reports/changes.json`; retroactive flag; `schema_version`, `data_version` and `generated_at` in a comment of the entry; also the README date between its `data-version` markers, when they exist), `check` (the first entry matches `reports/meta.json`, and so does the README date between its `data-version` markers when they exist, Step 19), `version`, `notes` (the entry, for the GitHub Release), `pack <dir>` (stages the npm package: `dist/`, `README.md`, `LICENSE-DATA` as `LICENSE`, a generated `package.json` with the version and `license: "CC-BY-4.0"`; fails without `README.md`), `target` (where a data run's output goes, `none`, `main` or `pr`, from `dist/` only, §10.3);
-  - `weekly-update.yml`, `rebuild.yml` and `release.yml` (§10.3); `test.yml` also runs `validate` and `release -- check`; `update-changelog.yml` removed (the CHANGELOG entry is written with the data, and releases created with `GITHUB_TOKEN` would not trigger it); third-party actions pinned by SHA (a pinned PR-creation action is allowed), explicit `permissions` per job;
-  - licences: `LICENSE` (MIT, the generator), `LICENSE-DATA` (CC BY 4.0, attribution to ISTAT), the first CHANGELOG entry (`1.20261007.0`).
-- **Schemas releases** (Step 16, §9): a release whose data files are unchanged and whose schemas changed keeps the previous `data_version` and increments the PATCH of the npm version (`MAJOR.YYYYMMDD.PATCH`, MAJOR following `schema_version`); its tag `v<npm version>` differs from the data release's.
-- **`rebuild --refetch` only local**: the refetch of 2026-10-07 took about 7 h 50 min (HTTP cache writes from 11:12 to 19:00), above the 350-minute job timeout, and an interrupted refetch does not resume in CI (§10.3). `rebuild.yml` runs only the offline `rebuild` from the store, manually; there is no scheduled rebuild.
-- **Maintainer procedure** (after the merge; the `gh` commands are run with the maintainer's confirmation, and the private key never appears in logs and is deleted from disk after `gh secret set`):
-  1. create the private repository `italian-territories-store`; an offline `rebuild` writes `last-complete-update.json`; `.cache/store` becomes a git repository with `.gitattributes` `* -text` (bytes as written), committed and pushed;
-  2. generate the deploy key, add it to the store repository with write access, store the private key as `STORE_DEPLOY_KEY`; allow GitHub Actions to create pull requests (repository setting, needed by the `data-update` PR);
-  3. refetch (whenever needed, e.g. after a projection change, D32): first `gh workflow disable weekly-update.yml` (a weekly run must not push the store while the refetch runs; wait for a run in progress to end), then, from an up-to-date `main` with `.cache/store` an up-to-date clone of the store repository: `npm run cli -- rebuild --refetch`; with exit 0 or 2 and changed public files, `npm run release -- changelog` and `npm run release -- check`; commit and push of the store (`Store <today> (rebuild --refetch, exit <n>)`, also with exit 1 or 3); the output (`dist/`, `reports/`, `registry/`, `CHANGELOG.md`) committed on the `data-update` branch (created from `main` or force-pushed over the open PR) and the `data-update` PR opened or updated, its body saying it comes from a local `rebuild --refetch`; finally `gh workflow enable weekly-update.yml`, also when the refetch failed;
-  4. first npm publish, after Step 19 (the package needs the README): `npm run release -- pack <dir>` and `npm publish` from it, by hand (npm allows a trusted publisher only on an existing package); then the trusted publisher on npmjs.com (repository `italian-territories`, workflow `release.yml`); then `release.yml` dispatched on `main`, which creates tag and GitHub Release and skips the publish.
-- **Acceptance**: dry-run on a fork (or on the repository, `dry_run: true`); no publish on exit codes 1, 2 or 3; a schemas release gets its own tag and npm PATCH; tests of `scripts/release.ts` (PATCH, schemas release, idempotent `changelog`, `check` failing on a mismatch, `pack` contents and failure without README, `target` with only `reports/` or `registry/` changed → `none`) and of the marker (written on 0 and 2, not on 1 and 3, never moved back); `npm pack --dry-run` in the staged directory lists only `dist/`, `README.md`, `LICENSE` and `package.json`.
-- **Verified** (2026-10-12): `weekly-update` dry run on the repository (`ubuntu-26.04`, exit 0, `dist/` unchanged → nothing delivered, store not pushed), then a real run (exit 0, `dist/` unchanged: no commit to `main`, no PR, no release; the store pushed with the deploy key, commit `Store 2026-10-12 (update, exit 0)` with `last-complete-update.json` at 2026-10-12); the `release.yml` dry run comes with the first publish (procedure item 4), since `release -- pack` needs the README of Step 19.
-- **Open points**:
-  - when `main` becomes protected (the repository is private on GitHub Free today, so the workflows push to `main` with `GITHUB_TOKEN`): decide how the data commits reach it (bypass for GitHub Actions, GitHub App, or the PR for every update). PRs and pushes made with `GITHUB_TOKEN` do not trigger `test.yml`, so a required check would never run on the `data-update` PR without a GitHub App or a PAT. The repository setting enabled in step 2 of the maintainer procedure ("Allow GitHub Actions to create and approve pull requests") also lets a workflow approve PRs with `GITHUB_TOKEN`: when required reviews are introduced, an approval from Actions must not count (or the setting must be revisited).
-
-### Step 19 — Documentation — DONE
-
-- **Deliverables**:
-  - README covering: purpose; scope and perimeter; what is published and what is not (D39: territories only, no ISTAT history, no ISTAT ids, no synchronisation files); de iure dates; inclusive `valid_until`; file formats; entity id format and stability (D42), versions identified by `(entity id, valid_from)` (D40); link kinds (`merged_into`, `split_into`, `detached_into`); resolution to the current territory (§7: for municipalities, automatic only with a single current successor and no former Italian successor, direct or indirect; provinces and regions through the municipalities, whose versions carry `province_id` and `region_id`; `current_successors` only on municipalities, D46); `is_former_italian` as "ceased because ceded abroad, directly or because all its successors were", not a measure of lost territory; the order of the entities in the files (by internal ISTAT id, `nk:` entities last) declared stable but presentation only, not part of the contract; bilingual names of regions and UTS (§4.2); update cadence; the npm version scheme as the date of the data.
-  - README: for versions with an 8xx `istat_code` (§3.5 item 17), the code must not be used to derive the province; use `province_id`.
-  - README: the date of the last data update (`data_version` of the internal `reports/meta.json`, the same date as the `YYYYMMDD` of the npm version), clearly visible near the top, updated automatically by every data release (`npm run release -- changelog`, Step 18, writes it between the `<!-- data-version -->` and `<!-- /data-version -->` markers of the README in the same commit as the data, reading it from `reports/meta.json`, which stays committed in the repository and is the only place the published data's date is recorded besides the npm version; a schemas release leaves it unchanged). The published files themselves carry no date.
-  - README: the internal reports (`reports/`) are mentioned only as part of the repository (for reviewers), not as part of the dataset.
-  - README: an explicit note that partial cessions of entities that continue to exist (Gorizia and Trieste in 1947, parts of territory passed between municipalities) are not represented in the public files (D39): the files describe which territories exist and how one ceased into others, not the flows of territory between surviving entities.
-  - README: licences: the data are CC BY 4.0 (`LICENSE-DATA`, the `LICENSE` of the npm package) and are an elaboration of ISTAT data (reconstructed and normalised from SITUAS, with their own identifiers), not ISTAT data as published; the generator is MIT (`LICENSE`).
-  - CONTRIBUTING: how to add an override and a fixture.
-  - CHANGELOG policy: one entry per release, written by `npm run release -- changelog` with the data (Step 18), only when the public files change; a developer whose change alters `dist/` runs it before committing (`test.yml` checks it).
-  - npm package (§9, §12.0): explicit `exports` (`./regions.json`, `./provinces.json`, `./municipalities.json`, `./schema/*.json`, `./package.json`) and TypeScript declarations generated from the JSON Schemas (`types/`, `.d.mts` for `import`, `.d.cts` for `require`), associated to the JSON files through the `types` condition; `pack` stages only the six published files of `dist/` (never other files of the directory); README: imports through the `exports`, reading the date of the data from the package version, TypeScript usage.
-  - Events dated after today ignored by the build until they take effect (D49, §6.9, §6.11), documented in the README conventions.
-- **Acceptance**: every public field documented with type and semantics (checked by `test/unit/readme.test.ts` against the published JSON Schemas); the declarations equal the public zod models (`test/unit/type-declarations.test.ts`, for both flavours); a consumer of the staged package type-checks with `nodenext` and `bundler` resolution, for `import` and `require`, and Node resolves the same `exports` at run time (`test/unit/release.test.ts`).
-- **Open points**:
-  - a JavaScript/TypeScript API on the data (queries by date, resolution to the current territory, §7) is not part of the dataset package, which ships only data and types: if it is ever made, it is a separate package depending on this one.
 
 ---
 
@@ -1328,12 +1146,12 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 | D25 | Three request scopes: host (pool, AIMD, rate limit), family (circuit breaker), endpoint (permanent validation errors) | Congestion is per server; heavy snapshots must not trip light reports; a schema change concerns one report and the run should collect all problems |
 | D26 | `ResponseValidationError` and `EndpointDisabledError` do not count for the circuit breaker (neither failure nor reset), do not reduce AIMD concurrency and never trigger `staleFallback`; AIMD and the circuit breaker react only to transport failures (429, 5xx, timeout, connection reset) and transient validation errors | A schema violation is neither congestion nor unavailability; stale data must not hide a blocking problem |
 | D27 | Internal adapters accept every event code of §2; each `(level, event code)` pair needs an explicit role/link rule when building variations, and a pair without a rule is blocking; coverage is checked against the pairs observed by the build (a build report, not stored data) | Per-level code sets are not documented by ISTAT; the vocabulary is closed by explicit rules, not by guessed sets |
-| D28 | Empty responses are transient only for snapshots and internal lists r1–r3; counts have exactly one row and zero is valid; empty r4–r6 are accepted by the client and produce a blocking anomaly on the single record (Step 7) | Short event ranges and event/detail reports are legitimately empty; a listed record without events is a data problem of that record, not of the transport |
+| D28 | Empty responses are transient only for snapshots and internal lists r1–r3; counts have exactly one row and zero is valid; empty r4–r6 are accepted by the client and produce a blocking anomaly on the single record (§6.8) | Short event ranges and event/detail reports are legitimately empty; a listed record without events is a data problem of that record, not of the transport |
 | D29 | Field differences between endpoints or periods are handled by explicit mappings per adapter; defaults for missing fields must be verified by an invariant | No silent guessing between field names; every fallback (e.g. `COD_PROV_STORICO ?? COD_UTS`) is checked (I7) |
 | D30 | Municipality codes with suffix ≥ 800 are exempt from the strict I7 prefix rule: the prefix must be a UTS code of some time, differences are `info`; an active municipality with an 8xx current code is a `warning` | ISTAT assigns 8xx codes retroactively to suppressed municipalities with the prefix of a later or earlier province; membership comes from `COD_PROV`/`COD_UTS` only |
 | D31 | A foreign state counterpart (`Stato estero`, no code) is allowed only in `AS`, `AN`, `CE`, `AQ` (an acquisition of territory from abroad, verified in r7); it is never resolved and never produces links; the participant carries the flag `abroad` (internal since D39) | Cessions and annexations involve territories outside the perimeter (D16), which have no entity; the flag keeps the information without inventing one |
 | D32 | Store manifests carry a `projection_version` per projection; only manifests with the current version are compared or used; a version change requires `rebuild --refetch` and is never retroactive. A refresh with the same content writes nothing; event-list change detection is semantic (rows compared by date range with everything the store knows, not with a previous manifest) | A projection change is a change of the generator, not of the data: it must neither look like an ISTAT correction nor mix rows of different shapes |
-| D33 | A cession abroad with partial transfers to Italian territories on the same day keeps its links (`merged_into`, the ceded entity ceases); the entity is former Italian (closed with `ceded`, a terminal point of `is_former_italian`); its `current_successors` are the parts that stayed Italian and are never used for automatic migration (§7) | Verified on 1947-09-16 (Tenda, Briga Marittima and four municipalities of Gorizia): the domestic flows are real and must not be lost, but the entity itself went abroad |
+| D33 | A cession abroad with partial transfers to Italian territories on the same day keeps its links (`merged_into`, the ceded entity ceases); the entity is former Italian (closed with `ceded`, a terminal point of `is_former_italian`); its `current_successors` are the parts that stayed Italian and are never used for automatic resolution (§7) | Verified on 1947-09-16 (Tenda, Briga Marittima and four municipalities of Gorizia): the domestic flows are real and must not be lost, but the entity itself went abroad |
 | D34 | A UTS version boundary where only the abbreviation changes, without an event, is a `warning` (`abbreviation-change-without-event`) with an `inferred` variation, never blocking | Abbreviations (vehicle plates) are not ISTAT acts: they change without events (Forlì-Cesena `FO` → `FC`, Pesaro e Urbino `PS` → `PU` on 1999-01-01) |
 | D35 | Within one identity component, a `CSCT` on `d` pairs with the member whose interval ends on `d`, whatever its own events (`ESCT`, `ES` or none): a type-change alias, one entity; silent when documented by an `ESCT` or confirmed by the public lists, otherwise `warning` | ISTAT records the 1948 type changes of the compartments inconsistently (Piemonte `ES` + `CSCT`, Venezia Tridentina no event + `CSCT`), while pfun 106/107 show them as `ESCT`/`CSCT` |
 | D36 | Overrides are applied to the values of every day before contiguous days are merged into versions; they may remove version boundaries but never create one (`override-creates-boundary`, blocking) | A correction must not invent history: it can only make the published data match what ISTAT reports on the neighbouring days (Littoria `LT` in 1934) |
@@ -1345,7 +1163,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 | D42 | Entity ids are strings `<prefix>-<code>` (`reg`, `prv`, `mun`; 6 Crockford base32 characters from 30 bits of the SHA-256 of `<level>|<natural key>`, the key with which the entity first enters the registry; collisions checked per level); on a collision with another key the next 30-bit window of the hash is used, deterministically; the registry keeps the id, which never changes, even when the natural key changes (remap) | Readable, typed by level, unique across the dataset, independent of ISTAT numbering and of the order of assignment of a counter; derived from data rather than from a counter, but frozen by the registry |
 | D43 | A public row without act whose link `(date, level, from, to)` already exists in a variation with an act is explained by that variation and forms no `nk:` variation (`link-explained-by-act`, `info`) | The same flow reported twice (pfun 106 `ESCT` rows of 1948 next to act 6107) duplicated the predecessors of Valle d'Aosta and Friuli-Venezia Giulia |
 | D44 | Public link kinds: `split_into` when the origin ceases and its territory goes to several destinations on the same date (all variations of that date), `merged_into` for a single destination, `detached_into` unchanged; `transferred_to` stays internal (never in predecessors or successors); links are `{ id, kind, date }` without `variation_id` | Consumers must know whether a suppressed entity has one heir or several without counting links; variations are internal (D39) |
-| D45 | Resolution to the current territory (§7): automatic only when `current_successors` has exactly one element and no successor, direct or indirect, has `is_former_italian: true`; otherwise user supervision. No dedicated field (`partially_ceded`, introduced on 2026-10-08, removed on 2026-10-09) | The rule follows from the public data alone; a field duplicating it would be one more derived value to keep consistent. Occisla-Clanzo has a single current successor, but part of its territory ended in a municipality ceded in 1947: an automatic migration could move a reference that belongs to the ceded part |
+| D45 | Resolution to the current territory (§7): automatic only when `current_successors` has exactly one element and no successor, direct or indirect, has `is_former_italian: true`; otherwise user supervision. No dedicated field (`partially_ceded`, introduced on 2026-10-08, removed on 2026-10-09) | The rule follows from the public data alone; a field duplicating it would be one more derived value to keep consistent. Occisla-Clanzo has a single current successor, but part of its territory ended in a municipality ceded in 1947: an automatic resolution could move a reference that belongs to the ceded part |
 | D46 | `current_successors` only for municipalities (the closure of the links as before); regions and provinces keep `predecessors`, `successors` and `is_former_italian`; a reference to a province or region is resolved through the municipalities (§7) | For provinces and regions the closure of the links does not describe where the territory went (a reorganisation spreads a province over several others by its municipalities, not by the links of the act), and the real use goes through the municipalities, whose versions carry `province_id` and `region_id` |
 | D47 | The store lives in a separate repository (`italian-territories-store`, history kept, shallow clone in CI, pushed with a deploy key); every release starts from `release.yml` (push to `main` or `workflow_dispatch`), tagged `v<npm version>`, published to npm with trusted publishing; the CHANGELOG entry is written with the data, in the same commit or PR; a single `data-update` PR for every data run that cannot go straight to `main`, and no direct data commit while it is open | A clone of the project must not download the store (3.3 GB on disk); npm trusted publishing checks the workflow the run starts from and `GITHUB_TOKEN` pushes trigger no workflow, so one entry point for every release; a schemas release shares the `data_version` of the data release, so the tag carries the whole version; every run regenerates the whole output, so one PR with the latest output is never stale |
 | D48 | A public row without an exact internal event (same `(date, entity, event code)`) is matched to the internal event of an equivalent code, from a closed table of pairs with the same rule (`RN` ↔ `RNAPUTS` for municipalities), only when unique for `(date, entity)` (one act, one code, not taken by rows of another code), otherwise `blocking`; the variation keeps the public code and the matches are one aggregated `info` (`event-code-mismatch`) | SITUAS reclassified the public rows of act 6151 (`RNAPUTS` → `RN`, 2026-10-12) without changing r6: without the match, 66 renumberings left the act and became variations without act. A closed table keeps the match explicit and reviewable; the public list stays the source of truth (§3) |
@@ -1353,7 +1171,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 
 ---
 
-## 14. Repository layout (proposed)
+## 14. Repository layout
 
 ```
 .
@@ -1396,7 +1214,7 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 │   └── golden/
 ├── scripts/
 │   ├── fixtures-fetch.ts      # §11.2 fixtures
-│   └── release.ts             # CHANGELOG entry, release checks, npm package staging (Step 18)
+│   └── release.ts             # CHANGELOG entry, release checks, npm package staging (§9)
 ├── CHANGELOG.md
 ├── LICENSE                    # MIT, the generator
 ├── LICENSE-DATA               # CC BY 4.0, the data (the npm package's LICENSE)
@@ -1404,6 +1222,14 @@ Implemented on the first published model, reopened by its revision (2026-10-08, 
 │   ├── actions/store/         # clone and push of the italian-territories-store repository
 │   └── workflows/
 └── docs/
-    ├── GENERATOR_IMPLEMENTATION_PLAN.md
+    ├── SPECIFICATION.md
     └── sources/               # API documentation notes (public and internal SITUAS)
 ```
+
+---
+
+## 15. Open points
+
+- **Protection of `main`**: when `main` becomes protected (the repository is private on GitHub Free today, so the workflows push to `main` with `GITHUB_TOKEN`): decide how the data commits reach it (bypass for GitHub Actions, GitHub App, or the PR for every update). PRs and pushes made with `GITHUB_TOKEN` do not trigger `test.yml`, so a required check would never run on the `data-update` PR without a GitHub App or a PAT. The repository setting enabled in the one-time setup of §10.5 ("Allow GitHub Actions to create and approve pull requests") also lets a workflow approve PRs with `GITHUB_TOKEN`: when required reviews are introduced, an approval from Actions must not count (or the setting must be revisited).
+- **JavaScript/TypeScript API**: a JavaScript/TypeScript API on the data (queries by date, resolution to the current territory, §7) is not part of the dataset package, which ships only data and types: if it is ever made, it is a separate package depending on this one.
+- **Retroactive corrections of internal reports**: corrections present only in the internal reports (r4–r6), on records the public lists do not touch, are detected by no automatic run (`update` refreshes r4–r6 only for records newly listed or whose code appears in added or removed event-list rows, and `audit` refreshes only the sampled snapshots, §6.8), only by a local `rebuild --refetch` (§10.5). Possible solutions: an audit that also samples internal records, or a documented cadence for the manual refetch.

@@ -1,6 +1,6 @@
 name: Data output
 description: >-
-  Delivers the output of a data run (§10.3, Step 18): with a changed dist/ it writes the CHANGELOG
+  Delivers the output of a data run (§10.3): with a changed dist/ it writes the CHANGELOG
   entry and checks it, then commits to main and starts release.yml, or force-pushes the
   data-update branch and creates or updates its PR. reports/, registry/ and the CHANGELOG are
   delivered only together with dist/. Runs only after exit 0 or 2.
@@ -59,7 +59,7 @@ runs:
         {
           echo "target=$target"
           echo "data-version=$data_version"
-          # The files a data run may change (the README only once it exists, Step 19).
+          # The files a data run may change (the README only once it exists).
           echo 'paths<<EOF'
           printf '%s\n' dist reports registry CHANGELOG.md
           if [ -f README.md ]; then echo README.md; fi

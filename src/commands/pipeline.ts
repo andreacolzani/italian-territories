@@ -1,5 +1,5 @@
 /**
- * The data commands (§10.1–§10.2, Step 17): `bootstrap`, `update`, `rebuild [--refetch]` and
+ * The data commands (§10.1–§10.2): `bootstrap`, `update`, `rebuild [--refetch]` and
  * `audit`. Every run executes the whole pipeline: sources (§6.1–§6.3) → calendar (d) → audit
  * (update only) → snapshots and completeness (e) → build → invariants → emit. There is no shortcut
  * for "nothing changed": a new generator, an override or the registry may change the output, so the
@@ -241,7 +241,7 @@ function calendarContributions(
     contributions.push(internalEventsContribution(report, rows));
   }
   if (anpr !== null) contributions.push(...anprContributions(anpr));
-  // Inferred breakpoints are kept across runs (Step 17); Step 6 drops those no longer confirmed.
+  // Inferred breakpoints are kept across runs (§10.4); the snapshot stage drops those no longer confirmed (§6.5).
   if (previous !== undefined) {
     const inferred = [...previous.dates].filter(([, s]) => s.includes('inferred')).map(([d]) => d);
     contributions.push({ source: 'inferred', dates: inferred });

@@ -1,6 +1,6 @@
 /**
- * Worlds for version tests: identity resolution of each level (Step 9), registry ids for the
- * entities, then the version builder (Step 10), from the regions down to the municipalities.
+ * Worlds for version tests: identity resolution of each level, registry ids for the
+ * entities, then the version builder, from the regions down to the municipalities.
  */
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import {
@@ -50,7 +50,7 @@ export interface BuiltWorld {
   identified: { [L in Level]: IdentifiedEntity<L>[] };
   /** The registry of the build (in memory: its directory is removed). */
   registry: Registry;
-  /** Anomalies of identity resolution (Step 9). */
+  /** Anomalies of identity resolution. */
   identityAnomalies: AnomalyCollector;
   /** Anomalies of the version builder only (overrides included). */
   anomalies: AnomalyCollector;

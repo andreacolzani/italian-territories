@@ -2,7 +2,7 @@
  * `reports/changes.json` (§9): the diff between the previous release and the current one: entities
  * by id and versions by `(entity id, valid_from)` (D40) for every level, variations by id.
  *
- * Retroactivity is decided by the **days** whose published state changes (Step 16): an item is
+ * Retroactivity is decided by the **days** whose published state changes (§9): an item is
  * retroactive iff it changes a day before the previous release's `data_version`. `affected_from`
  * (updated and removed items) is the first such day:
  *

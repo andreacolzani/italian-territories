@@ -1,5 +1,5 @@
 /**
- * Override applier (§6.10): applied by the version builder (Step 10) to the values of every day,
+ * Override applier (§6.10): applied by the version builder to the values of every day,
  * **before** contiguous pieces with equal fields are merged into versions.
  *
  * An override replaces its field on the days of its target period on which the UTS has its target

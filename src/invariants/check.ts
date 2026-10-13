@@ -42,8 +42,8 @@ export interface InvariantResult {
 
 export interface CheckInvariantsOptions {
   /**
-   * Monotonic milliseconds, read only to time each check (Step 17 run summary). The invariants
-   * never read the clock themselves (§12.0).
+   * Monotonic milliseconds, read only to time each check (run summary, §10.4). The invariants
+   * never read the clock themselves (§12).
    */
   now?: () => number;
 }

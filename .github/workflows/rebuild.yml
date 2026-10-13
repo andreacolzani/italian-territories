@@ -2,7 +2,7 @@ name: Rebuild
 
 # The offline rebuild from the store (no network): it reproduces the last run with the current
 # generator, overrides and registry, and always delivers its output as the data-update PR.
-# `rebuild --refetch` (about 8 hours) is run locally by the maintainer (Step 18).
+# `rebuild --refetch` (about 8 hours) is run locally by the maintainer (§10.5).
 on:
   workflow_dispatch:
     inputs:

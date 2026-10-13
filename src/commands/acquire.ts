@@ -1,5 +1,5 @@
 /**
- * Source acquisition of the data commands (§10.1–§10.2, Step 17): public event lists, internal
+ * Source acquisition of the data commands (§10.1–§10.2): public event lists, internal
  * crawl, ANPR and counts, each stored (§6.3) and read back from the store, so an offline `rebuild`
  * sees exactly what an online run saw.
  *
@@ -120,7 +120,7 @@ export async function acquireEventLists(
   return { lists: lists as unknown as EventListsByLevel, touchedCodes, earliestChange };
 }
 
-/** Stage 2: the internal crawl, with the mandatory refreshes of the mode (§6.1, Step 7). */
+/** Stage 2: the internal crawl, with the mandatory refreshes of the mode (§6.1, §6.8). */
 export async function acquireInternal(
   ctx: RunContext,
   mode: RunMode,

@@ -1,5 +1,5 @@
 /**
- * Derived fields on real SITUAS fixtures (§7, Step 13): the Quero → Quero Vas → Setteville chain,
+ * Derived fields on real SITUAS fixtures (§7): the Quero → Quero Vas → Setteville chain,
  * Sud Sardegna split into several successors (golden-4), Fiume (golden-9), partial cessions abroad
  * (golden-18), Tenda (golden-19) and Sassofeltrio active after a gap (golden-2).
  *

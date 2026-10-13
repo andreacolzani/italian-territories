@@ -1,5 +1,5 @@
 /**
- * Exit codes of the data commands (Step 17), mapped from anomaly codes, never from messages:
+ * Exit codes of the data commands (§10.4), mapped from anomaly codes, never from messages:
  * `0` success; `1` blocking anomalies; `2` retroactive changes (a PR is required); `3` a source is
  * unavailable (timeouts, connection errors, 5xx or 429 after exhausted retries, open circuit).
  *
@@ -15,7 +15,7 @@ import type { Anomaly } from '../model/internal.ts';
 export const EXIT_CODES = { success: 0, blocking: 1, retroactive: 2, unavailable: 3 } as const;
 export type ExitCode = (typeof EXIT_CODES)[keyof typeof EXIT_CODES];
 
-/** Source families whose failures the commands report by cause (besides the snapshots, Step 6). */
+/** Source families whose failures the commands report by cause (besides the snapshots, §6.5). */
 export const SOURCE_FAILURE_PREFIXES = {
   eventList: 'event-list',
   count: 'count',

@@ -1,5 +1,5 @@
 /**
- * The last complete update (Step 18): `last-complete-update.json` in the store, the `today` of the
+ * The last complete update (§10.4): `last-complete-update.json` in the store, the `today` of the
  * last pipeline run (`bootstrap`, `update`, `rebuild`) that ended with exit 0 or 2. The workflows
  * read it from the run summary to fail a run whose sources have been unavailable (exit 3) for too
  * long. It travels with the store, so it survives across CI runs.

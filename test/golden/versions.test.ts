@@ -1,11 +1,11 @@
 /**
- * Versions on real SITUAS fixtures (§4.2, §6.9, Step 10): golden 2, 3, 5, 10, 11, 12, 15, 16, plus
+ * Versions on real SITUAS fixtures (§4.2, §6.9): golden 2, 3, 5, 10, 11, 12, 15, 16, plus
  * the pre-1948 abbreviations of the full 1921 world.
  *
  * Worlds of non-consecutive dates are reduced to a few codes per level (`snapshotIndex`), so the
  * changes of the other territories in between do not enter the test. Their identity anomalies
- * (rootless entities without internal data, transitions of the reduced world) are Step 9's
- * subject: these tests only look at the anomalies of the version builder.
+ * (rootless entities without internal data, transitions of the reduced world) belong to
+ * the identity tests: these tests only look at the anomalies of the version builder.
  */
 import { describe, expect, it } from 'vitest';
 import type { IsoDate } from '../../src/dates/index.ts';

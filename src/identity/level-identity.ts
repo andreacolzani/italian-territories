@@ -1,5 +1,5 @@
 /**
- * Identity resolution of one level (§6.7, Step 9): the inputs of the transition matcher built from
+ * Identity resolution of one level (§6.7): the inputs of the transition matcher built from
  * the sources of that level, then the entities with their ISTAT origin ids.
  *
  * - Municipalities: explanations and renames from the public lists 98 (`ES`, `AS`), 100 (`CS`,
@@ -34,7 +34,7 @@ export type LevelEventLists<L extends Level> = Partial<Record<EventListPfunOf<L>
 export interface LevelIdentityOptions<L extends Level> {
   level: L;
   index: IntervalIndex<L>;
-  /** `null` when the level was not crawled or its list could not be obtained (Step 7). */
+  /** `null` when the level was not crawled or its list could not be obtained. */
   internal: InternalIdentity | null;
   /** Why the level's internal data is incomplete (`internal-data-required`, default `absent`). */
   internalCause?: InternalDataCause;

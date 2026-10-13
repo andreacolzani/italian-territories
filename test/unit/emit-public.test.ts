@@ -145,7 +145,7 @@ describe('internal → public model (§4, §6.12)', () => {
     ]);
   });
 
-  it('refuses undetermined fields (Step 10, §4.2 names) and variations without any effect', () => {
+  it('refuses undetermined fields (§6.9, §4.2 names) and variations without any effect', () => {
     const nullAbbreviation = world();
     versionOf(nullAbbreviation, 'province', 1, START).abbreviation = null;
     expect(() => toPublicData(nullAbbreviation)).toThrow(EmitError);

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
+import { generateJsonSchemas } from '../../src/model/json-schema.ts';
 import type { Changes, Meta } from '../../src/model/reports.ts';
 import {
   changelog,
@@ -16,6 +17,7 @@ import {
   ReleaseError,
   type ChangelogEntry,
 } from '../../scripts/release.ts';
+import { BUNDLER, NODE_NEXT, typeErrors } from '../helpers/typescript.ts';
 
 const META: Meta = {
   schema_version: '1.0.0',
@@ -61,8 +63,14 @@ async function project(options: { readme?: string | null; licence?: boolean } = 
   roots.push(root);
   await mkdir(join(root, 'reports'));
   await mkdir(join(root, 'dist', 'schema'), { recursive: true });
-  await writeFile(join(root, 'dist', 'regions.json'), '[]\n');
-  await writeFile(join(root, 'dist', 'schema', 'regions.schema.json'), '{}\n');
+  for (const name of ['regions', 'provinces', 'municipalities']) {
+    await writeFile(join(root, 'dist', `${name}.json`), '[]\n');
+  }
+  for (const [file, schema] of Object.entries(generateJsonSchemas())) {
+    await writeFile(join(root, 'dist', 'schema', file), `${JSON.stringify(schema, null, 2)}\n`);
+  }
+  // Not a published file: never staged.
+  await writeFile(join(root, 'dist', '.gitkeep'), '');
   await writeFile(join(root, CHANGELOG), '# Changelog\n\nAll notable changes.\n');
   if (options.readme !== null) {
     await writeFile(
@@ -182,31 +190,131 @@ describe('check', () => {
 });
 
 describe('pack', () => {
-  it('stages dist/, the README, the data licence and a generated package.json', async () => {
+  const entry = (name: string) => ({
+    types: { import: `./types/${name}.d.mts`, require: `./types/${name}.d.cts` },
+    default: `./dist/${name}.json`,
+  });
+
+  it('stages the published files, their type declarations, the README, the data licence and a package.json', async () => {
     const root = await project();
     await changelog(root);
     const dir = join(root, 'staged');
     expect(await pack(root, dir)).toBe('1.20261007.0');
-    expect((await readdir(dir)).sort()).toEqual(['LICENSE', 'README.md', 'dist', 'package.json']);
-    expect((await readdir(join(dir, 'dist'), { recursive: true })).sort()).toEqual([
-      'regions.json',
-      'schema',
-      join('schema', 'regions.schema.json'),
+    expect((await readdir(dir)).sort()).toEqual(['LICENSE', 'README.md', 'dist', 'package.json', 'types']);
+    expect((await readdir(join(dir, 'dist'), { recursive: true })).sort()).toEqual(
+      [
+        'municipalities.json',
+        'provinces.json',
+        'regions.json',
+        'schema',
+        join('schema', 'municipalities.schema.json'),
+        join('schema', 'provinces.schema.json'),
+        join('schema', 'regions.schema.json'),
+      ].sort(),
+    );
+    expect((await readdir(join(dir, 'types'))).sort()).toEqual([
+      'municipalities.d.cts',
+      'municipalities.d.mts',
+      'provinces.d.cts',
+      'provinces.d.mts',
+      'regions.d.cts',
+      'regions.d.mts',
     ]);
     expect(await readFile(join(dir, 'LICENSE'), 'utf8')).toBe('CC BY 4.0\n');
     const manifest = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')) as Record<string, unknown>;
     expect(manifest).toEqual({
       name: 'italian-territories',
       version: '1.20261007.0',
-      description: 'Territories',
+      description:
+        'Day-accurate historical dataset of Italian regions, provinces and municipalities from 1861 to today, from ISTAT SITUAS, with TypeScript types.',
+      keywords: [
+        'italy',
+        'istat',
+        'municipalities',
+        'comuni',
+        'province',
+        'regioni',
+        'dataset',
+        'historical',
+        'codici-istat',
+        'codice-catastale',
+      ],
       license: 'CC-BY-4.0',
       repository: { type: 'git', url: 'git+https://example.org/repo.git' },
       homepage: 'https://example.org',
       bugs: { url: 'https://example.org/issues' },
-      files: ['dist/'],
+      files: ['dist/', 'types/'],
+      exports: {
+        './regions.json': entry('regions'),
+        './provinces.json': entry('provinces'),
+        './municipalities.json': entry('municipalities'),
+        './schema/*.json': './dist/schema/*.json',
+        './package.json': './package.json',
+      },
     });
     // Never into a directory holding something else.
     await expect(pack(root, dir)).rejects.toThrow(/not empty/);
+  });
+
+  it('serves the files and their types through exports, to import and require', async () => {
+    const root = await project();
+    await changelog(root);
+    const consumer = join(root, 'consumer');
+    await pack(root, join(consumer, 'node_modules', 'italian-territories'));
+    await writeFile(join(consumer, 'package.json'), '{ "type": "module" }\n');
+    await writeFile(
+      join(consumer, 'esm.ts'),
+      [
+        "import municipalities from 'italian-territories/municipalities.json' with { type: 'json' };",
+        "import provinces from 'italian-territories/provinces.json' with { type: 'json' };",
+        "import regions from 'italian-territories/regions.json' with { type: 'json' };",
+        "import type { Municipality, MunicipalityVersion, Link } from 'italian-territories/municipalities.json';",
+        "import pkg from 'italian-territories/package.json' with { type: 'json' };",
+        "import schema from 'italian-territories/schema/regions.schema.json' with { type: 'json' };",
+        'const all: Municipality[] = municipalities;',
+        'const version: MunicipalityVersion | undefined = all[0]?.versions[0];',
+        'const until: string | null | undefined = version?.valid_until;',
+        'const links: Link[] | undefined = all[0]?.successors;',
+        "const type: 'province' | 'autonomous_province' | 'metropolitan_city' | 'free_municipal_consortium' | 'non_administrative_unit' | undefined = provinces[0]?.versions[0]?.type;",
+        'console.log(JSON.stringify([all.length, regions.length, until ?? null, links ?? null, type ?? null, pkg.version, schema.title]));',
+        '',
+      ].join('\n'),
+    );
+    await writeFile(
+      join(consumer, 'cjs.cts'),
+      [
+        "import municipalities = require('italian-territories/municipalities.json');",
+        'const all: municipalities.Municipality[] = municipalities;',
+        'console.log(JSON.stringify([all.length]));',
+        '',
+      ].join('\n'),
+    );
+    const esm = join(consumer, 'esm.ts');
+    expect(typeErrors([esm, join(consumer, 'cjs.cts')], { ...NODE_NEXT, resolveJsonModule: true })).toEqual([]);
+    expect(typeErrors([esm], BUNDLER)).toEqual([]);
+    // At run time Node resolves the same exports (the declarations are never loaded).
+    const node = (script: string) =>
+      promisify(execFile)(process.execPath, ['--input-type=module', '-e', script], { cwd: consumer });
+    const { stdout } = await node(
+      [
+        "import m from 'italian-territories/municipalities.json' with { type: 'json' };",
+        "import pkg from 'italian-territories/package.json' with { type: 'json' };",
+        "import { createRequire } from 'node:module';",
+        'const r = createRequire(import.meta.url);',
+        "console.log(JSON.stringify([m, pkg.version, r('italian-territories/regions.json'), r('italian-territories/schema/provinces.schema.json').title]));",
+      ].join('\n'),
+    );
+    expect(JSON.parse(stdout)).toEqual([[], '1.20261007.0', [], 'Provinces']);
+    await expect(node("import 'italian-territories/types/regions.d.mts';")).rejects.toThrow(
+      /not exported|NOT_EXPORTED/,
+    );
+  });
+
+  it('fails without a published file', async () => {
+    const root = await project();
+    await changelog(root);
+    await rm(join(root, 'dist', 'schema', 'provinces.schema.json'));
+    await expect(pack(root, join(root, 'staged'))).rejects.toThrow(/provinces\.schema\.json is missing/);
   });
 
   it('fails without the README or the data licence', async () => {
@@ -268,7 +376,7 @@ describe('deliveryTarget', () => {
 
   it('sees a new file in dist/ and refuses the exit codes without delivery', async () => {
     const root = await repository();
-    await writeFile(join(root, 'dist', 'provinces.json'), '[]\n');
+    await writeFile(join(root, 'dist', 'schema', 'new.schema.json'), '[]\n');
     expect(await deliveryTarget(root, { exitCode: 0, allowMain: true, openPrs: 0 })).toBe('main');
     for (const exitCode of [1, 3]) {
       await expect(deliveryTarget(root, { exitCode, allowMain: true, openPrs: 0 })).rejects.toThrow(ReleaseError);

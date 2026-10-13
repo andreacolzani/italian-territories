@@ -44,11 +44,14 @@
  *    `inferred-breakpoint`) gets an `inferred` variation (`inferred:<date>:<level>:<entity id>`);
  *    any other uncovered boundary is `blocking` (`version-boundary-unexplained`).
  *
+ * Events dated after `today` (public rows or internal events) are ignored: they enter the build on
+ * the day they take effect (dropped as `future`, one aggregated `info`, `future-event-ignored`).
+ *
  * Every event row is accounted for (I14): represented in a variation, or dropped with a reason.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { canonicalJson } from '../http/index.ts';
-import { compareDates, containsDate, previousDay, type IsoDate } from '../dates/index.ts';
+import { compareDates, containsDate, isAfter, previousDay, type IsoDate } from '../dates/index.ts';
 import type { CrawledEvent } from '../enrich/index.ts';
 import {
   keyOf,
@@ -104,6 +107,8 @@ export interface BuildVariationsOptions {
   levels: { [L in Level]?: VariationLevelInput<L> };
   /** First calendar date: versions starting on it open no variation (`PV`, I9). */
   start: IsoDate;
+  /** Reference date of the run: events dated after it are ignored (dropped as `future`). */
+  today: IsoDate;
   /** Calendar dates whose only source is an inferred breakpoint (Step 6). */
   inferredDates: ReadonlySet<IsoDate>;
   anomalies: AnomalyCollector;
@@ -114,7 +119,14 @@ export interface VariationDraft extends Omit<Variation, 'id'> {
   key: string;
 }
 
-export const DROP_REASONS = ['first-validity', 'no-effect', 'unresolved', 'unknown-entity', 'rule-missing'] as const;
+export const DROP_REASONS = [
+  'first-validity',
+  'no-effect',
+  'unresolved',
+  'unknown-entity',
+  'rule-missing',
+  'future',
+] as const;
 export type DropReason = (typeof DROP_REASONS)[number];
 
 /** What became of one event row (I14). */
@@ -162,6 +174,8 @@ export const VARIATION_ANOMALIES = {
   eventCodeMismatch: 'event-code-mismatch',
   /** A public row whose equivalent internal events are not unique, or claimed by another code (`blocking`, D48). */
   equivalenceAmbiguous: 'event-code-equivalence-ambiguous',
+  /** Events dated after today, ignored until they take effect (`info`, one aggregated anomaly). */
+  futureEvent: 'future-event-ignored',
 } as const;
 
 const INTERNAL_SOURCES: Readonly<Record<Level, string>> = {
@@ -281,7 +295,29 @@ export function buildVariations(options: BuildVariationsOptions): VariationBuild
   const mismatches = new Map<string, CodeMismatch>();
   const facts: Fact[] = [];
   for (const [level, { input, entities }] of levels) {
-    facts.push(...levelFacts(level, input, entities, accounts, missingRules, selfReferences, mismatches, anomalies));
+    facts.push(
+      ...levelFacts(
+        level,
+        input,
+        entities,
+        options.today,
+        accounts,
+        missingRules,
+        selfReferences,
+        mismatches,
+        anomalies,
+      ),
+    );
+  }
+  const future = accounts.filter((a) => a.dropped === 'future');
+  if (future.length > 0) {
+    const items = future.map(({ source, index, level, event, date }) => ({ source, index, level, event, date }));
+    anomalies.add({
+      level: 'info',
+      code: VARIATION_ANOMALIES.futureEvent,
+      message: `${future.length} events dated after ${options.today} ignored until they take effect`,
+      context: { count: future.length, today: options.today, items },
+    });
   }
   if (mismatches.size > 0) {
     const items = [...mismatches.values()];
@@ -338,6 +374,7 @@ function levelFacts(
   level: Level,
   input: VariationLevelInput<Level>,
   entities: LevelEntities,
+  today: IsoDate,
   accounts: EventAccount[],
   missingRules: Map<string, { level: Level; event: IstatEventCode; count: number; source: string }>,
   selfReferences: SelfReference[],
@@ -400,6 +437,10 @@ function levelFacts(
   const source = INTERNAL_SOURCES[level];
   (input.internal ?? []).forEach((e, index) => {
     const row = account(source, index, e.event, e.date);
+    if (isAfter(e.date, today)) {
+      row.dropped = 'future';
+      return;
+    }
     const rule = ruleOf(e.event, source);
     if (rule === undefined) {
       row.dropped = 'rule-missing';
@@ -494,6 +535,10 @@ function levelFacts(
     const listSource = `events:pfun-${pfun}`;
     (lists[pfun] ?? []).forEach((row, index) => {
       const entry = account(listSource, index, row.event, row.date);
+      if (isAfter(row.date, today)) {
+        entry.dropped = 'future';
+        return;
+      }
       const rule = ruleOf(row.event, listSource);
       if (rule === undefined) {
         entry.dropped = 'rule-missing';

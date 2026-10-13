@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+One entry per release of the dataset, written by `npm run release -- changelog` together with the data: a release happens only when the public files (`dist/`) change. Versions are `MAJOR.YYYYMMDD.PATCH`, where `YYYYMMDD` is the date of the data (see the README).
 
 ## [1.20261007.0] - 2026-10-07
 

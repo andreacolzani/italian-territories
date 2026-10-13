@@ -43,10 +43,22 @@
  * - one day either way: `info` (off by one).
  *
  * Consecutive contiguous ANPR rows of one key with identical attributes are `info` (split rows).
+ *
+ * **As of today.** The data stop at `today`, so ANPR is compared only up to it: rows starting after
+ * `today` are ignored and rows ending after it are open (an event ANPR already records takes effect
+ * on its date, like the SITUAS events). Anomalies still identify the rows as stored.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareEnds, cover } from '../build/timeline.ts';
-import { compareDates, covers, daysBetween, overlaps, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
+import {
+  compareDates,
+  covers,
+  daysBetween,
+  isAfter,
+  overlaps,
+  type HalfOpenInterval,
+  type IsoDate,
+} from '../dates/index.ts';
 import type {
   Dated,
   DerivedFields,
@@ -120,6 +132,8 @@ export function crossCheckAnpr(options: {
   /** After the derived fields (§7). */
   municipalities: readonly CrossCheckMunicipality[];
   provinces: readonly ProvinceEntity[];
+  /** Reference date of the run: ANPR is compared only up to it. */
+  today: IsoDate;
   anomalies: AnomalyCollector;
 }): void {
   const { anomalies } = options;
@@ -132,7 +146,7 @@ export function crossCheckAnpr(options: {
   };
 
   const historicalCodes = new Map(options.provinces.map((p) => [p.id, p.historicalCodes]));
-  const rows = [...options.anpr.rows].sort(compareAnprRecords);
+  const rows = asOf(options.anpr.rows, options.today).sort(compareAnprRecords);
   const rowsByCadastral = groupBy(
     rows.filter((r) => r.cadastralCode !== null),
     (r) => r.cadastralCode ?? '',
@@ -666,7 +680,23 @@ function describe({ validFrom, validTo }: HalfOpenInterval): string {
  * Identifies an ANPR row in anomaly contexts: its store row hash (§6.3; unique, unlike the other
  * fields when ANPR repeats a row) and the fields a reader needs to find it.
  */
-function rowRef(row: AnprRecord) {
+/** The stored row of each row clipped by `asOf`: anomalies identify rows as stored. */
+const STORED = new WeakMap<AnprRecord, AnprRecord>();
+
+/** The rows as of `today`: those starting after it are dropped, those ending after it are open. */
+function asOf(rows: readonly AnprRecord[], today: IsoDate): AnprRecord[] {
+  return rows
+    .filter((row) => !isAfter(row.validFrom, today))
+    .map((row) => {
+      if (row.validTo === null || !isAfter(row.validTo, today)) return row;
+      const open = { ...row, validTo: null };
+      STORED.set(open, row);
+      return open;
+    });
+}
+
+function rowRef(clipped: AnprRecord) {
+  const row = STORED.get(clipped) ?? clipped;
   return {
     hash: rowHash(anprRecord(row)),
     istatCode: row.istatCode,
@@ -676,7 +706,8 @@ function rowRef(row: AnprRecord) {
   };
 }
 
-function rowSummary(row: AnprRecord) {
+function rowSummary(clipped: AnprRecord) {
+  const row = STORED.get(clipped) ?? clipped;
   return {
     hash: rowHash(anprRecord(row)),
     validFrom: row.validFrom,

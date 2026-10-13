@@ -167,6 +167,7 @@ export async function buildDataset(
       municipality: levelInput('municipality'),
     },
     start: input.calendar.start,
+    today,
     inferredDates,
     anomalies,
   });
@@ -193,6 +194,7 @@ export async function buildDataset(
       anpr: { rows: input.anpr },
       municipalities: entities.municipality,
       provinces: overridden.provinces,
+      today,
       anomalies,
     });
     recordGolden14(ctx, entities.municipality, anomalies);

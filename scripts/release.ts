@@ -10,9 +10,11 @@
  * - `check`: the first CHANGELOG entry (and the README date) match `reports/meta.json`.
  * - `version`: prints the version of the first entry (after `check`).
  * - `notes`: prints the first entry without its heading (the GitHub Release notes).
- * - `pack <dir>`: stages the npm package in `<dir>` (empty or missing): `dist/`, `README.md`, the
- *   data licence as `LICENSE` and a generated `package.json`. The root `package.json` stays
- *   private: only the staged directory is published.
+ * - `pack <dir>`: stages the npm package in `<dir>` (empty or missing): the published files of
+ *   `dist/` (data and JSON Schemas), their TypeScript declarations in `types/` (generated from
+ *   the schemas), `README.md`, the data licence as `LICENSE` and a generated `package.json` whose
+ *   `exports` map each data file to its declarations. No executable code. The root
+ *   `package.json` stays private: only the staged directory is published.
  * - `target <exit-code> <allow-main> <open-prs>`: where the output of a data run goes (`none`,
  *   `main` or `pr`, §10.3), decided by `dist/` only: `reports/`, `registry/` and the CHANGELOG
  *   are delivered only together with a change of `dist/`.
@@ -26,7 +28,9 @@ import { cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { z } from 'zod';
+import { PUBLIC_FILE_MODELS, schemaFileName, type PublicFileName } from '../src/model/json-schema.ts';
 import { changesSchema, metaSchema, type Changes, type Meta } from '../src/model/reports.ts';
+import { typeDeclarations } from '../src/model/typescript.ts';
 
 export const CHANGELOG_FILE = 'CHANGELOG.md';
 export const README_FILE = 'README.md';
@@ -319,8 +323,32 @@ export async function pack(root: string, dir: string): Promise<string> {
       bugs: z.unknown(),
     }),
   );
+  const names = Object.keys(PUBLIC_FILE_MODELS) as PublicFileName[];
+  const files = await Promise.all(
+    names.map(async (name) => {
+      const data = join('dist', `${name}.json`);
+      const schema = join('dist', 'schema', schemaFileName(name));
+      for (const path of [data, schema]) {
+        if ((await readIfExists(join(root, path))) === null) throw new ReleaseError(`${path} is missing`);
+      }
+      const schemaText = await readFile(join(root, schema), 'utf8');
+      return {
+        name,
+        data,
+        schema,
+        json: JSON.parse(schemaText) as Record<string, unknown>,
+      };
+    }),
+  );
   await mkdir(dir, { recursive: true });
-  await cp(join(root, 'dist'), join(dir, 'dist'), { recursive: true });
+  await mkdir(join(dir, 'dist', 'schema'), { recursive: true });
+  await mkdir(join(dir, 'types'));
+  for (const file of files) {
+    await cp(join(root, file.data), join(dir, file.data));
+    await cp(join(root, file.schema), join(dir, file.schema));
+    await writeFile(join(dir, 'types', `${file.name}.d.mts`), typeDeclarations(file.name, file.json, 'esm'), 'utf8');
+    await writeFile(join(dir, 'types', `${file.name}.d.cts`), typeDeclarations(file.name, file.json, 'cjs'), 'utf8');
+  }
   await writeFile(join(dir, README_FILE), readme, 'utf8');
   await writeFile(join(dir, 'LICENSE'), licence, 'utf8');
   const manifest = {
@@ -331,7 +359,20 @@ export async function pack(root: string, dir: string): Promise<string> {
     repository: project.repository,
     homepage: project.homepage,
     bugs: project.bugs,
-    files: ['dist/'],
+    files: ['dist/', 'types/'],
+    exports: {
+      ...Object.fromEntries(
+        names.map((name) => [
+          `./${name}.json`,
+          {
+            types: { import: `./types/${name}.d.mts`, require: `./types/${name}.d.cts` },
+            default: `./dist/${name}.json`,
+          },
+        ]),
+      ),
+      './schema/*.json': './dist/schema/*.json',
+      './package.json': './package.json',
+    },
   };
   await writeFile(join(dir, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return version;

@@ -27,6 +27,8 @@ export interface VariationWorld extends VersionWorld {
   internalEvents?: Partial<Record<Level, InternalVariationEvent[]>>;
   /** Calendar dates of inferred breakpoints. */
   inferredDates?: IsoDate[];
+  /** Reference date of the run (default: no event is in the future). */
+  today?: IsoDate;
 }
 
 export interface BuiltVariations extends BuiltWorld {
@@ -60,6 +62,7 @@ export async function buildVariationWorld(world: VariationWorld): Promise<BuiltV
   const { variations: drafts, accounts } = buildVariations({
     levels: { region: level('region'), province: level('province'), municipality: level('municipality') },
     start,
+    today: world.today ?? '9999-12-31',
     inferredDates: new Set(world.inferredDates ?? []),
     anomalies: variationAnomalies,
   });

@@ -140,6 +140,7 @@ interface SyntheticWorld {
   internal?: { province?: InternalIdentity; municipality?: InternalIdentity };
   internalEvents?: Partial<Record<Level, InternalVariationEvent[]>>;
   inferredDates?: IsoDate[];
+  today?: IsoDate;
 }
 
 async function run(world: SyntheticWorld): Promise<BuiltVariations> {
@@ -162,6 +163,7 @@ async function run(world: SyntheticWorld): Promise<BuiltVariations> {
     },
     internalEvents: world.internalEvents ?? {},
     inferredDates: world.inferredDates ?? [],
+    ...(world.today === undefined ? {} : { today: world.today }),
   });
 }
 
@@ -212,6 +214,36 @@ describe('event rules (D27)', () => {
       ['ESCT', 'rule-missing'],
     ]);
     expect(codes(built, 'blocking')).toEqual(['event-rule-missing']);
+    expect(built.variations).toEqual([]);
+  });
+});
+
+describe('events after today', () => {
+  it('are ignored until they take effect: dropped as future, one aggregated info', async () => {
+    const future = '2099-01-01';
+    const built = await run({
+      municipalities: { [D1]: [municipality('001001')], [D2]: [municipality('001001')] },
+      lists: { 98: [row('ES', future, '001001', '001009')], 100: [row('CS', future, '001009', '001001')] },
+      internal: { municipality: identity([[7, [['PV', D1, '001001']]]]) },
+      internalEvents: {
+        municipality: [
+          internalEvent(7, 'PV', D1, 373),
+          internalEvent(7, 'ES', future, 9),
+          internalEvent(8, 'CS', future, 9),
+        ],
+      },
+      today: D2,
+    });
+    expect(built.accounts.map((a) => [a.source, a.event, a.dropped])).toEqual([
+      ['events:pfun-100', 'CS', 'future'],
+      ['events:pfun-98', 'ES', 'future'],
+      ['r6:municipality-events', 'PV', 'first-validity'],
+      ['r6:municipality-events', 'ES', 'future'],
+      ['r6:municipality-events', 'CS', 'future'],
+    ]);
+    expect(built.variationAnomalies.list().map((a) => [a.level, a.code, a.context.count])).toEqual([
+      ['info', 'future-event-ignored', 4],
+    ]);
     expect(built.variations).toEqual([]);
   });
 });

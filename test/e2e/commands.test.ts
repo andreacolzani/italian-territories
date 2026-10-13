@@ -131,6 +131,19 @@ describe('update', () => {
     });
   });
 
+  it('ignores a fusion dated after today until it takes effect', async () => {
+    const box = await fresh(withSettevilleFusion(baseWorld(), '2026-12-01'));
+    expect(await box.run('bootstrap', '--today', '2026-10-01')).toBe(0);
+    const before = await published(box);
+    expect(before.municipalities.some((m) => m.versions.some((v) => v.istat_code === '025075'))).toBe(false);
+    expect(municipality(before, '025070').versions.at(-1)?.valid_until).toBeNull();
+    expect((await box.summary()).anomalies.by_code['future-event-ignored']).toMatchObject({ level: 'info' });
+    expect(await box.run('update', '--today', '2026-12-07')).toBe(0);
+    const after = await published(box);
+    expect(municipality(after, '025075').predecessors.map((l) => l.date)).toEqual(['2026-12-01', '2026-12-01']);
+    expect(municipality(after, '025070').versions.at(-1)?.valid_until).toBe('2026-11-30');
+  });
+
   it('classifies an event published late as retroactive (exit 2), refreshing the stored snapshots', async () => {
     const box = await bootstrapped(baseWorld());
     box.world.world = withSettevilleFusion(box.world.world, '2026-06-01');

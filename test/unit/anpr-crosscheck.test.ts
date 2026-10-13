@@ -10,6 +10,7 @@ import { M, P, R } from '../helpers/invariants.ts';
 import { constant, withSources } from '../helpers/sources.ts';
 
 const PROVINCE_ID = P(28);
+const TODAY = '2026-10-05';
 
 function version(
   validFrom: IsoDate,
@@ -65,7 +66,7 @@ function check(
   provinces: ProvinceEntity[] = [PADOVA],
 ): AnomalyCollector {
   const anomalies = new AnomalyCollector();
-  crossCheckAnpr({ anpr: { rows }, municipalities, provinces, anomalies });
+  crossCheckAnpr({ anpr: { rows }, municipalities, provinces, today: TODAY, anomalies });
   expect(anomalies.has('blocking')).toBe(false);
   return anomalies;
 }
@@ -492,6 +493,19 @@ describe('crossCheckAnpr: dates', () => {
     expect(one(anomalies, ANPR_ANOMALIES.dateOffByOne).context).toMatchObject({
       items: [{ validFrom: '2000-01-01', validTo: '2000-01-02', side: 'anpr-only' }],
     });
+  });
+
+  it('compares ANPR only up to today: later rows ignored, rows ending after today open', () => {
+    const entity = municipality(1, [version('1900-01-01', null)]);
+    const anomalies = check(
+      [entity, municipality(2, [version('1950-01-01', null, { istatCode: '028002', cadastralCode: 'B002' })])],
+      [
+        row(2, '1900-01-01', '2026-12-01'),
+        row(3, '2026-12-01', null, { istatCode: '028099', cadastralCode: 'Z999', italianName: 'FUTURO' }),
+        row(4, '1950-01-01', '2026-10-06', { istatCode: '028002', cadastralCode: 'B002' }),
+      ],
+    );
+    expect(anomalies.list()).toEqual([]);
   });
 
   it('a period only ANPR covers, next to a matched one, is unmatched (ANPR covers more, warning)', () => {

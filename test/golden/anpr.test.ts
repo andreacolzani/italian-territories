@@ -46,6 +46,7 @@ describe('golden-3: Siamanna', async () => {
     anpr: { rows },
     municipalities,
     provinces: built.entities.province,
+    today: '2026-10-05',
     anomalies,
   });
   const siamanna = entityAt(built.entities.municipality, '115064', '2026-01-01');
@@ -117,6 +118,7 @@ describe('Sardinia 2026: ANPR lags behind the renumbering (golden-4)', async () 
     anpr: { rows: anpr.rows.filter((r) => overlaps(r, window)) },
     municipalities,
     provinces: built.entities.province,
+    today: '2026-10-05',
     anomalies,
   });
   const count = (code: string) =>

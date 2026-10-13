@@ -101,7 +101,8 @@ describe('day numbers', () => {
     expect(toDayNumber('1969-12-31')).toBe(-1);
   });
 
-  it('round-trips every day from 1600 to 2400 and agrees with the UTC oracle', () => {
+  // ~290k days: own timeout, the 5 s default is too tight on loaded runners.
+  it('round-trips every day from 1600 to 2400 and agrees with the UTC oracle', { timeout: 30_000 }, () => {
     const first = toDayNumber('1600-01-01');
     const last = toDayNumber('2400-12-31');
     expect(last - first + 1).toBe(801 * 365 + 195); // 195 leap days in 1600..2400

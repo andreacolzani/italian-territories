@@ -9,7 +9,9 @@ permissions:
 jobs:
   auto-merge:
     name: Enable auto-merge
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'andreacolzani/italian-territories'
+    # Disabled while the repository is private: without branch protection `gh pr merge --auto`
+    # merges at once, before the checks finish (§10.5 "Going public").
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'andreacolzani/italian-territories' && !github.event.repository.private
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:

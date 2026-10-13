@@ -11,6 +11,7 @@ npm ci
 npm run typecheck
 npm test
 npm run lint                  # ESLint + Prettier check (npm run format fixes the formatting)
+npm run knip                  # unused files, exports and dependencies
 npm run cli -- <command>      # bootstrap | update | rebuild [--refetch] | audit | validate | diff
 ```
 

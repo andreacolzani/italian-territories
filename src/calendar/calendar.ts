@@ -7,7 +7,7 @@
  * Dates outside `[start, today]` are discarded. One calendar serves all three levels. Each date
  * keeps the sources that contributed it (`calendar.json` in the store).
  *
- * The builder never reads the clock: `today` is passed in (§12.0 Determinism).
+ * The builder never reads the clock: `today` is passed in (§12 Determinism).
  */
 import { join } from 'node:path';
 import { z } from 'zod';

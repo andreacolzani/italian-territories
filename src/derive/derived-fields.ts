@@ -25,7 +25,7 @@
  *   (`successor-cycle`), one per strongly connected component, with the entities involved; their
  *   derived fields are still computed (the build is blocked).
  *
- * The consistency of the result is invariant I11 (Step 15).
+ * The consistency of the result is invariant I11 (§8.1).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import type { IsoDate } from '../dates/index.ts';

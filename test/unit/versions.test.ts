@@ -1,5 +1,5 @@
 /**
- * Version builder (§4.2, §6.9, Step 10) on synthetic intervals: maximal versions, parents as
+ * Version builder (§4.2, §6.9) on synthetic intervals: maximal versions, parents as
  * entity ids, pre-1948 abbreviations, bilingual names, undetermined fields, and the I1–I3 properties.
  */
 import { describe, expect, it } from 'vitest';

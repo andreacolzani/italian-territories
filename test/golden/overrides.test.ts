@@ -1,10 +1,10 @@
 /**
- * Overrides on real SITUAS fixtures (§6.10, Step 12): golden-7, with the committed
+ * Overrides on real SITUAS fixtures (§6.10): golden-7, with the committed
  * `overrides/abbreviations.json`.
  *
  * The world runs from 1921-06-01 to the 1923-02-08 split of Venezia Giulia, so the version of UTS
  * 801 is closed and lies inside the override's target period. No event lists are passed: the
- * identity anomalies of a world of non-consecutive dates are Step 9's subject, these tests only
+ * identity anomalies of a world of non-consecutive dates belong to the identity tests, these tests only
  * look at the versions, the overrides and I8.
  */
 import { fileURLToPath } from 'node:url';

@@ -1,5 +1,5 @@
 /**
- * Endpoint descriptors and response decoders (§6.1). Each adapter (§12 step 4) declares its
+ * Endpoint descriptors and response decoders (§6.1). Each adapter (§6.2) declares its
  * endpoint with a decoder; decoders classify failures as transient (whole response unusable)
  * or permanent (`ResponseValidationError`: rows violate the schema).
  */

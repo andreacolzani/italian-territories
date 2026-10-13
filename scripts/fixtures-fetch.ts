@@ -112,7 +112,7 @@ function staticDownloads(): Download[] {
     snapshot(61, '2026-01-01', ['golden-4']),
     snapshot(64, '2014-12-31', ['golden-5']),
     snapshot(64, '2015-01-01', ['golden-5']),
-    // Step 10: the parents of the golden worlds and the municipality snapshots of version changes.
+    // The parents of the golden worlds and the municipality snapshots of version changes.
     ...(['1929-05-13', '1929-05-14', '1947-11-24', '1947-11-25'] as const).flatMap((date) => [
       snapshot(46, date, ['golden-2']),
       snapshot(49, date, ['golden-2']),
@@ -151,7 +151,7 @@ function staticDownloads(): Download[] {
       snapshot(61, date, ['golden-12']),
     ]),
     snapshot(44, '1927-01-11', ['golden-16']),
-    // Step 11: the cessions of 1947-09-16 and the act grouping the Setteville merger.
+    // The cessions of 1947-09-16 and the act grouping the Setteville merger.
     ...(['1947-09-15', '1947-09-16'] as const).flatMap((date) => [
       snapshot(46, date, ['golden-9', 'golden-18', 'golden-19']),
       snapshot(49, date, ['golden-9', 'golden-18', 'golden-19']),
@@ -160,7 +160,7 @@ function staticDownloads(): Download[] {
     internal(reportUrls.municipalityEvents({ code: '025075', name: 'Setteville' }), ['golden-1']),
     internal(reportUrls.municipalityEvents({ code: '025070', name: 'Quero Vas' }), ['golden-1']),
     internal(reportUrls.municipalityEvents({ code: '025002', name: 'Alano di Piave' }), ['golden-1']),
-    // Step 13: the merger of Quero and Vas into Quero Vas (2013-12-28), first link of the chain.
+    // The merger of Quero and Vas into Quero Vas (2013-12-28), first link of the chain.
     snapshot(61, '2013-12-27', ['golden-1']),
     snapshot(61, '2013-12-28', ['golden-1']),
     internal(reportUrls.municipalityEvents({ code: '025042', name: 'Quero' }), ['golden-1']),
@@ -173,7 +173,7 @@ function staticDownloads(): Download[] {
       request: countRequest(publicBase, pfun, { date: today }),
       usedBy: ['golden-17'],
     })),
-    // Step 15: the snapshots of the day the counts above were downloaded (2026-10-01), whose reconstruction I13 compares.
+    // The snapshots of the day the counts above were downloaded (2026-10-01), whose reconstruction I13 compares.
     ...([68, 64, 61] as const).map((pfun) => snapshot(pfun, '2026-10-01', ['golden-17'])),
     internal(reportUrls.regionList(), ['golden-4', 'golden-15']),
     internal(reportUrls.utsList(), ['golden-4', 'golden-15']),

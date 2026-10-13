@@ -1,4 +1,4 @@
-/** The commands of §10.1 (Step 17): orchestration of the pipeline, audit, validate and diff. */
+/** The commands of §10.1: orchestration of the pipeline, audit, validate and diff. */
 import type { Config } from '../config.ts';
 import type { IsoDate } from '../dates/index.ts';
 import type { Logger } from '../logger.ts';
@@ -36,7 +36,7 @@ const MAX_LOGGED_BLOCKING = 50;
  * The handlers (`runtime.process`) are removed when the command ends.
  *
  * A pipeline command (`completeUpdate`) that returns 0 or 2 records its `today` as the last
- * complete update in the store (Step 18).
+ * complete update in the store (§10.4).
  */
 export async function runDataCommand(options: {
   command: string;

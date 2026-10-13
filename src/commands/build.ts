@@ -1,5 +1,5 @@
 /**
- * The build of the data commands (§6.6–§6.12, Step 17): from the stored snapshots of the calendar,
+ * The build of the data commands (§6.6–§6.12): from the stored snapshots of the calendar,
  * the event lists and the internal crawl to the derived entities and variations, then the ANPR
  * cross-check and the invariants. It reads no network: every input comes from the store or from
  * the acquisition stages, so `rebuild` reproduces it offline.

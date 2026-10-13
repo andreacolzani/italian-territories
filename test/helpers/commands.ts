@@ -1,4 +1,4 @@
-/** A sandbox for the commands (Step 17): temporary paths, the world transport, a captured CLI. */
+/** A sandbox for the commands: temporary paths, the world transport, a captured CLI. */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

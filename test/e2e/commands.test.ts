@@ -1,5 +1,5 @@
 /**
- * The commands end to end (Step 17) on the declarative world of `test/helpers/world.ts`: the real
+ * The commands end to end on the declarative world of `test/helpers/world.ts`: the real
  * CLI, store, registry and `dist/` in a temporary directory, the sources answered by the world
  * transport. The scenarios change the world (or make requests fail) between two runs.
  */
@@ -305,7 +305,7 @@ describe('rebuild', () => {
   });
 
   it('an outage of 45 s during a refetch loses no request (exit 0)', async () => {
-    // Plan timings for the circuit breaker (threshold 10, 60 s); retries cycle every 10 s.
+    // Default timings of the specification for the circuit breaker (threshold 10, 60 s); retries cycle every 10 s.
     const box = await bootstrapped(baseWorld(), {
       http: { circuitBreakerThreshold: 10, backoffBaseMs: 100, backoffMaxMs: 10_000 },
     });

@@ -1,7 +1,7 @@
 /**
- * What a data command runs with (Step 17): configuration, reference date, logger, and the runtime
+ * What a data command runs with (§10.4): configuration, reference date, logger, and the runtime
  * the CLI provides (transport, wall clock for `generated_at` and for timings). Build code never
- * reads the clock (§12.0): the runtime's clocks are read only for timestamps and timings, which
+ * reads the clock (§12): the runtime's clocks are read only for timestamps and timings, which
  * describe the run, not the data.
  */
 import { AnomalyCollector } from '../anomalies.ts';

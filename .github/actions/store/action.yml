@@ -1,7 +1,7 @@
 name: Store
 description: >-
   Clones the snapshot store (the italian-territories-store repository) shallow into .cache/store,
-  or commits and pushes it (§6.3, Step 18). The push authenticates with a deploy key that has write
+  or commits and pushes it (§6.3). The push authenticates with a deploy key that has write
   access to the store repository only.
 
 inputs:

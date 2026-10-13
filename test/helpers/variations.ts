@@ -1,5 +1,5 @@
 /**
- * Worlds for variation tests: the version worlds of Step 10, then the variation builder (Step 11)
+ * Worlds for variation tests: the version worlds of `versions.ts`, then the variation builder
  * over their event lists and internal events.
  */
 import { AnomalyCollector } from '../../src/anomalies.ts';

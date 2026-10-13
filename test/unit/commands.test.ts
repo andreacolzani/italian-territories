@@ -15,7 +15,7 @@ import { baseline } from '../helpers/invariants.ts';
 
 const blocking = (code: string) => ({ level: 'blocking' as const, code });
 
-describe('exit codes (Step 17)', () => {
+describe('exit codes', () => {
   it('maps anomaly codes, never messages', () => {
     expect(exitCodeOf([], false)).toBe(0);
     expect(exitCodeOf([{ level: 'warning', code: 'inferred-breakpoint' }], false)).toBe(0);

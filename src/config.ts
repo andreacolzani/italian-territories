@@ -13,9 +13,9 @@ const pathsSchema = z
     httpCache: z.string().default('.cache/http'),
     /** Content-addressed snapshot store and event caches (§6.3). */
     store: z.string().default('.cache/store'),
-    /** Build reports that are neither data nor sources (e.g. the event code summary, Step 7). */
+    /** Build reports that are neither data nor sources (e.g. the event code summary, §6.8). */
     reports: z.string().default('.cache/reports'),
-    /** Summary of the last run, for the workflows (Step 17). */
+    /** Summary of the last run, for the workflows (§10.4). */
     runSummary: z.string().default('.cache/last-run.json'),
     registry: z.string().default('registry'),
     overrides: z.string().default('overrides'),
@@ -97,7 +97,7 @@ const updateSchema = z
     /** Random historical dates checked by `audit` during an update (§10.2). */
     auditSamples: z.int().min(0).default(50),
     /**
-     * Stored snapshots an update may refresh after late events or audit discrepancies (Step 17);
+     * Stored snapshots an update may refresh after late events or audit discrepancies (§10.2);
      * above it the run blocks (`refresh-too-large`) and asks for `rebuild --refetch`.
      */
     maxRefreshSnapshots: z.int().min(0).default(300),

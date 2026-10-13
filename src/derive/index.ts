@@ -1,2 +1,2 @@
-/** Derived fields (§7, Step 13). */
+/** Derived fields (§7). */
 export * from './derived-fields.ts';

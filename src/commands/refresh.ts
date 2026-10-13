@@ -1,5 +1,5 @@
 /**
- * Refresh of stored snapshots in `update` (§10.2, Step 17). Events ISTAT publishes late, and audit
+ * Refresh of stored snapshots in `update` (§10.2). Events ISTAT publishes late, and audit
  * discrepancies on calendar dates, can make the snapshots stored by earlier runs obsolete (e.g. the
  * previous run's today, stored before the event was published): the store-first provider would not
  * read them again and I12 would compare the build with stale data.

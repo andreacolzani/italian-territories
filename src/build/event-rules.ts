@@ -124,7 +124,7 @@ export const EVENT_RULE_ANOMALIES = {
 } as const;
 
 /**
- * Checks the pairs observed by the build (the event code summary of the internal crawl, Step 7)
+ * Checks the pairs observed by the build (the event code summary of the internal crawl)
  * against the rules: one `blocking` anomaly per pair without a rule.
  */
 export function checkEventRules(summary: EventCodeSummary, anomalies: AnomalyCollector): void {

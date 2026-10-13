@@ -446,7 +446,7 @@ describe('HttpClient: circuit breaker', () => {
       const clock = fakeClock();
       const start = clock.clock.now();
       const transport = scripted(json({}, 503));
-      // Plan timings: 6 attempts in about 15 s, then one every 60 s while it waits.
+      // Default timings of the specification: 6 attempts in about 15 s, then one every 60 s while it waits.
       const h = harness(dir, transport, { backoffBaseMs: 1_000, backoffMaxMs: 60_000 }, clock);
       const error = await h.client.request(publicEndpoint(), get()).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(RetriesExhaustedError);

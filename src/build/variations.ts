@@ -1,6 +1,6 @@
 /**
- * Variations, participants and links (§4.3, Step 11), from the public event lists and the internal
- * event histories, over the versions built by Step 10.
+ * Variations, participants and links (§4.3), from the public event lists and the internal
+ * event histories, over the versions built by the version builder (§6.9).
  *
  * 1. **Facts.** Every event row becomes a fact `(level, date, entity, event code)`:
  *    - internal events (r4/r5/r6) belong to the entity whose ISTAT origin id is the root of their
@@ -92,11 +92,11 @@ export interface InternalVariationEvent {
 }
 
 export interface VariationLevelInput<L extends Level> {
-  /** Entities with their registered versions (Step 10). */
+  /** Entities with their registered versions. */
   entities: readonly EntityByLevel[L][];
-  /** Snapshot intervals of each entity (Step 9). */
+  /** Snapshot intervals of each entity. */
   identified: readonly IdentifiedEntity<L>[];
-  /** Resolver (with the same-day aliases) and transitions of the level (Step 9). */
+  /** Resolver (with the same-day aliases) and transitions of the level. */
   identity: Pick<LevelIdentity<L>, 'resolver' | 'transitions'>;
   eventLists: LevelEventLists<L>;
   /** `null` when the level was not crawled. */
@@ -109,7 +109,7 @@ export interface BuildVariationsOptions {
   start: IsoDate;
   /** Reference date of the run: events dated after it are ignored (dropped as `future`). */
   today: IsoDate;
-  /** Calendar dates whose only source is an inferred breakpoint (Step 6). */
+  /** Calendar dates whose only source is an inferred breakpoint. */
   inferredDates: ReadonlySet<IsoDate>;
   anomalies: AnomalyCollector;
 }
@@ -184,7 +184,7 @@ const INTERNAL_SOURCES: Readonly<Record<Level, string>> = {
   municipality: 'r6:municipality-events',
 };
 
-/** The internal events of a crawled level (Step 7), with their details. */
+/** The internal events of a crawled level, with their details. */
 export function internalVariationEvents(
   crawl: {
     graph: {

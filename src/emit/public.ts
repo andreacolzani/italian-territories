@@ -10,7 +10,7 @@
  * `(level, territory_id)`, links by `(level, from, to)` (levels in the order of `LEVELS`),
  * `istat_events` alphabetically, versions referenced by `valid_from`.
  *
- * A field the public model does not admit as null but the builder left null (Step 10, §4.2 names)
+ * A field the public model does not admit as null but the builder left null (§6.9, §4.2 names)
  * stops the emitter with an `EmitError`, whatever the anomalies; so does a variation left without
  * participations and a blocking anomaly (a blocking run never publishes, §8.2).
  */

@@ -1,5 +1,5 @@
 /**
- * Invariants I1–I15 (§8.1, Step 15): a negative test for each, on the crafted world of
+ * Invariants I1–I15 (§8.1): a negative test for each, on the crafted world of
  * `test/helpers/invariants.ts`, on which every invariant passes.
  */
 import { describe, expect, it } from 'vitest';

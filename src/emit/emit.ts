@@ -1,5 +1,5 @@
 /**
- * Emit (§6.12, §9, Step 16): writes a release, the public files into `dist/` and the internal
+ * Emit (§6.12, §9): writes a release, the public files into `dist/` and the internal
  * reports into `reports/` (D39).
  *
  * - Every file is built in its model and validated before anything is written (`EmitError`
@@ -8,7 +8,7 @@
  *   - `unchanged`: the three data files (regions, provinces, municipalities) and the JSON Schemas are
  *     identical to the previous release: nothing is written, the reports included (they describe
  *     the build of the published release, even when, e.g., only the description of an act changed);
- *     the caller reports the current anomalies (run summary, Step 17).
+ *     the caller reports the current anomalies (run summary, §10.4).
  *   - `schemas`: same data files, different JSON Schemas (a generator change): `schema/*.schema.json`,
  *     an empty, non-retroactive `reports/changes.json` and `reports/meta.json` are written, so the
  *     published schemas never lag behind the generator. The data files and the other reports stay
@@ -17,7 +17,7 @@
  *   - `data`: the data files, the schemas and every report are written.
  *
  * `reports/meta.json` is always written last (each file atomically), so a release with a new meta
- * is complete. `generatedAt` is passed in: the emitter never reads the clock (§12.0).
+ * is complete. `generatedAt` is passed in: the emitter never reads the clock (§12).
  */
 import { join } from 'node:path';
 import type { IsoDate } from '../dates/index.ts';

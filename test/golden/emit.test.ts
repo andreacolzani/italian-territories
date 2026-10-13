@@ -1,5 +1,5 @@
 /**
- * The emitter on real SITUAS fixtures (§6.12, §9, Step 16): byte-identical output across two runs,
+ * The emitter on real SITUAS fixtures (§6.12, §9): byte-identical output across two runs,
  * every file valid against its model and the public files against the JSON Schema they publish
  * (Ajv), the §4.4 example (Siamanna) reproduced, the cessions of 1947-09-16 and Sardinia 2026.
  */

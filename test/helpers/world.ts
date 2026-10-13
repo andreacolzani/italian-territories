@@ -1,5 +1,5 @@
 /**
- * A declarative world for the end-to-end tests of the commands (Step 17): a few regions, UTS and
+ * A declarative world for the end-to-end tests of the commands: a few regions, UTS and
  * municipalities with their intervals and events, and a transport that answers every request of
  * the pipeline from it, in the raw formats of the real sources:
  *

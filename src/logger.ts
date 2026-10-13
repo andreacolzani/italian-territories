@@ -1,5 +1,5 @@
 /**
- * Minimal NDJSON logger (§12.0 Logging): one JSON object per line, written to stderr by the CLI.
+ * Minimal NDJSON logger (§12 Logging): one JSON object per line, written to stderr by the CLI.
  * Levels `debug|info|warn|error`; `debug` lines are written only with `--verbose`.
  *
  * Log lines carry a wall-clock `time`: they describe the run, never the data, so reading the

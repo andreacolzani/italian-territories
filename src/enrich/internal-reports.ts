@@ -1,5 +1,5 @@
 /**
- * Where the internal crawl gets reports from (§6.8, Step 7): the store first. A stored report of
+ * Where the internal crawl gets reports from (§6.8): the store first. A stored report of
  * the current projection version is used without network unless its refresh is mandatory;
  * otherwise the report is fetched (`cache: prefer`, or the refresh policy when mandatory) and stored.
  *

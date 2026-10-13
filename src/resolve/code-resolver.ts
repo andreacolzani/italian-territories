@@ -10,7 +10,7 @@
  * 4. Still unresolved, or more than one candidate at a step: `ResolutionError`, which the caller
  *    turns into a `blocking` anomaly (`code-unresolved`, §8.2).
  *
- * The result is a snapshot interval, not an entity: Step 9 attaches intervals to entities.
+ * The result is a snapshot interval, not an entity: identity resolution (§6.7) attaches intervals to entities.
  * Foreign state counterparts (`Stato estero`) never reach the resolver (§3.5 item 15).
  */
 import type { AnomalyCollector } from '../anomalies.ts';

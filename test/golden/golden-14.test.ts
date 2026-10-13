@@ -1,6 +1,6 @@
 /**
  * golden-14 (§11.3) on the published release: the ANPR classification of the full run cannot be
- * reproduced on fixtures (the test worlds lack the history it needs, Step 17), so it is asserted on
+ * reproduced on fixtures (the test worlds lack the history it needs), so it is asserted on
  * `dist/` and `reports/` once they hold a release. The number was fixed by the first full run (2026-10-06), then
  * lowered from 493 by the ISTAT-code join of ANPR rows without a cadastral code and the retry by
  * ISTAT code (§6.11, 2026-10-08).

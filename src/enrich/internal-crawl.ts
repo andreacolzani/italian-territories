@@ -1,5 +1,5 @@
 /**
- * Internal crawl and identity graph (§6.8, Step 7). Internal data is acquired before identity
+ * Internal crawl and identity graph (§6.8). Internal data is acquired before identity
  * resolution (D23): UTS and region identity depend on it.
  *
  * - Regions and UTS: list r1/r2, then events r4/r5 for **every** listed `(code, name, type)`
@@ -13,14 +13,14 @@
  *   those pairs are covered and skipped. Stored responses are read first, so an incremental crawl only sends requests
  *   for pairs no stored history covers. Responses are merged by `id_comune_origine` (graph).
  *   Report 9 is crawled only for the ambiguous events: the events of one entity with the same date
- *   and event code under more than one act (their details tell the acts apart, Step 11).
+ *   and event code under more than one act (their details tell the acts apart, §4.3).
  *
  * Reports come from the store unless their refresh is mandatory (`mustRefresh`, decided by the
  * orchestrator; `internal-reports.ts`). Anomalies (§8.2):
  * - an empty r4/r5/r6 response for a listed record: `blocking`, one per record (D28);
  * - a mandatory refresh that fell back to older data: `warning`, one per report;
  * - data missing with no copy to fall back on: `warning`, one per report (whether a decision
- *   needs it, which is `blocking`, is decided by identity resolution, Step 9);
+ *   needs it, which is `blocking`, is decided by identity resolution, §6.7);
  * - rejected requests (4xx) and schema violations: `blocking`, one per report and cause, never
  *   replaced by older data (D26).
  */
@@ -68,7 +68,7 @@ export const INTERNAL_CRAWL_ANOMALIES = {
   schemaViolation: 'internal-schema-violation',
 } as const;
 
-/** Events without associated territories: no r7/r8 request (Step 7). */
+/** Events without associated territories: no r7/r8 request. */
 export const EVENTS_WITHOUT_DETAILS: readonly IstatEventCode[] = ['PV', 'CD', 'RN'];
 
 /** One internal request of the crawl, as given to `mustRefresh` and reported in anomalies. */
@@ -110,7 +110,7 @@ export interface InternalCrawlResult {
   region: LevelCrawl<InternalRegionEvent, RegionEventDetail> | null;
   province: LevelCrawl<InternalUtsEvent, UtsEventDetail> | null;
   municipality: LevelCrawl<InternalMunicipalityEvent, MunicipalityEventDetail> | null;
-  /** Observed `(level, event code)` pairs, input to the Step 11 rules (D27). */
+  /** Observed `(level, event code)` pairs, input to the event rules of §4.3 (D27). */
   eventCodes: EventCodeSummary;
   /** Mandatory refreshes that fell back to older data. */
   stale: CrawlItem[];
@@ -136,7 +136,7 @@ export interface InternalCrawlOptions {
   offline?: boolean;
   levels?: readonly Level[];
   logger?: Logger;
-  /** Counts every report request (Step 17 progress lines). */
+  /** Counts every report request (progress lines, §10.4). */
   progress?: StageProgress;
 }
 
@@ -310,7 +310,7 @@ class Crawl {
    * r9 only for the ambiguous municipality events: the events of one entity with the same date and
    * event code under more than one act (e.g. Riola Sardo, two `CECS` of 1946-02-07, acts 5831 and
    * 5841). Their associated territories let the variation builder match each public row to its act
-   * (Step 11). Store-first like every internal report; a details report that cannot be obtained
+   * (§4.3). Store-first like every internal report; a details report that cannot be obtained
    * leaves the event without details (the ambiguity stays a `warning`). Returns the events queried.
    */
   async #ambiguousDetails(

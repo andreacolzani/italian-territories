@@ -61,7 +61,7 @@ export function historicalCodesOf(
   return new Map(provinces.map((p) => [p.id, p.historicalCodes]));
 }
 
-/** The existence intervals of identified entities (the `intervals` of Step 9). */
+/** The existence intervals of identified entities (the `intervals` of identity resolution, §6.7). */
 export function existenceOf(
   identified: Record<Level, readonly { id: EntityId; intervals: readonly HalfOpenInterval[] }[]>,
 ): Existence {

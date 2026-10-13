@@ -106,7 +106,7 @@ export interface SnapshotRunOptions {
   concurrency: number;
   levels?: readonly Level[];
   logger?: Logger;
-  /** Counts every snapshot request (Step 17 progress lines). */
+  /** Counts every snapshot request (progress lines, §10.4). */
   progress?: StageProgress;
 }
 

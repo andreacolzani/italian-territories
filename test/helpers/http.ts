@@ -36,7 +36,7 @@ export function fakeClock(start = Date.UTC(2026, 9, 1, 10)): FakeClock {
   };
 }
 
-/** Plan defaults with no rate limiting worth waiting for and short backoff. */
+/** Defaults of the specification with no rate limiting worth waiting for and short backoff. */
 export function httpSettings(overrides: NonNullable<ConfigInput['http']> = {}): HttpSettings {
   return resolveConfig({
     http: { requestsPerSecond: 1_000_000, backoffBaseMs: 100, backoffMaxMs: 10_000, ...overrides },

@@ -1,10 +1,10 @@
 /**
- * Progress of long stages (Step 17): every `intervalMs` (default 30 s) while a stage is running, one
+ * Progress of long stages (§10.4): every `intervalMs` (default 30 s) while a stage is running, one
  * log line with the requests completed, the total known so far and the errors (only when the stage
  * counts requests) and the current sub-step (when the stage names one); the caller logs the
  * final counts when the stage ends. The interval is a timer, so a stage stalled on retries still reports.
  *
- * Stages only count (`add`, `done`); they never read the clock (§12.0). The timer is injected so
+ * Stages only count (`add`, `done`); they never read the clock (§12). The timer is injected so
  * tests drive it.
  */
 import type { Logger } from './logger.ts';

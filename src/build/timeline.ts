@@ -7,7 +7,7 @@ import type { EntityId, Level } from '../model/common.ts';
 import type { Dated } from '../model/internal.ts';
 import type { SnapshotInterval } from '../resolve/index.ts';
 
-/** An entity of the identity stage (Step 9) with its registry id. */
+/** An entity of the identity stage with its registry id. */
 export interface IdentifiedEntity<L extends Level = Level> {
   id: EntityId;
   istatOriginId: number | null;

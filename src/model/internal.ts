@@ -122,7 +122,7 @@ export interface RegionVersion extends Omit<VersionBase, 'italianName'>, Regiona
  * it (a parent code resolving to no entity, a pre-1948 abbreviation not unanimous): the builder
  * reports a `blocking` anomaly and keeps the version. Invariants I4 and I8 report the null field;
  * the checks that depend on it (I5, I7) skip the version instead of adding derived anomalies. The
- * public model never admits these nulls: the emitter refuses them (Step 16).
+ * public model never admits these nulls: the emitter refuses them (§6.12).
  */
 
 export interface ProvinceVersion extends Omit<VersionBase, 'italianName'>, RegionalNames {

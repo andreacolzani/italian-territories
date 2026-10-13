@@ -1,5 +1,5 @@
 /**
- * Code resolver on real SITUAS fixtures (§6.6, Step 8): golden-6 (same-day suppressions) and the
+ * Code resolver on real SITUAS fixtures (§6.6): golden-6 (same-day suppressions) and the
  * Sud Sardegna / Ogliastra side rule of golden-4 (§3.5 item 6).
  */
 import { describe, expect, it } from 'vitest';

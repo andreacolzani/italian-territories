@@ -14,8 +14,7 @@ export type TimeoutClass = 'snapshot' | 'default';
  * Circuit-breaker families (§6.1). Heavy snapshots and light reports share a host but not a
  * family, so timeouts on the former do not stop the latter.
  */
-export const FAMILIES = ['situas-public-snapshots', 'situas-public-reports', 'situas-internal', 'anpr'] as const;
-export type Family = (typeof FAMILIES)[number];
+export type Family = 'situas-public-snapshots' | 'situas-public-reports' | 'situas-internal' | 'anpr';
 
 /**
  * Declared by the adapter, one per `pfun`, internal report or the ANPR CSV. The host scope

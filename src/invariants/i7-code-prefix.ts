@@ -18,7 +18,7 @@ import { describeRange, range, violation } from './anomaly.ts';
 import type { HistoricalCodes, InvariantEntities } from './world.ts';
 
 /** Stable anomaly codes of I7 besides the invariant's own (§8.2). */
-export const I7_ANOMALIES = {
+const I7_ANOMALIES = {
   /** An 8xx code whose prefix is a UTS code of some time but not the UTS of membership (`info`). */
   prefixOfAnotherUts: 'municipality-8xx-prefix-of-another-uts',
   /** An active municipality whose current version has an 8xx code (`warning`, D30). */

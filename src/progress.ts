@@ -36,7 +36,7 @@ export interface ProgressOptions {
   schedule?: Scheduler;
 }
 
-export const PROGRESS_INTERVAL_MS = 30_000;
+const PROGRESS_INTERVAL_MS = 30_000;
 
 const intervalScheduler: Scheduler = (task, ms) => {
   const timer = setInterval(task, ms);

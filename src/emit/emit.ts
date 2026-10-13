@@ -47,9 +47,6 @@ export interface EmitOptions {
   sources: SourceSummaries;
 }
 
-/** What the run published: nothing, only the schemas (non-retroactive) or new data. */
-export type ReleaseKind = 'unchanged' | 'schemas' | 'data';
-
 export type EmitResult =
   | { kind: 'unchanged'; data: PublicData; variations: Variation[]; anomalies: Anomaly[] }
   | {

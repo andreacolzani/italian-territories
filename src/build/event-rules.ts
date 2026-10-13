@@ -94,7 +94,7 @@ export interface EventCodeEquivalence {
  * D48): never deduced from the codes themselves. A pair must have the same rule at its level, so
  * the match changes no effect; the variation keeps the code of the public list (§3).
  */
-export const EVENT_CODE_EQUIVALENCES: readonly EventCodeEquivalence[] = [
+const EVENT_CODE_EQUIVALENCES: readonly EventCodeEquivalence[] = [
   {
     level: 'municipality',
     codes: ['RN', 'RNAPUTS'],
@@ -118,7 +118,7 @@ export function equivalentEventCodes(level: Level, event: IstatEventCode): Istat
   );
 }
 
-export const EVENT_RULE_ANOMALIES = {
+const EVENT_RULE_ANOMALIES = {
   /** An observed `(level, event code)` pair without a rule (D27). */
   missing: 'event-rule-missing',
 } as const;

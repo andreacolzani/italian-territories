@@ -98,19 +98,19 @@ export const anomalySchema = z.strictObject({
 });
 
 /** Anomalies of a release are non-blocking by construction: a blocking run never publishes (§8.2). */
-export const releaseAnomalySchema = anomalySchema.extend({ level: z.enum(ANOMALY_LEVELS).exclude(['blocking']) });
+const releaseAnomalySchema = anomalySchema.extend({ level: z.enum(ANOMALY_LEVELS).exclude(['blocking']) });
 
 // ---------------------------------------------------------------------------------------------
 // Meta (§9)
 // ---------------------------------------------------------------------------------------------
 
 /** Request families of §6.1, the sources summarised by `meta.json`. */
-export const SOURCE_FAMILIES = ['situas-public-snapshots', 'situas-public-reports', 'situas-internal', 'anpr'] as const;
+const SOURCE_FAMILIES = ['situas-public-snapshots', 'situas-public-reports', 'situas-internal', 'anpr'] as const;
 export type SourceFamily = (typeof SOURCE_FAMILIES)[number];
 
 const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 
-export const DATA_VERSION_PATTERN = /^\d{4}\.\d{2}\.\d{2}$/;
+const DATA_VERSION_PATTERN = /^\d{4}\.\d{2}\.\d{2}$/;
 
 /** Date of the build (its "today") as `YYYY.MM.DD`. */
 const dataVersionSchema = z.string().regex(DATA_VERSION_PATTERN);
@@ -185,9 +185,9 @@ function changeSetSchema<K extends z.ZodRawShape>(key: K) {
   });
 }
 
-export const entityChangeSetSchema = changeSetSchema(entityKeyShape);
-export const versionChangeSetSchema = changeSetSchema(versionKeyShape);
-export const variationChangeSetSchema = changeSetSchema(variationKeyShape);
+const entityChangeSetSchema = changeSetSchema(entityKeyShape);
+const versionChangeSetSchema = changeSetSchema(versionKeyShape);
+const variationChangeSetSchema = changeSetSchema(variationKeyShape);
 
 const levelChangesSchema = z.strictObject({ entities: entityChangeSetSchema, versions: versionChangeSetSchema });
 
@@ -218,9 +218,6 @@ export type Variation = z.output<typeof variationSchema>;
 export type Anomaly = z.output<typeof anomalySchema>;
 export type SourceSummary = z.output<typeof sourceSummarySchema>;
 export type Meta = z.output<typeof metaSchema>;
-export type EntityChangeSet = z.output<typeof entityChangeSetSchema>;
-export type VersionChangeSet = z.output<typeof versionChangeSetSchema>;
-export type VariationChangeSet = z.output<typeof variationChangeSetSchema>;
 export type Changes = z.output<typeof changesSchema>;
 
 function isUnique(values: readonly unknown[]): boolean {

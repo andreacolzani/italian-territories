@@ -36,7 +36,7 @@ export const entityIdSchema = z.string().regex(ENTITY_ID_PATTERN).meta({
 });
 
 /** Unicode NFC, trimmed, non-empty; ISTAT casing preserved (§4.2). */
-export const nameSchema = z
+const nameSchema = z
   .string()
   .min(1)
   .refine((s) => s === s.trim(), 'must be trimmed')
@@ -118,7 +118,7 @@ export const provinceVersionSchema = withOrderedInterval(
     .meta({ id: 'ProvinceVersion' }),
 );
 
-export const municipalityVersionSchema = withOrderedInterval(
+const municipalityVersionSchema = withOrderedInterval(
   z
     .strictObject({
       ...versionCommonShape,
@@ -153,10 +153,10 @@ function entityShape(prefix: string) {
 }
 
 /** Regions and provinces: no `current_successors` (D46), resolved through the municipalities (§7). */
-export const regionSchema = z
+const regionSchema = z
   .strictObject({ ...entityShape('reg'), versions: z.array(regionVersionSchema).min(1) })
   .meta({ id: 'Region' });
-export const provinceSchema = z
+const provinceSchema = z
   .strictObject({ ...entityShape('prv'), versions: z.array(provinceVersionSchema).min(1) })
   .meta({ id: 'Province' });
 export const municipalitySchema = z

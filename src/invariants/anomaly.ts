@@ -22,7 +22,7 @@ export const INVARIANT_IDS = [
 export type InvariantId = (typeof INVARIANT_IDS)[number];
 
 /** Stable anomaly code of an invariant: `invariant-i<n>`. */
-export function invariantCode(id: InvariantId): string {
+function invariantCode(id: InvariantId): string {
   return `invariant-${id.toLowerCase()}`;
 }
 

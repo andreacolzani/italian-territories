@@ -297,7 +297,7 @@ export function keyOf(interval: SnapshotInterval): string {
 }
 
 /** The published name of a snapshot row: `COMUNE` for municipalities, the denomination otherwise. */
-export function nameOf(interval: SnapshotInterval): string {
+function nameOf(interval: SnapshotInterval): string {
   const row = interval.row;
   return 'officialName' in row ? row.officialName : row.name;
 }

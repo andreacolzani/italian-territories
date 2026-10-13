@@ -256,7 +256,7 @@ function fail(ctx: RunContext, message: string): ExitCode {
 }
 
 /** Where the release lives (§9): the published files and the internal reports. */
-export function releaseDirs(ctx: RunContext): ReleaseDirs {
+function releaseDirs(ctx: RunContext): ReleaseDirs {
   return { dist: ctx.config.paths.dist, reports: ctx.config.paths.releaseReports };
 }
 

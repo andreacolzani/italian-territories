@@ -54,7 +54,7 @@ export class OfflineRequestError extends Error {
 }
 
 /** The transport of an offline run: refuses every request. */
-export const offlineTransport: Transport = (request) => Promise.reject(new OfflineRequestError(request));
+const offlineTransport: Transport = (request) => Promise.reject(new OfflineRequestError(request));
 
 export interface RunContext {
   /** Offline run: the client's transport is `offlineTransport`, whatever the runtime provides. */

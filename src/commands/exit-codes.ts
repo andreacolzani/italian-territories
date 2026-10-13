@@ -35,7 +35,7 @@ export function sourceFailureCode(prefix: SourceFailurePrefix, cause: SnapshotFa
 }
 
 /** Blocking codes that mean "unavailable": with nothing else blocking, the exit code is 3. */
-export const UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
+const UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
   SNAPSHOT_ANOMALIES.unavailable,
   ...Object.values(SOURCE_FAILURE_PREFIXES).map((p) => sourceFailureCode(p, 'unavailable')),
 ]);

@@ -247,9 +247,9 @@ export class RefreshBudget {
 }
 
 /** More stored snapshots to fetch again than `update.maxRefreshSnapshots`. */
-export const REFRESH_TOO_LARGE = 'refresh-too-large';
+const REFRESH_TOO_LARGE = 'refresh-too-large';
 
-export const AUDIT_ANOMALIES = {
+const AUDIT_ANOMALIES = {
   /** A fresh sample disagrees with the store (`warning`; the run is retroactive). */
   discrepancy: 'audit-discrepancy',
 } as const;

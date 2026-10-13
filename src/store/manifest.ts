@@ -18,11 +18,10 @@ const hash = z.string().regex(/^[0-9a-f]{64}$/);
  * Counters and code lists (sorted, unique) reported by an adapter about one response; not part
  * of the content.
  */
-export const adapterStatsSchema = z.record(z.string(), z.union([z.number(), z.array(z.string())]));
+const adapterStatsSchema = z.record(z.string(), z.union([z.number(), z.array(z.string())]));
 export type AdapterStats = z.output<typeof adapterStatsSchema>;
 
 const historyEntry = z.strictObject({ fetched_at: isoDateSchema, content_hash: hash });
-export type HistoryEntry = z.output<typeof historyEntry>;
 
 const content = {
   projection_version: z.int().positive(),

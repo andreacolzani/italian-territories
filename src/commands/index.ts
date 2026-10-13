@@ -7,17 +7,9 @@ import { createRunContext, type RunContext, type RunProcessEvent, type Runtime }
 import { EXIT_CODES, type ExitCode } from './exit-codes.ts';
 import { INTERRUPT_EXIT_CODES, writeRunSummary, type InterruptSignal } from './summary.ts';
 
-export { isOffline, type RunMode } from './acquire.ts';
 export { sampleDates } from './audit.ts';
-export { COMPLETE_UPDATE_FILE, loadLastCompleteUpdate, recordCompleteUpdate } from './complete-update.ts';
-export {
-  createRunContext,
-  OfflineRequestError,
-  offlineTransport,
-  type RunContext,
-  type RunProcess,
-  type Runtime,
-} from './context.ts';
+export { COMPLETE_UPDATE_FILE, loadLastCompleteUpdate } from './complete-update.ts';
+export { createRunContext, OfflineRequestError, type RunContext, type RunProcess, type Runtime } from './context.ts';
 export * from './exit-codes.ts';
 export { runAuditCommand, runPipeline } from './pipeline.ts';
 export { runDiff, runValidate } from './published.ts';

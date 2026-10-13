@@ -13,7 +13,7 @@ import { toJsonDocument, writeFileAtomic } from '../store/index.ts';
 /** Distinct events per level and code; levels and codes in vocabulary order, absent when zero. */
 export type EventCodeSummary = Partial<Record<Level, Partial<Record<IstatEventCode, number>>>>;
 
-export const EVENT_CODES_FILE = 'event-codes.json';
+const EVENT_CODES_FILE = 'event-codes.json';
 
 export function summariseEventCodes(
   crawls: Partial<

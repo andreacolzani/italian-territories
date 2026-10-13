@@ -19,7 +19,7 @@ import type { EntityId } from '../model/common.ts';
 import type { Override } from './loader.ts';
 
 /** Stable anomaly codes of the override applier (§8.2). */
-export const OVERRIDE_ANOMALIES = {
+const OVERRIDE_ANOMALIES = {
   /** The override matches nothing, or every day it targets already has its value. */
   obsolete: 'override-obsolete',
   /** A version boundary that exists only because of an override (overrides may only remove them). */

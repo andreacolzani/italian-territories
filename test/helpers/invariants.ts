@@ -31,20 +31,20 @@ import type {
 
 export const START: IsoDate = '1861-03-17';
 export const TODAY: IsoDate = '2026-01-01';
-export const SNAPSHOT_DATES: IsoDate[] = ['1861-03-17', '1900-01-01', '1950-01-01', '1960-01-01', '2020-01-01'];
+const SNAPSHOT_DATES: IsoDate[] = ['1861-03-17', '1900-01-01', '1950-01-01', '1960-01-01', '2020-01-01'];
 
 type Interval = [IsoDate, IsoDate | null];
 const span = ([validFrom, validTo]: Interval): HalfOpenInterval => ({ validFrom, validTo });
 
 /** A test entity id of `level`: the prefix and `n` zero-padded (valid Crockford base32). */
-export function testId(level: Level, n: number): EntityId {
+function testId(level: Level, n: number): EntityId {
   return `${ENTITY_ID_PREFIXES[level]}-${String(n).padStart(6, '0')}`;
 }
 export const R = (n: number): EntityId => testId('region', n);
 export const P = (n: number): EntityId => testId('province', n);
 export const M = (n: number): EntityId => testId('municipality', n);
 
-export function regionVersion(interval: Interval, over: Partial<RegionVersion> = {}): RegionVersion {
+function regionVersion(interval: Interval, over: Partial<RegionVersion> = {}): RegionVersion {
   return {
     ...span(interval),
     istatCode: '01',
@@ -56,7 +56,7 @@ export function regionVersion(interval: Interval, over: Partial<RegionVersion> =
   };
 }
 
-export function provinceVersion(
+function provinceVersion(
   interval: Interval,
   code: string,
   abbreviation: string,

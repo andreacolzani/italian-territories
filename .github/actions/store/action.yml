@@ -1,16 +1,22 @@
 name: Store
 description: >-
   Clones the snapshot store (the italian-territories-store repository) shallow into .cache/store,
-  or commits and pushes it (§6.3). The push authenticates with a deploy key that has write
-  access to the store repository only.
+  or commits and pushes it (§6.3). Clone and push go over HTTPS with the token of the GitHub App
+  (D50), passed to each git command and never written to the git configuration.
 
 inputs:
   mode:
     description: '`restore` (shallow clone) or `save` (commit and push, only when something changed)'
     required: true
-  deploy-key:
-    description: Private SSH key of the store repository's deploy key (secret STORE_DEPLOY_KEY)
+  token:
+    description: Token of the GitHub App (.github/actions/app-token), created right before this step
     required: true
+  git-name:
+    description: Committer name (save)
+    default: ''
+  git-email:
+    description: Committer email (save)
+    default: ''
   repository:
     description: The store repository
     default: andreacolzani/italian-territories-store
@@ -29,34 +35,24 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Configure SSH
-      shell: bash
-      env:
-        DEPLOY_KEY: ${{ inputs.deploy-key }}
-      run: |
-        set -euo pipefail
-        dir="$RUNNER_TEMP/store-ssh"
-        mkdir -p "$dir"
-        chmod 700 "$dir"
-        # Written without echoing: the key never reaches the log.
-        printf '%s\n' "$DEPLOY_KEY" > "$dir/key"
-        chmod 600 "$dir/key"
-        # GitHub's published host key (https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints).
-        echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$dir/known_hosts"
-        echo "GIT_SSH_COMMAND=ssh -i $dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$dir/known_hosts -o StrictHostKeyChecking=yes" >> "$GITHUB_ENV"
-
     - name: Clone the store
       if: inputs.mode == 'restore'
       shell: bash
       env:
         REPOSITORY: ${{ inputs.repository }}
         STORE: ${{ inputs.path }}
+        TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
+        # The token reaches git through the environment of this step only: never .git/config nor the log.
+        auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+        echo "::add-mask::$auth"
+        export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+        export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
         rm -rf "$STORE"
         mkdir -p "$(dirname "$STORE")"
         # No command reads the history of the store: one commit is enough.
-        git clone --depth 1 --single-branch --no-tags "git@github.com:$REPOSITORY.git" "$STORE"
+        git clone --depth 1 --single-branch --no-tags "https://github.com/$REPOSITORY.git" "$STORE"
         git -C "$STORE" log -1 --format='store at %h (%cI): %s'
 
     - name: Commit and push the store
@@ -66,8 +62,16 @@ runs:
       env:
         STORE: ${{ inputs.path }}
         MESSAGE: ${{ inputs.message }}
+        GIT_NAME: ${{ inputs.git-name }}
+        GIT_EMAIL: ${{ inputs.git-email }}
+        TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
+        # The token reaches git through the environment of this step only: never .git/config nor the log.
+        auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+        echo "::add-mask::$auth"
+        export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+        export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
         if [ ! -d "$STORE/.git" ]; then
           echo "::error::$STORE is not a clone of the store repository"
           exit 1
@@ -79,7 +83,6 @@ runs:
           echo "pushed=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-          commit --quiet -m "$MESSAGE"
+        git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" commit --quiet -m "$MESSAGE"
         git push origin HEAD
         echo "pushed=true" >> "$GITHUB_OUTPUT"

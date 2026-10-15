@@ -22,15 +22,15 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 350
     permissions:
-      contents: write # commit to main
-      pull-requests: write # the data-update PR
-      actions: write # start release.yml
+      # Every write (store, data commit, data-update PR) uses the GitHub App token (D50).
+      contents: read
     env:
       DRY_RUN: ${{ inputs.dry_run == true }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
+          persist-credentials: false # pushes use the app token
 
       - uses: actions/setup-node@v7
         with:
@@ -38,12 +38,18 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: App token
+        id: app
+        uses: ./.github/actions/app-token
+        with:
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Restore the store
         id: restore
         uses: ./.github/actions/store
         with:
           mode: restore
-          deploy-key: ${{ secrets.STORE_DEPLOY_KEY }}
+          token: ${{ steps.app.outputs.token }}
 
       - name: Update
         id: run
@@ -55,12 +61,22 @@ jobs:
           echo "today=$(jq -r '.today // "unknown"' .cache/last-run.json 2>/dev/null || echo unknown)" >> "$GITHUB_OUTPUT"
 
       # Always, also after a failure or a timeout: the store caches what was downloaded.
+      # The token of the first step lasts one hour, the job up to 350 minutes: a new one for the end.
+      - name: App token for the end of the job
+        id: app-end
+        if: always() && steps.restore.outcome == 'success'
+        uses: ./.github/actions/app-token
+        with:
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Push the store
-        if: always() && steps.restore.outcome == 'success' && env.DRY_RUN != 'true'
+        if: always() && steps.app-end.outcome == 'success' && env.DRY_RUN != 'true'
         uses: ./.github/actions/store
         with:
           mode: save
-          deploy-key: ${{ secrets.STORE_DEPLOY_KEY }}
+          token: ${{ steps.app-end.outputs.token }}
+          git-name: ${{ steps.app-end.outputs.git-name }}
+          git-email: ${{ steps.app-end.outputs.git-email }}
           message: Store ${{ steps.run.outputs.today }} (update, exit ${{ steps.run.outputs.exit-code }})
 
       - name: Upload the run summary and log
@@ -74,14 +90,16 @@ jobs:
           if-no-files-found: warn
 
       - name: Deliver the data
-        if: steps.run.outputs.exit-code == '0' || steps.run.outputs.exit-code == '2'
+        if: steps.app-end.outcome == 'success' && (steps.run.outputs.exit-code == '0' || steps.run.outputs.exit-code == '2')
         uses: ./.github/actions/data-output
         with:
           exit-code: ${{ steps.run.outputs.exit-code }}
           origin: weekly-update
           allow-main: 'true'
           dry-run: ${{ env.DRY_RUN }}
-          token: ${{ github.token }}
+          token: ${{ steps.app-end.outputs.token }}
+          git-name: ${{ steps.app-end.outputs.git-name }}
+          git-email: ${{ steps.app-end.outputs.git-email }}
 
       - name: Verdict
         if: always() && steps.run.outcome == 'success'

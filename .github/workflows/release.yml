@@ -1,7 +1,7 @@
 name: Release
 
-# Every release starts here (D47): on a push to main touching dist/ (a merged PR) or dispatched by
-# weekly-update with the commit it pushed (a push made with GITHUB_TOKEN triggers no workflow).
+# Every release starts here (D47): on a push to main touching dist/ (a data commit pushed with the
+# GitHub App token, D50, or a merged PR), or dispatched by hand with the commit to release.
 # npm trusted publishing checks the workflow the run starts from: this file, release.yml.
 on:
   push:

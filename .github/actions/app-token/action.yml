@@ -1,0 +1,51 @@
+name: App token
+description: >-
+  Creates an installation token of the project's GitHub App (D50, §10.3) and the git identity of
+  its bot account. The token lasts one hour: create it right before the steps that use it.
+
+inputs:
+  private-key:
+    description: Private key of the GitHub App (secret APP_PRIVATE_KEY)
+    required: true
+  repositories:
+    description: Comma-separated repositories of the owner the token is scoped to
+    default: italian-territories,italian-territories-store
+
+outputs:
+  token:
+    description: Installation token (Contents and Pull requests read and write)
+    value: ${{ steps.token.outputs.token }}
+  git-name:
+    description: Git author and committer name of the app's bot account
+    value: ${{ steps.identity.outputs.name }}
+  git-email:
+    description: Git author and committer email of the app's bot account
+    value: ${{ steps.identity.outputs.email }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create the token
+      id: token
+      # v3.2.0
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+      with:
+        # The client ID is not secret.
+        client-id: Iv23lia4WZeDfmuPgUpD
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ inputs.repositories }}
+        permission-contents: write
+        permission-pull-requests: write
+
+    - name: Bot identity
+      id: identity
+      shell: bash
+      env:
+        GH_TOKEN: ${{ steps.token.outputs.token }}
+        SLUG: ${{ steps.token.outputs.app-slug }}
+      run: |
+        set -euo pipefail
+        id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)
+        echo "name=${SLUG}[bot]" >> "$GITHUB_OUTPUT"
+        echo "email=${id}+${SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"

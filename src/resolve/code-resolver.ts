@@ -1,17 +1,7 @@
 /**
- * Code resolver (§6.6): the snapshot interval identified by an ISTAT code in an event row.
- *
- * 1. The side picks the lookup date (§3.5 item 6): a successor is identified by its code on the
- *    event date `D`, a predecessor by its code on `D − 1`.
- * 2. Not found: same-day aliases of `D` (`aliases.ts`), followed in the direction of the side
- *    (predecessor: code of `D` → code of `D − 1`; successor: the opposite), through chains.
- * 3. Municipalities only: the cadastral code of the event row, when the row has one, matched
- *    against the snapshot rows of the lookup date.
- * 4. Still unresolved, or more than one candidate at a step: `ResolutionError`, which the caller
- *    turns into a `blocking` anomaly (`code-unresolved`, §8.2).
- *
- * The result is a snapshot interval, not an entity: identity resolution (§6.7) attaches intervals to entities.
- * Foreign state counterparts (`Stato estero`) never reach the resolver (§3.5 item 15).
+ * §6.6. A successor is identified by its code on the event date `D`, a predecessor by its code on
+ * `D − 1` (§3.5 item 6). The result is a snapshot interval, never an entity (§6.7). `Stato estero`
+ * counterparts never get here (§3.5 item 15).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { previousDay, type IsoDate } from '../dates/index.ts';
@@ -26,15 +16,13 @@ export type ResolutionPath = 'direct' | 'alias' | 'cadastral';
 export interface ResolveQuery<L extends Level = Level> {
   level: L;
   code: string;
-  /** Event date `D`: the first day of the new state. */
   date: IsoDate;
   side: ResolutionSide;
-  /** Cadastral code reported next to `code` by the event row (municipalities only). */
   cadastralCode?: string | null;
 }
 
 export interface Resolution<L extends Level = Level> {
-  /** `<code>@<validFrom>` of the interval: stable for the same store, but not an identity. */
+  /** Not an identity: stable only within one store. */
   intervalKey: string;
   interval: SnapshotInterval<L>;
   path: ResolutionPath;
@@ -46,9 +34,7 @@ export class ResolutionError extends Error {
   readonly query: ResolveQuery;
   readonly lookupDate: IsoDate;
   readonly reason: ResolutionFailure;
-  /** Codes reached through same-day aliases, in visit order (the queried code excluded). */
   readonly aliasCodes: readonly string[];
-  /** Keys of the competing intervals of an ambiguous step. */
   readonly candidates: readonly string[];
 
   constructor(init: {
@@ -83,7 +69,6 @@ export type IntervalIndexes = { [L in Level]?: IntervalIndex<L> };
 
 export class CodeResolver {
   readonly #indexes: IntervalIndexes;
-  /** Aliases by `<level>|<date>`. */
   readonly #aliases = new Map<string, CodeAlias[]>();
 
   constructor(indexes: IntervalIndexes, aliases: readonly CodeAlias[] = []) {
@@ -120,10 +105,6 @@ export class CodeResolver {
     throw fail('not-found', aliasCodes);
   }
 
-  /**
-   * Like {@link resolve}, adding a `blocking` anomaly instead of throwing. `context` describes
-   * the event row being resolved (§8.2: full context).
-   */
   resolveOrReport<L extends Level>(
     query: ResolveQuery<L>,
     anomalies: AnomalyCollector,
@@ -138,7 +119,6 @@ export class CodeResolver {
     }
   }
 
-  /** Codes reachable from the queried one through the aliases of its date, towards its side. */
   #aliasCodes(query: ResolveQuery): string[] {
     const aliases = this.#aliases.get(`${query.level}|${query.date}`) ?? [];
     const visited = new Set([query.code]);

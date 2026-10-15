@@ -1,16 +1,7 @@
 /**
- * Per-level interval index of the snapshot store (§6.6): for every ISTAT code, the
- * maximal intervals `[validFrom, validTo)` during which the code identifies the same projected
- * snapshot row.
- *
- * The snapshot of a calendar date holds until the next calendar date (completeness, §6.5), and
- * the snapshot of the last date (today) is open. An interval ends when the code disappears or its
- * row changes, so consecutive intervals of a code may belong to the same entity (a rename) or to
- * different ones (code reuse, §3.5 item 4): the index says nothing about identity, which is
- * decided by identity resolution (§6.7).
- *
- * A code must be unique within a snapshot (§6.7). A duplicated code is a `blocking` anomaly and
- * the code is left out of that date, so every lookup of it there fails instead of guessing.
+ * §6.6. A snapshot holds until the next calendar date (§6.5). Consecutive intervals of a code may be
+ * one entity (a rename) or different ones (code reuse, §3.5 item 4): identity is decided in §6.7.
+ * A code duplicated within a snapshot is left out of that date, so lookups fail instead of guessing.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareDates, containsDate, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
@@ -18,21 +9,18 @@ import type { Level } from '../model/common.ts';
 import type { SnapshotRowByLevel } from '../model/internal.ts';
 import type { Hashed, Store } from '../store/index.ts';
 
-/** A code identifying the same snapshot row over `[validFrom, validTo)`. */
 export interface SnapshotInterval<L extends Level = Level> extends HalfOpenInterval {
   level: L;
   code: string;
   row: SnapshotRowByLevel[L];
 }
 
-/** The rows of the snapshot of one date, each with its row hash. */
 export interface IndexedSnapshot<L extends Level> {
   date: IsoDate;
   rows: readonly Hashed<SnapshotRowByLevel[L]>[];
 }
 
 export const INTERVAL_INDEX_ANOMALIES = {
-  /** Two rows of one snapshot with the same code. */
   duplicateCode: 'snapshot-duplicate-code',
 } as const;
 
@@ -45,24 +33,20 @@ export class IntervalIndex<L extends Level = Level> {
     this.#byCode = byCode;
   }
 
-  /** The interval of `code` containing `date`, if the code exists on that date. */
   at(code: string, date: IsoDate): SnapshotInterval<L> | undefined {
     return this.#byCode.get(code)?.find((interval) => containsDate(interval, date));
   }
 
-  /** Every interval of `code`, sorted by `validFrom`. */
   intervals(code: string): readonly SnapshotInterval<L>[] {
     return this.#byCode.get(code) ?? [];
   }
 
-  /** Every interval of every code, sorted by `validFrom`, then by code. */
   all(): SnapshotInterval<L>[] {
     return [...this.#byCode.values()]
       .flat()
       .sort((a, b) => compareDates(a.validFrom, b.validFrom) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
   }
 
-  /** The intervals containing `date` whose row satisfies `match`. */
   findAt(date: IsoDate, match: (row: SnapshotRowByLevel[L]) => boolean): SnapshotInterval<L>[] {
     const found: SnapshotInterval<L>[] = [];
     for (const intervals of this.#byCode.values()) {
@@ -75,7 +59,6 @@ export class IntervalIndex<L extends Level = Level> {
 
 export interface BuildIntervalIndexOptions<L extends Level> {
   level: L;
-  /** The snapshots of the calendar dates, ascending and without duplicates. */
   snapshots: Iterable<IndexedSnapshot<L>> | AsyncIterable<IndexedSnapshot<L>>;
   anomalies: AnomalyCollector;
 }
@@ -134,10 +117,8 @@ export async function buildIntervalIndex<L extends Level>(
 }
 
 /**
- * Index of `level` from the snapshots stored for `dates` (the calendar, §6.4). Stored snapshots
- * of other dates (bisection probes inside a constant interval, dates after `--today`) are not
- * read. A calendar date without a stored snapshot of the current projection version is a bug:
- * the snapshot stage blocks the pipeline before (§6.5).
+ * Only the calendar dates: stored bisection probes and dates after `--today` are not read. A
+ * missing snapshot is a bug, since the snapshot stage blocks the pipeline first (§6.5).
  */
 export function loadIntervalIndex<L extends Level>(
   store: Store,

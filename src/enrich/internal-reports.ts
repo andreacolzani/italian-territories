@@ -1,12 +1,4 @@
-/**
- * Where the internal crawl gets reports from (§6.8): the store first. A stored report of
- * the current projection version is used without network unless its refresh is mandatory;
- * otherwise the report is fetched (`cache: prefer`, or the refresh policy when mandatory) and stored.
- *
- * Degradation (§6.1): when a mandatory refresh fails because the source is unavailable (open
- * circuit, exhausted retries), the stored copy is used, or the HTTP cache entry when the store
- * has none (`staleFallback`). Validation errors and rejected requests never fall back (D26).
- */
+/** Only unavailability falls back to an older copy, never validation errors or rejected requests (D26). */
 import type { CachePolicy, ClientResult, RequestOptions } from '../http/index.ts';
 import { isUnavailable } from '../http/index.ts';
 import type { InternalReportNumber } from '../sources/situas-internal/index.ts';
@@ -14,26 +6,20 @@ import { NotInStoreError, type InternalRowByReport, type Store } from '../store/
 
 export interface ObtainedReport<R> {
   rows: R[];
-  /**
-   * `store`: the stored copy, no refresh required; `fetched`: network or HTTP cache, now stored;
-   * `stale`: a mandatory refresh failed and an older copy (store or HTTP cache) was used.
-   */
+  /** `fetched` includes the HTTP cache; `stale`: a mandatory refresh failed and an older copy was used. */
   origin: 'store' | 'fetched' | 'stale';
 }
 
 export interface InternalReportRequest<N extends InternalReportNumber> {
   report: N;
-  /** Unencoded report URL (`reportUrls`), the store key. */
+  /** Unencoded: it is the store key. */
   reportUrl: string;
   fetch: (options: RequestOptions) => Promise<ClientResult<InternalRowByReport[N][]>>;
   refresh: boolean;
-  /** HTTP cache policy of a mandatory refresh (default `refresh`; `rebuild --refetch`: `fetchedSince`). */
   refreshPolicy?: CachePolicy;
-  /** Offline run: never fetches; a report missing from the store throws `NotInStoreError`. */
   offline?: boolean;
 }
 
-/** Throws the HTTP client errors of the fetch when no copy can stand in for it. */
 export async function obtainInternalReport<N extends InternalReportNumber>(
   store: Store,
   request: InternalReportRequest<N>,

@@ -1,28 +1,10 @@
 /**
- * Internal crawl and identity graph (§6.8). Internal data is acquired before identity
- * resolution (D23): UTS and region identity depend on it.
- *
- * - Regions and UTS: list r1/r2, then events r4/r5 for **every** listed `(code, name, type)`
- *   record (each typed record returns only its own events; records of the same `id_uts` under
- *   older codes return the same rows, merged by the graph), then details r7/r8 for every
- *   distinct event except `PV`, `CD` and `RN`, which have no associated territories. Details are
- *   queried with the event row's own origin id and type (verified: r8 answers `CSCT` of the
- *   Milano metropolitan city for `id_uts_origine=9`, not for its `id_uts` 119).
- * - Municipalities: list r3, then r6 per `(pro_com_t, comune)` pair, in code and name order.
- *   Each r6 response is the full history of the entity and lists the codes and names it had:
- *   those pairs are covered and skipped. Stored responses are read first, so an incremental crawl only sends requests
- *   for pairs no stored history covers. Responses are merged by `id_comune_origine` (graph).
- *   Report 9 is crawled only for the ambiguous events: the events of one entity with the same date
- *   and event code under more than one act (their details tell the acts apart, §4.3).
- *
- * Reports come from the store unless their refresh is mandatory (`mustRefresh`, decided by the
- * orchestrator; `internal-reports.ts`). Anomalies (§8.2):
- * - an empty r4/r5/r6 response for a listed record: `blocking`, one per record (D28);
- * - a mandatory refresh that fell back to older data: `warning`, one per report;
- * - data missing with no copy to fall back on: `warning`, one per report (whether a decision
- *   needs it, which is `blocking`, is decided by identity resolution, §6.7);
- * - rejected requests (4xx) and schema violations: `blocking`, one per report and cause, never
- *   replaced by older data (D26).
+ * §6.8. Internal data comes before identity resolution because UTS and region identity depend on it
+ * (D23). Each typed record returns only its own events; records of one `id_uts` under older codes
+ * return the same rows. Details are queried with the event row's own origin id and type: r8 answers
+ * `CSCT` of the Milano metropolitan city for `id_uts_origine=9`, not for its `id_uts` 119. An r6
+ * response is the entity's full history, so the pairs it lists need no request of their own.
+ * Missing data is only a `warning` here: whether a decision needs it is up to identity (§6.7).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { failureCause, type SnapshotFailureCause } from '../completeness/index.ts';
@@ -54,24 +36,18 @@ import type { InternalRowByReport, Store } from '../store/index.ts';
 import { summariseEventCodes, type EventCodeSummary } from './event-codes.ts';
 import { obtainInternalReport, type ObtainedReport } from './internal-reports.ts';
 
-/** Stable anomaly codes of the internal crawl (§8.2). */
 export const INTERNAL_CRAWL_ANOMALIES = {
-  /** An r4/r5/r6 response without events for a listed record (D28). */
+  /** D28. */
   emptyEvents: 'listed-record-without-events',
-  /** A mandatory refresh failed and older data (store or HTTP cache) was used. */
   stale: 'internal-data-stale',
-  /** Internal data could not be obtained and no copy exists. */
   unavailable: 'internal-data-unavailable',
-  /** Non-retryable HTTP status (4xx other than 429). */
   rejected: 'internal-request-rejected',
-  /** Permanent validation error, or the endpoint already disabled by one. */
   schemaViolation: 'internal-schema-violation',
 } as const;
 
-/** Events without associated territories: no r7/r8 request. */
+/** No associated territories. */
 const EVENTS_WITHOUT_DETAILS: readonly IstatEventCode[] = ['PV', 'CD', 'RN'];
 
-/** One internal request of the crawl, as given to `mustRefresh` and reported in anomalies. */
 export type CrawlItem =
   | { report: 1 | 2 | 3 }
   | { report: 4; record: RegionRecordQuery }
@@ -87,20 +63,14 @@ export interface CrawlFailure {
   error: Error;
 }
 
-/** An event of the merged history with the associated territories of its r7/r8 details. */
 export interface CrawledEvent<E, D> {
   event: E;
-  /**
-   * Rows of the details report; `null` for events without details (`PV`, `CD`, `RN`), for
-   * municipality events that are not ambiguous (r9 is crawled only for those) and when the report
-   * could not be obtained.
-   */
+  /** `null` also when not needed (`PV`, `CD`, `RN`, municipality events that are not ambiguous). */
   details: D[] | null;
 }
 
 export interface LevelCrawl<E, D> {
   level: Level;
-  /** Every listed record and every needed details report was obtained. */
   complete: boolean;
   graph: IdentityGraph<CrawledEvent<E, D>>;
 }
@@ -110,12 +80,9 @@ export interface InternalCrawlResult {
   region: LevelCrawl<InternalRegionEvent, RegionEventDetail> | null;
   province: LevelCrawl<InternalUtsEvent, UtsEventDetail> | null;
   municipality: LevelCrawl<InternalMunicipalityEvent, MunicipalityEventDetail> | null;
-  /** Observed `(level, event code)` pairs, input to the event rules of §4.3 (D27). */
   eventCodes: EventCodeSummary;
-  /** Mandatory refreshes that fell back to older data. */
   stale: CrawlItem[];
   failures: CrawlFailure[];
-  /** Requests sent to the HTTP client (network or HTTP cache), by report. */
   requests: Record<InternalReportNumber, number>;
 }
 
@@ -123,20 +90,12 @@ export interface InternalCrawlOptions {
   source: SituasInternalSource;
   store: Store;
   anomalies: AnomalyCollector;
-  /** Report requests in progress at once (the HTTP client paces the network). */
   concurrency: number;
-  /** Requests whose refresh is mandatory (default: none). */
   mustRefresh?: (item: CrawlItem) => boolean;
-  /** HTTP cache policy of the mandatory refreshes (default `refresh`). */
   refreshPolicy?: CachePolicy;
-  /**
-   * Offline run (`rebuild` without `--refetch`): only the store is read; a missing report is
-   * unavailable (`internal-data-unavailable`, or `internal-list-unavailable` for r1–r3), never fetched.
-   */
   offline?: boolean;
   levels?: readonly Level[];
   logger?: Logger;
-  /** Counts every report request (progress lines, §10.4). */
   progress?: StageProgress;
 }
 
@@ -237,7 +196,6 @@ class Crawl {
     if (list === undefined) return null;
 
     const pairs = uniquePairs(list);
-    /** Pair → whether the history covering it is fresh (this run) or a stored copy. */
     const covered = new Map<string, 'store' | 'fresh'>();
     const histories: Response<InternalMunicipalityEvent>[] = [];
     let complete = true;
@@ -307,11 +265,8 @@ class Crawl {
   }
 
   /**
-   * r9 only for the ambiguous municipality events: the events of one entity with the same date and
-   * event code under more than one act (e.g. Riola Sardo, two `CECS` of 1946-02-07, acts 5831 and
-   * 5841). Their associated territories let the variation builder match each public row to its act
-   * (§4.3). Store-first like every internal report; a details report that cannot be obtained
-   * leaves the event without details (the ambiguity stays a `warning`). Returns the events queried.
+   * r9 only for the events of one municipality with the same date and code under several acts (Riola
+   * Sardo, two `CECS` of 1946-02-07): their territories match each public row to its act (§4.3).
    */
   async #ambiguousDetails(
     graph: IdentityGraph<CrawledEvent<InternalMunicipalityEvent, MunicipalityEventDetail>>,
@@ -350,7 +305,6 @@ class Crawl {
     return { stale: [...this.#stale], failures: [...this.#failures], requests: { ...this.#requests } };
   }
 
-  /** Aggregated anomalies: one per report (and cause), listing the requests involved. */
   report(result: InternalCrawlResult): void {
     for (const [report, items] of sortedGroups(this.#stale, (item) => item.report)) {
       this.#anomalies.add({
@@ -463,7 +417,6 @@ class Crawl {
     return (await this.#obtain(item, reportUrl, fetch))?.rows;
   }
 
-  /** The report, or `undefined` when it could not be obtained (recorded as a failure). */
   async #obtain<N extends InternalReportNumber>(
     item: CrawlItem & { report: N },
     reportUrl: string,
@@ -523,17 +476,12 @@ class Crawl {
   }
 }
 
-/** The events report of one listed record; `fresh` when fetched in this run. */
 interface Response<E> extends IdentitySource<E> {
   events: E[];
   fresh: boolean;
 }
 
-/**
- * A history fetched in this run replaces the stored ones of the same records: the stored events
- * of every node (`id`) a fresh response covers are dropped, so a row ISTAT corrected never
- * survives next to its correction. A stored response left without events is dropped as well.
- */
+/** So that a row ISTAT corrected never survives next to its correction. */
 function preferFresh<E>(responses: readonly Response<E>[], id: (event: E) => number): Response<E>[] {
   const fresh = new Set(responses.flatMap((r) => (r.fresh ? r.events.map(id) : [])));
   if (fresh.size === 0) return [...responses];
@@ -566,10 +514,7 @@ function pairKey(pair: MunicipalityRecordQuery): string {
   return `${pair.code}|${pair.name}`;
 }
 
-/**
- * Distinct pairs sorted by code, then name: the crawl order (and so which pairs are skipped)
- * does not depend on whether the list came from the network or from the store.
- */
+/** Sorted so the crawl order, and so the pairs skipped, do not depend on where the list came from. */
 function uniquePairs(list: readonly MunicipalityRecordQuery[]): MunicipalityRecordQuery[] {
   const seen = new Map<string, MunicipalityRecordQuery>();
   for (const { code, name } of list)
@@ -581,7 +526,6 @@ function compareCodeUnits(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Items grouped by key, groups sorted by key (numbers numerically, strings by code unit). */
 function sortedGroups<T, K extends number | string>(items: readonly T[], key: (item: T) => K): [K, T[]][] {
   const groups = new Map<K, T[]>();
   for (const item of items) {

@@ -1,8 +1,8 @@
 name: Data output
 description: >-
   Delivers the output of a data run (§10.3): with a changed dist/ it writes the CHANGELOG
-  entry and checks it, then commits to main and starts release.yml, or force-pushes the
-  data-update branch and creates or updates its PR. reports/, registry/ and the CHANGELOG are
+  entry and checks it, then commits to main (whose push starts release.yml), or force-pushes the
+  data-update branch and creates or updates its PR, with the token of the GitHub App (D50). reports/, registry/ and the CHANGELOG are
   delivered only together with dist/. Runs only after exit 0 or 2.
 
 inputs:
@@ -16,10 +16,16 @@ inputs:
     description: '`true` when exit 0 may go straight to main (weekly-update); otherwise always the PR'
     default: 'false'
   dry-run:
-    description: '`true`: prepare everything, commit nothing, open no PR, start no release'
+    description: '`true`: prepare everything, commit nothing, open no PR'
     default: 'false'
   token:
-    description: GITHUB_TOKEN (contents, pull-requests and actions write)
+    description: Token of the GitHub App (.github/actions/app-token), created right before this step
+    required: true
+  git-name:
+    description: Author and committer name of the data commit (the app's bot account)
+    required: true
+  git-email:
+    description: Author and committer email of the data commit (the app's bot account)
     required: true
 
 outputs:
@@ -66,26 +72,29 @@ runs:
           echo EOF
         } >> "$GITHUB_OUTPUT"
 
-    - name: Commit to main and start the release
+    - name: Commit to main
       if: steps.plan.outputs.target == 'main' && inputs.dry-run != 'true'
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.token }}
+        TOKEN: ${{ inputs.token }}
+        GIT_NAME: ${{ inputs.git-name }}
+        GIT_EMAIL: ${{ inputs.git-email }}
         DATA_VERSION: ${{ steps.plan.outputs.data-version }}
         PATHS: ${{ steps.plan.outputs.paths }}
       run: |
         set -euo pipefail
         # shellcheck disable=SC2086
         git add -- $PATHS
-        git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-          commit --quiet -m "Data update $DATA_VERSION"
+        git -c user.name="$GIT_NAME" -c user.email="$GIT_EMAIL" commit --quiet -m "Data update $DATA_VERSION"
+        # The token reaches git through the environment of this step only: never .git/config nor the log.
+        auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+        echo "::add-mask::$auth"
+        export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+        export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
         # Rejected when main moved during the run: the next run starts again from the new main.
+        # Pushed with the app token, the commit starts release.yml by itself (D50).
         git push origin HEAD:main
-        sha=$(git rev-parse HEAD)
-        # A push made with GITHUB_TOKEN triggers no workflow: release.yml is started explicitly,
-        # so it is always the workflow npm trusted publishing sees (D47).
-        gh workflow run release.yml --ref main -f sha="$sha"
-        echo "release.yml started on $sha"
+        echo "pushed $(git rev-parse HEAD) to main"
 
     - name: PR body
       if: steps.plan.outputs.target == 'pr'
@@ -116,7 +125,7 @@ runs:
         base: main
         add-paths: ${{ steps.plan.outputs.paths }}
         commit-message: Data update ${{ steps.plan.outputs.data-version }} (${{ inputs.origin }})
-        committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-        author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+        committer: ${{ inputs.git-name }} <${{ inputs.git-email }}>
+        author: ${{ inputs.git-name }} <${{ inputs.git-email }}>
         title: Data update ${{ steps.plan.outputs.data-version }}
         body-path: ${{ runner.temp }}/data-update-body.md

@@ -2,27 +2,59 @@ name: Dependabot auto-merge
 
 on: pull_request_target
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   auto-merge:
     name: Enable auto-merge
-    # Disabled while the repository is private: without branch protection `gh pr merge --auto`
-    # merges at once, before the checks finish (§10.5 "Going public").
+    # Disabled while the repository is private: without a required check auto-merge has nothing to
+    # wait for (§10.3, §10.5 "Going public").
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'andreacolzani/italian-territories' && !github.event.repository.private
     runs-on: ubuntu-26.04
     timeout-minutes: 5
+    permissions:
+      contents: read # the base branch, for the app-token action
+      pull-requests: read # Dependabot metadata
     steps:
       - name: Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@v3
 
-      # Major updates stay open for manual review.
-      - name: Enable auto-merge for minor and patch updates
-        if: contains(fromJSON('["version-update:semver-minor", "version-update:semver-patch"]'), steps.metadata.outputs.update-type)
-        run: gh pr merge --auto --merge "$PR_URL"
+      # Only npm minor and patch updates: majors and github-actions updates (they change
+      # .github/workflows/, which the app may not write) stay open for review by hand (D50).
+      - name: Eligible
+        id: eligible
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' && contains(fromJSON('["version-update:semver-minor", "version-update:semver-patch"]'), steps.metadata.outputs.update-type)
         env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ github.token }}
+          NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: echo "$NAMES ($UPDATE_TYPE)"
+
+      # The base branch only (the default of pull_request_target), never the PR's code.
+      - uses: actions/checkout@v7
+        if: steps.eligible.outcome == 'success'
+        with:
+          persist-credentials: false
+
+      - name: App token
+        id: app
+        if: steps.eligible.outcome == 'success'
+        uses: ./.github/actions/app-token
+        with:
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: italian-territories
+
+      # Auto-merge only, never a direct merge: the app bypasses the ruleset of main, so a direct
+      # merge would skip the required check. Merged by the app, the PR starts test.yml on main.
+      - name: Enable auto-merge
+        if: steps.eligible.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          PR_ID: ${{ github.event.pull_request.node_id }}
+        run: |
+          gh api graphql -f id="$PR_ID" -f query='
+            mutation($id: ID!) {
+              enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: MERGE }) {
+                pullRequest { autoMergeRequest { enabledAt } }
+              }
+            }'

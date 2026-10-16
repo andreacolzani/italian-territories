@@ -1,15 +1,9 @@
 /**
- * Downloads the §11.2 fixtures through the HTTP client (encoded, rate-limited, cached) and
- * stores the bodies exactly as served (internal reports stay double-encoded, §3.3) at their
- * §11.1 paths, adding or replacing their manifest entries.
- *
  * Usage: npm run fixtures:fetch [-- <fixture path>...]
  *
- * With fixture paths (relative to `test/fixtures/`), only those downloads are recorded; the
- * others, whose event lists and counts depend on the download date, are left untouched.
- *
- * Bodies are only checked for content type and envelope here: the adapters' row schemas are
- * exercised by the fixture tests, so a schema problem never prevents recording the evidence.
+ * Bodies are stored exactly as served (internal reports stay double-encoded, §3.3). With paths, only
+ * those are recorded: event lists and counts depend on the download date. Only content type and
+ * envelope are checked, so a schema problem never prevents recording the evidence.
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -262,7 +256,6 @@ function staticDownloads(): Download[] {
   ];
 }
 
-/** Endpoint scopes of a request (§6.1) with a decoder that checks only content type and envelope. */
 function rawEndpoint(request: HttpRequest): Endpoint<unknown[]> {
   const { source, endpoint } = describeRequest(request);
   if (source === 'anpr') throw new Error('ANPR fixtures are not part of §11.2');

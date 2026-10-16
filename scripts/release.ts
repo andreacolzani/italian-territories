@@ -1,27 +1,14 @@
 /**
- * Release tooling (§9): the CHANGELOG entry of a release, the checks of the release
- * workflows and the staging of the npm package.
+ * Usage: npm run release -- changelog | check | version | notes | pack <dir>
+ *        npm run release -- target <exit-code> <allow-main> <open-prs>
  *
- * Usage: npm run release -- <command>
+ * `pack` stages the npm package: the root `package.json` stays private and only the staged directory,
+ * with no executable code, is published. `target` decides by `dist/` only: `reports/`, `registry/`
+ * and the CHANGELOG are never delivered alone (§10.3).
  *
- * - `changelog`: adds the CHANGELOG entry of `reports/meta.json`, unless the first entry already
- *   describes it, and writes the date of the data in the README (between its `data-version`
- *   markers, when they exist). Run after a build that changed the public files.
- * - `check`: the first CHANGELOG entry (and the README date) match `reports/meta.json`.
- * - `version`: prints the version of the first entry (after `check`).
- * - `notes`: prints the first entry without its heading (the GitHub Release notes).
- * - `pack <dir>`: stages the npm package in `<dir>` (empty or missing): the published files of
- *   `dist/` (data and JSON Schemas), their TypeScript declarations in `types/` (generated from
- *   the schemas), `README.md`, the data licence as `LICENSE` and a generated `package.json` (with the description and keywords of the dataset, not those of the generator) whose
- *   `exports` map each data file to its declarations. No executable code. The root
- *   `package.json` stays private: only the staged directory is published.
- * - `target <exit-code> <allow-main> <open-prs>`: where the output of a data run goes (`none`,
- *   `main` or `pr`, §10.3), decided by `dist/` only: `reports/`, `registry/` and the CHANGELOG
- *   are delivered only together with a change of `dist/`.
- *
- * The npm version is `MAJOR.YYYYMMDD.PATCH`: MAJOR is the major of `schema_version`, `YYYYMMDD`
- * the `data_version`, PATCH 0 for the first release of a `MAJOR.YYYYMMDD`, then incremented (a
- * schemas release, or a rebuild that changes the data without changing `data_version`).
+ * The npm version is `MAJOR.YYYYMMDD.PATCH`: the major of `schema_version`, the `data_version`, and
+ * PATCH 0 for the first release of a `MAJOR.YYYYMMDD`, then incremented (a schemas release, or a
+ * rebuild that changes the data without changing `data_version`).
  */
 import { execFile } from 'node:child_process';
 import { cp, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
@@ -38,7 +25,6 @@ export const DATA_LICENSE_FILE = 'LICENSE-DATA';
 /** The description of the npm package: the dataset, not the generator of the root `package.json`. */
 export const DATA_DESCRIPTION =
   'Day-accurate historical dataset of Italian regions, provinces and municipalities from 1861 to today, from ISTAT SITUAS, with TypeScript types.';
-/** The keywords of the npm package. */
 export const DATA_KEYWORDS = [
   'italy',
   'istat',
@@ -51,16 +37,12 @@ export const DATA_KEYWORDS = [
   'codici-istat',
   'codice-catastale',
 ];
-/** The licence of the published data (SPDX). */
+/** SPDX. */
 export const DATA_LICENSE = 'CC-BY-4.0';
 
 export class ReleaseError extends Error {
   override readonly name = 'ReleaseError';
 }
-
-// ---------------------------------------------------------------------------------------------
-// Versions
-// ---------------------------------------------------------------------------------------------
 
 export interface Version {
   major: number;
@@ -80,21 +62,15 @@ export function formatVersion(v: Version): string {
   return `${v.major}.${v.date}.${v.patch}`;
 }
 
-/** The `MAJOR.YYYYMMDD` of a release: major of `schema_version`, `data_version` without dots. */
 function versionBase(meta: ReleaseMeta): Omit<Version, 'patch'> {
   return { major: Number(meta.schema_version.split('.')[0]), date: meta.data_version.replaceAll('.', '') };
 }
 
-/** `YYYY.MM.DD` → `YYYY-MM-DD`. */
 function isoDate(dataVersion: string): string {
   return dataVersion.replaceAll('.', '-');
 }
 
-// ---------------------------------------------------------------------------------------------
-// CHANGELOG
-// ---------------------------------------------------------------------------------------------
-
-/** What a CHANGELOG entry records of `reports/meta.json`, in a comment, to recognise its release. */
+/** Recorded in a comment, to recognise the release of an entry. */
 const releaseMetaSchema = z.strictObject({
   schema_version: z.string(),
   data_version: z.string(),
@@ -106,14 +82,13 @@ export interface ChangelogEntry {
   version: string;
   /** Null for an entry written by hand (no release comment). */
   meta: ReleaseMeta | null;
-  /** The entry without its heading and its release comment. */
   body: string;
 }
 
 const ENTRY_HEADING = /^## \[([^\]]+)\]/;
 const RELEASE_COMMENT = /^<!-- release (\{.*\}) -->$/;
 
-/** The entries of a CHANGELOG, first (latest) first. */
+/** Latest first. */
 export function parseChangelog(text: string): ChangelogEntry[] {
   const entries: ChangelogEntry[] = [];
   let current: { version: string; lines: string[] } | null = null;
@@ -150,7 +125,6 @@ function sameRelease(a: ReleaseMeta | null, b: ReleaseMeta): boolean {
   );
 }
 
-/** The version of a new release: PATCH = the highest PATCH of the same `MAJOR.YYYYMMDD` + 1, else 0. */
 export function nextVersion(meta: ReleaseMeta, entries: readonly ChangelogEntry[]): string {
   const base = versionBase(meta);
   const patches = entries.flatMap((e) => {
@@ -168,10 +142,7 @@ const LEVEL_LABELS = [
   ['municipalities', 'Municipalities'],
 ] as const;
 
-/**
- * The entry of a release: a schemas release (same `data_version` as the previous entry, no
- * change) or a data release with its change counts per level (variations are internal, D39).
- */
+/** Change counts per level only: variations are internal (D39). */
 export function renderEntry(version: string, meta: Meta, changes: Changes, previous: ChangelogEntry | null): string {
   const counts = LEVEL_LABELS.map(([level, label]) => {
     const { entities, versions } = changes[level];
@@ -219,7 +190,6 @@ export function renderEntry(version: string, meta: Meta, changes: Changes, previ
   return `${lines.join('\n')}\n`;
 }
 
-/** Inserts an entry before the first one (after the introduction). */
 export function insertEntry(changelog: string, entry: string): string {
   const lines = changelog.split('\n');
   const first = lines.findIndex((l) => ENTRY_HEADING.test(l));
@@ -227,25 +197,16 @@ export function insertEntry(changelog: string, entry: string): string {
   return [...lines.slice(0, first), ...entry.split('\n'), ...lines.slice(first)].join('\n');
 }
 
-// ---------------------------------------------------------------------------------------------
-// README date
-// ---------------------------------------------------------------------------------------------
-
 const README_DATE = /(<!-- data-version -->)([^<]*)(<!-- \/data-version -->)/;
 
-/** The date between the README markers, or `null` without markers. */
+/** `null` without markers. */
 export function readmeDate(readme: string): string | null {
   return README_DATE.exec(readme)?.[2] ?? null;
 }
 
-/** The README with `date` between its markers (unchanged without markers). */
 export function withReadmeDate(readme: string, date: string): string {
   return readme.replace(README_DATE, `$1${date}$3`);
 }
-
-// ---------------------------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------------------------
 
 async function readIfExists(path: string): Promise<string | null> {
   return readFile(path, 'utf8').catch((error: unknown) => {
@@ -265,7 +226,6 @@ async function releaseFiles(root: string): Promise<{ meta: Meta; changes: Change
   };
 }
 
-/** Adds the entry of `reports/meta.json` unless the first entry describes it; returns its version. */
 export async function changelog(root: string): Promise<{ version: string; added: boolean }> {
   const { meta, changes } = await releaseFiles(root);
   const path = join(root, CHANGELOG_FILE);
@@ -289,7 +249,6 @@ export async function changelog(root: string): Promise<{ version: string; added:
   return result;
 }
 
-/** The first entry of the CHANGELOG, checked against `reports/meta.json` and the README date. */
 export async function check(root: string): Promise<ChangelogEntry> {
   const { meta } = await releaseFiles(root);
   const text = await readIfExists(join(root, CHANGELOG_FILE));
@@ -319,7 +278,6 @@ export async function check(root: string): Promise<ChangelogEntry> {
   return first;
 }
 
-/** Stages the npm package in `dir` (empty or missing); returns its version. */
 export async function pack(root: string, dir: string): Promise<string> {
   const { version } = await check(root);
   const readme = await readIfExists(join(root, README_FILE));
@@ -394,20 +352,14 @@ export async function pack(root: string, dir: string): Promise<string> {
   return version;
 }
 
-/** Where the output of a data run goes (§10.3): nothing, a commit to `main`, or the `data-update` PR. */
 export type DeliveryTarget = 'none' | 'main' | 'pr';
 
-/** Whether the working tree of `root` changes `dist/` (tracked or untracked files). */
+/** Tracked or untracked files. */
 export async function distChanged(root: string): Promise<boolean> {
   const { stdout } = await promisify(execFile)('git', ['status', '--porcelain', '--', 'dist'], { cwd: root });
   return stdout.trim() !== '';
 }
 
-/**
- * The delivery of a data run that ended with exit 0 or 2: only a change of `dist/` is delivered
- * (`reports/`, `registry/` and the CHANGELOG go with it, never alone); exit 0 goes to `main` when
- * allowed and no `data-update` PR is open, anything else to the PR.
- */
 export async function deliveryTarget(
   root: string,
   options: { exitCode: number; allowMain: boolean; openPrs: number },

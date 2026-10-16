@@ -1,13 +1,3 @@
-/**
- * - **I13** (§8.1): today's reconstructed counts equal the SITUAS count endpoints of the three
- *   levels (golden-17). The reconstructed count of a level is the number of its versions valid on
- *   `today`.
- * - **I14** every event row of the public lists and of the internal events is either represented in
- *   a variation that exists, or classified as dropped with a known reason (the accounts of the
- *   variation builder, §4.3).
- * - **I15** a participant with role `ceded` or `annexed` always has `abroad: true`, and `abroad:
- *   true` appears only on participants with at least one `AS`, `AN`, `CE` or `AQ` event (§4.3, D31).
- */
 import { DROP_REASONS, type EventAccount } from '../build/index.ts';
 import { containsDate, type IsoDate } from '../dates/index.ts';
 import { ABROAD_EVENT_CODES, LEVELS, type Level } from '../model/common.ts';

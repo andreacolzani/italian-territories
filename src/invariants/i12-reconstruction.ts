@@ -1,21 +1,6 @@
 /**
- * Invariant I12 (§8.1): the reconstruction equals SITUAS. For every snapshot given (every snapshot
- * of the store, or the audit samples), the versions valid on its date, projected, must equal the
- * rows of the snapshot (after the overrides), field by field and row by row.
- *
- * The projection of a version on a date is, per level:
- * - region: code, the names from the bilingual name table as the builder takes them (§4.2), type;
- * - UTS: code, names, type, the code of its region on that date, the historical code (§5.5) and
- *   the abbreviation. The expected abbreviation of a version is the value of the override applied
- *   to it, if any; else `SIGLA_AUTOMOBILISTICA` of the snapshot; before 1948 (snapshot value null)
- *   the one the municipality rows of the same snapshot report for the UTS, derived with the
- *   builder's own function (`municipalityAbbreviations`), null when not unanimous;
- * - municipality: code, the three names, cadastral code, the code of its UTS and of its region on
- *   that date, the historical code of its UTS.
- *
- * Differences are reported with one `blocking` anomaly per level and date, listing the first
- * {@link MAX_LISTED} of them: a version without row, a row without version, a code with several
- * versions, a field that differs.
+ * §8.1. Before 1948 the snapshot has no abbreviation, so the expected one is derived from the
+ * municipality rows of the same snapshot with the builder's own function.
  */
 import { regionalNames } from '../build/bilingual-names.ts';
 import { municipalityAbbreviations } from '../build/timeline.ts';
@@ -27,13 +12,11 @@ import { REGIME_1948_START } from '../sources/situas-public/pfun.ts';
 import { violation } from './anomaly.ts';
 import type { HistoricalCodes, InvariantEntities } from './world.ts';
 
-/** The rows of the snapshots of one date, for the levels that have one. */
 export interface SnapshotSet {
   date: IsoDate;
   rows: { [L in Level]?: readonly SnapshotRowByLevel[L][] };
 }
 
-/** At most this many differences are listed in the anomaly of a level and date. */
 export const MAX_LISTED = 20;
 
 interface FieldDifference {
@@ -80,7 +63,6 @@ class LevelIndex<V extends IndexedVersion> {
     this.#ends.sort(compareDates);
   }
 
-  /** The number of versions valid on `date`. */
   count(date: IsoDate): number {
     return upperBound(this.#starts, date) - upperBound(this.#ends, date);
   }
@@ -94,7 +76,6 @@ class LevelIndex<V extends IndexedVersion> {
   }
 }
 
-/** The number of elements of the sorted `dates` that are `<= date`. */
 function upperBound(dates: readonly IsoDate[], date: IsoDate): number {
   let low = 0;
   let high = dates.length;
@@ -112,9 +93,7 @@ interface Context {
   provinces: LevelIndex<VersionByLevel['province']>;
   historicalCodes: HistoricalCodes;
   overrides: readonly AppliedOverride[];
-  /** The abbreviations the municipalities of the snapshot report per UTS code, when it is known. */
   reported: () => ReadonlyMap<string, readonly string[]> | undefined;
-  /** The pre-1948 abbreviations that could not be compared (no municipality rows on the date). */
   uncompared: { versions: Set<string>; dates: Set<IsoDate> };
 }
 
@@ -204,7 +183,6 @@ function diffMunicipality(
   return compare(fields);
 }
 
-/** What I12 could not compare: pre-1948 abbreviations on dates without municipality rows. */
 export interface I12Uncompared {
   abbreviation: { versions: number; dates: number };
 }
@@ -220,10 +198,6 @@ export async function checkI12(options: I12Options): Promise<Anomaly[]> {
   return (await checkI12Detailed(options)).anomalies;
 }
 
-/**
- * {@link checkI12} with what it could not compare: the number of distinct versions and of dates whose
- * pre-1948 abbreviation was left out because the set of that date has no municipality rows.
- */
 export async function checkI12Detailed(
   options: I12Options,
 ): Promise<{ anomalies: Anomaly[]; uncompared: I12Uncompared }> {
@@ -284,7 +258,6 @@ export async function checkI12Detailed(
   };
 }
 
-/** The differences between the rows of a snapshot and the versions of `index` valid on its date. */
 function compareRows<R extends { code: string }, V extends IndexedVersion>(
   date: IsoDate,
   rows: readonly R[],

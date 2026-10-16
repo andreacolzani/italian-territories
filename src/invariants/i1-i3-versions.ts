@@ -1,12 +1,4 @@
-/**
- * Invariants on the versions of one entity (§8.1), checked in the internal half-open convention:
- *
- * - **I1** versions are sorted, non-overlapping and not inverted (`valid_from <= valid_until` is
- *   `validFrom < validTo`; the zero-length case `validFrom == validTo` is reported by I10).
- * - **I2** consecutive versions are contiguous, or separated by a gap in which the entity does not
- *   exist in any snapshot (`existence`, the snapshot intervals of the identity stage).
- * - **I3** contiguous consecutive versions differ in at least one published field.
- */
+/** §8.1, in the half-open convention: the zero-length case `validFrom == validTo` is I10's. */
 import { compareDates, overlaps } from '../dates/index.ts';
 import { LEVELS, type Level } from '../model/common.ts';
 import type { Anomaly, Entity } from '../model/internal.ts';

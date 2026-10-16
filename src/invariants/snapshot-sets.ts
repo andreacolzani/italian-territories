@@ -1,14 +1,9 @@
-/** The stored snapshots as the sets I12 compares the reconstruction with. */
 import { compareDates, type IsoDate } from '../dates/index.ts';
 import { LEVELS, type Level } from '../model/common.ts';
 import type { Store } from '../store/index.ts';
 import type { SnapshotSet } from './i12-reconstruction.ts';
 
-/**
- * Every date with a stored snapshot (of the current projection version) in `store`, ascending, with
- * the rows of each level that has one; the bisection probes included (§6.3). Dates after `until`
- * (`--today`) are left out. One date is read at a time.
- */
+/** Bisection probes included (§6.3). */
 export async function* storeSnapshotSets(
   store: Store,
   options: { until?: IsoDate; levels?: readonly Level[] } = {},

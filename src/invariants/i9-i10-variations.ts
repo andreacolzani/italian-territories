@@ -1,14 +1,6 @@
 /**
- * Invariants on how the variations refer to the versions (§8.1):
- *
- * - **I9** every version boundary is referenced by a participant of a variation dated on it
- *   (`versionAfter` for an opened version, `versionBefore` for a closed one, both by `validFrom`); the only
- *   exception are the versions starting on the first calendar date (`PV`). Every referenced entity
- *   and version exists, belongs to the participant's entity and has the variation's date as its
- *   start (after) or end (before).
- * - **I10** no zero-length versions; no published participation without effect: every participant
- *   with a role is consistent with the role table (§4.3), and every variation has at least one.
- *   Participants with `role: null` are the no-effect ones the emitter drops (§6.12).
+ * §8.1. Versions starting on the first calendar date open no variation (`PV`). `role: null`
+ * participants are the no-effect ones the emitter drops (§6.12).
  */
 import { LEVELS, participantRoleViolations, type EntityId, type Level } from '../model/common.ts';
 import type { Anomaly, Entity, Participant, Variation } from '../model/internal.ts';
@@ -34,7 +26,6 @@ export function checkI9(options: {
   const { entities, variations, start } = options;
   const anomalies: Anomaly[] = [];
   const index = indexByLevel(entities);
-  /** `<level>|<entity>|<side>|<validFrom>` of the versions referenced by a variation of the boundary date. */
   const referenced = new Set<string>();
   const ref = (level: Level, entityId: EntityId, side: 'before' | 'after', validFrom: IsoDate): string =>
     `${level}|${entityId}|${side}|${validFrom}`;

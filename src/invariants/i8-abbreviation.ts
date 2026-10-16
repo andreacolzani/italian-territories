@@ -1,10 +1,4 @@
-/**
- * Invariant I8 (§8.1): every UTS version has an `abbreviation` matching `^[A-Z]{2}$`. Checked after
- * the overrides (§6.10), which supply the values ISTAT does not publish in that form (Venezia
- * Giulia). A null abbreviation (left undetermined by the version builder, §6.9) is a violation too.
- *
- * One `blocking` anomaly per offending version.
- */
+/** After the overrides, which supply what ISTAT does not publish in that form (Venezia Giulia, §6.10). */
 import { ABBREVIATION_PATTERN } from '../model/common.ts';
 import type { Anomaly, Entity } from '../model/internal.ts';
 import { violation } from './anomaly.ts';

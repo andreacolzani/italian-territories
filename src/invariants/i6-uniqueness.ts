@@ -1,9 +1,4 @@
-/**
- * Invariant I6 (§8.1): per-date uniqueness within a level of the `istat_code`, of the non-null
- * `cadastral_code` among municipalities and of the `abbreviation` among UTS. One anomaly per pair of
- * versions of two different entities that share a value over a common period; the versions of one
- * entity are I1's. A null abbreviation is I8's.
- */
+/** §8.1. The versions of one entity are I1's; a null abbreviation is I8's. */
 import { compareDates } from '../dates/index.ts';
 import { LEVELS, type EntityId, type Level } from '../model/common.ts';
 import type { Anomaly, Entity } from '../model/internal.ts';

@@ -1,4 +1,3 @@
-/** Invariants (§8.1): independent checks returning their violations as `blocking` anomalies. */
 export { INVARIANT_IDS } from './anomaly.ts';
 export * from './check.ts';
 export * from './errors.ts';

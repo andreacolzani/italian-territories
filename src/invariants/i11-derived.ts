@@ -1,12 +1,4 @@
-/**
- * Invariant I11 (§8.1): the derived fields (§7) are consistent with the versions and the
- * variations. The expected values are recomputed from the entities' versions and the variations
- * (`deriveFields`) and every field of every entity is compared: a stale or tampered `status`,
- * `predecessors`, `successors` (the `split_into` kind included), `current_successors`,
- * or `is_former_italian` is a violation, one per entity and field. Moreover, a
- * suppressed municipality that is not former Italian must have a non-empty `current_successors`;
- * regions and provinces have none (D46).
- */
+/** §8.1. Regions and provinces have no `current_successors` (D46). */
 import { AnomalyCollector } from '../anomalies.ts';
 import { deriveFields } from '../derive/index.ts';
 import { LEVELS, type Level } from '../model/common.ts';

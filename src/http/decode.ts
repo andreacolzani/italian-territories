@@ -1,46 +1,30 @@
-/**
- * Endpoint descriptors and response decoders (§6.1). Each adapter (§6.2) declares its
- * endpoint with a decoder; decoders classify failures as transient (whole response unusable)
- * or permanent (`ResponseValidationError`: rows violate the schema).
- */
 import type { z } from 'zod';
 import { ResponseValidationError, TransientResponseError, type RowIssue } from './errors.ts';
 import type { HttpResponse } from './transport.ts';
 
-/** Endpoint class selecting the timeout (§6.1): `snapshot` is for municipality snapshots. */
+/** `snapshot` is for municipality snapshots. */
 export type TimeoutClass = 'snapshot' | 'default';
 
 /**
- * Circuit-breaker families (§6.1). Heavy snapshots and light reports share a host but not a
- * family, so timeouts on the former do not stop the latter.
+ * Heavy snapshots and light reports share a host but not a family, so timeouts on the former do not
+ * stop the latter (§6.1).
  */
 export type Family = 'situas-public-snapshots' | 'situas-public-reports' | 'situas-internal' | 'anpr';
 
-/**
- * Declared by the adapter, one per `pfun`, internal report or the ANPR CSV. The host scope
- * (pool, AIMD, rate limit) is derived from the request URL by the client.
- */
 export interface Endpoint<T> {
-  /**
-   * Endpoint id as in the fixture manifest, e.g. `snapshot:pfun-61`, `r5:uts-events`. A permanent
-   * validation error disables this id for the rest of the run.
-   */
+  /** As in the fixture manifest; a permanent validation error disables it for the run. */
   id: string;
-  /** Circuit-breaker family. */
   family: Family;
   timeoutClass: TimeoutClass;
-  /** Validates and converts a 2xx response. Throws `TransientResponseError` or `ResponseValidationError`. */
   decode: (response: HttpResponse) => T;
 }
 
-/** Content types accepted per source (§3.3, §6.1). */
 export const CONTENT_TYPES = {
   situasPublic: ['application/json'],
   situasInternal: ['application/json', 'text/plain'],
   anpr: ['text/csv'],
 } as const;
 
-/** Media type without parameters, lowercase, or `null`. */
 export function mediaType(response: HttpResponse): string | null {
   const value = response.headers['content-type'];
   if (value === undefined) return null;
@@ -57,10 +41,7 @@ export function assertContentType(response: HttpResponse, accepted: readonly str
   }
 }
 
-/**
- * Parses a JSON body. The internal API serves non-empty results as a JSON string containing
- * the document (§3.3): when the first parse yields a string, it is parsed again.
- */
+/** The internal API serves non-empty results as a JSON string containing the document (§3.3). */
 export function parseJsonBody(body: string): unknown {
   try {
     const value: unknown = JSON.parse(body);
@@ -76,13 +57,11 @@ export interface JsonRowsDecoderOptions<S extends z.ZodType> {
   contentTypes: readonly string[];
   /** Key of the array holding the rows: `resultset` (public) or `items` (internal). */
   envelope: string;
-  /** Zero rows are impossible for this endpoint (snapshots, list reports): treat as transient. */
+  /** Zero rows are impossible here (snapshots, list reports), so they are transient. */
   nonEmpty: boolean;
-  /** Per-row schema checking only the required fields. */
   row: S;
 }
 
-/** Decoder for `{ <envelope>: [ row, … ] }` JSON responses. */
 export function jsonRowsDecoder<S extends z.ZodType>(
   options: JsonRowsDecoderOptions<S>,
 ): (response: HttpResponse) => z.output<S>[] {
@@ -113,7 +92,6 @@ export function jsonRowsDecoder<S extends z.ZodType>(
   };
 }
 
-/** Decoder returning the raw body after checking its content type (e.g. the ANPR CSV). */
 export function textDecoder(options: {
   contentTypes: readonly string[];
   nonEmpty: boolean;

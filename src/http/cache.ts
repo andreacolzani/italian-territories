@@ -1,7 +1,6 @@
 /**
- * Response cache (§6.1): one file per request, keyed by `sha256(method + normalised URL + body)`,
- * written atomically as soon as a valid response arrives, so an interrupted run resumes by
- * simply re-issuing its requests. Freshness is a per-call policy, never a global TTL.
+ * §6.1. An entry is written as soon as a valid response arrives, so an interrupted run resumes by
+ * re-issuing its requests.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -12,11 +11,7 @@ import { isoDateSchema } from '../model/public.ts';
 import { isReportBody } from './encode.ts';
 import type { HttpRequest } from './transport.ts';
 
-/**
- * `prefer`: use the entry if present; `refresh`: always refetch; `maxAgeDays`: use the entry
- * only if it was fetched at most that many days ago; `fetchedSince`: use the entry only if it was
- * fetched on that date or later (`rebuild --refetch`: an interrupted run resumes, §6.1).
- */
+/** `fetchedSince` lets an interrupted `rebuild --refetch` resume the same day (§6.1). */
 export type CachePolicy = 'prefer' | 'refresh' | { maxAgeDays: number } | { fetchedSince: IsoDate };
 
 const cacheEntrySchema = z.strictObject({
@@ -31,7 +26,7 @@ const cacheEntrySchema = z.strictObject({
   status: z.int(),
   content_type: z.string().nullable(),
   content_hash: z.string().regex(/^[0-9a-f]{64}$/),
-  /** Hash of the content this entry replaced when a refresh found different content. */
+  /** Hash of the content a refresh replaced. */
   previous_content_hash: z
     .string()
     .regex(/^[0-9a-f]{64}$/)
@@ -55,10 +50,6 @@ function sortQuery(query: string): string {
     .join('&');
 }
 
-/**
- * Normalises an unencoded URL for keying: lowercase scheme and host, query parameters sorted
- * by name (stable), empty segments dropped. Works on relative report URLs too.
- */
 export function normaliseUrl(url: string): string {
   const trimmed = url.trim();
   const q = trimmed.indexOf('?');
@@ -68,7 +59,6 @@ export function normaliseUrl(url: string): string {
   return q < 0 ? base : `${base}?${sortQuery(trimmed.slice(q + 1))}`;
 }
 
-/** JSON with object keys sorted recursively, no whitespace; `undefined` properties are omitted. */
 export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value !== null && typeof value === 'object') {
@@ -103,7 +93,7 @@ export class ResponseCache {
     return join(this.#dir, key.slice(0, 2), `${key}.json`);
   }
 
-  /** The entry for `key`, or `undefined` if absent or unreadable (treated as a miss). */
+  /** An unreadable entry is a miss. */
   async get(key: string): Promise<CacheEntry | undefined> {
     let text: string;
     try {
@@ -120,7 +110,7 @@ export class ResponseCache {
     }
   }
 
-  /** Writes atomically (temporary file + rename), so readers never see a partial entry. */
+  /** Temporary file and rename, so readers never see a partial entry. */
   async put(entry: CacheEntry): Promise<void> {
     const path = this.pathFor(entry.key);
     await mkdir(dirname(path), { recursive: true });

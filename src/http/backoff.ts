@@ -1,18 +1,10 @@
-/** Retry delays (§6.1). */
-
-/**
- * Exponential backoff with full jitter: uniform in `[0, min(maxMs, baseMs · 2^(retry−1)))`,
- * where `retry` is 1 for the first retry.
- */
+/** Full jitter; `retry` is 1 for the first retry. */
 export function fullJitterDelay(retry: number, baseMs: number, maxMs: number, random: () => number): number {
   const ceiling = Math.min(maxMs, baseMs * 2 ** (retry - 1));
   return Math.floor(random() * ceiling);
 }
 
-/**
- * `Retry-After` in milliseconds from `nowMs`: delay-seconds or an HTTP-date. Returns `null`
- * when absent or unparseable; dates in the past yield 0.
- */
+/** Milliseconds; `Retry-After` is delay-seconds or an HTTP-date. */
 export function parseRetryAfter(value: string | undefined, nowMs: number): number | null {
   if (value === undefined) return null;
   const trimmed = value.trim();

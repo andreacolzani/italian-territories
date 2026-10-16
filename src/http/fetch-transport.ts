@@ -1,4 +1,4 @@
-/** Real transport over Node's `fetch`. Encodes the request (§6.1) and buffers the body. */
+/** The only place requests are encoded (§6.1). */
 import { encodeRequest } from './encode.ts';
 import { NetworkError, type HttpRequest, type HttpResponse, type Transport } from './transport.ts';
 

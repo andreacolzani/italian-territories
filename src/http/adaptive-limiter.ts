@@ -1,7 +1,6 @@
 /**
- * Worker pool with AIMD concurrency (§6.1): +1 slot after `increaseAfter` consecutive fast
- * successes (up to `max`), halved on congestion. A failure halves only if its attempt started
- * after the last decrease (same epoch), so a burst of in-flight failures halves once.
+ * §6.1. A failure halves the limit only if its attempt started after the last decrease, so a burst
+ * of in-flight failures halves it once.
  */
 export interface AdaptiveLimiterOptions {
   initial: number;
@@ -38,7 +37,6 @@ export class AdaptiveLimiter {
     return this.#inFlight;
   }
 
-  /** Waits for a free slot; returns the epoch to pass to `recordFailure`. */
   async acquire(): Promise<number> {
     if (this.#inFlight < this.#limit && this.#waiters.length === 0) {
       this.#inFlight++;

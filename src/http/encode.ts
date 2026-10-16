@@ -1,7 +1,6 @@
 /**
- * Strict query encoding (§6.1). Requests are built unencoded (§11.1); the internal API answers
- * `500 System Error` to unencoded spaces, `/` or apostrophes, so every name and value is encoded
- * per RFC 3986 (`encodeURIComponent` leaves `!'()*` alone).
+ * The internal API answers `500 System Error` to unencoded spaces, `/` or apostrophes, so every name
+ * and value is encoded per RFC 3986 (`encodeURIComponent` leaves `!'()*` alone).
  */
 import type { HttpRequest } from './transport.ts';
 
@@ -12,10 +11,7 @@ export function encodeQueryComponent(value: string): string {
   );
 }
 
-/**
- * Encodes every query parameter name and value of an unencoded URL. Only the first `=` of a
- * segment separates name and value; empty segments (`report?&a=1`) are preserved.
- */
+/** Only the first `=` of a segment separates name and value; empty segments are preserved. */
 export function encodeUrlQuery(url: string): string {
   const q = url.indexOf('?');
   if (q < 0) return url;
@@ -31,12 +27,11 @@ export function encodeUrlQuery(url: string): string {
   return `${url.slice(0, q)}?${segments.join('&')}`;
 }
 
-/** Body of the SITUAS internal `ReportByUrl` endpoint: `{ "url": "<report url>" }` (§3.3). */
+/** `{ "url": "<report url>" }` (§3.3). */
 export function isReportBody(body: unknown): body is { url: string } {
   return typeof body === 'object' && body !== null && typeof (body as { url?: unknown }).url === 'string';
 }
 
-/** Encodes the request URL and, for internal API bodies, the report URL they carry. */
 export function encodeRequest(request: HttpRequest): HttpRequest {
   const encoded: HttpRequest = { ...request, url: encodeUrlQuery(request.url) };
   if (isReportBody(request.body)) encoded.body = { ...request.body, url: encodeUrlQuery(request.body.url) };

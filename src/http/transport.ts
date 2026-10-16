@@ -1,7 +1,4 @@
-/**
- * Low-level transport contract shared by the HTTP client (§6.1) and test doubles.
- * URLs and bodies are carried unencoded; the client encodes parameter values when sending.
- */
+/** URLs and bodies are unencoded: the real transport encodes them. */
 export interface HttpRequest {
   method: 'GET' | 'POST';
   url: string;
@@ -21,13 +18,9 @@ export interface TransportOptions {
   signal?: AbortSignal;
 }
 
-/**
- * Sends one request. Connection-level failures (reset, refused, DNS…) must be reported as
- * `NetworkError` so the client can retry them; any other thrown error is treated as a bug.
- */
+/** Connection-level failures must be `NetworkError` to be retried; any other error is a bug. */
 export type Transport = (request: HttpRequest, options?: TransportOptions) => Promise<HttpResponse>;
 
-/** A connection-level failure: retryable, counts for AIMD and the circuit breaker (§6.1). */
 export class NetworkError extends Error {
   override name = 'NetworkError';
   readonly code: string | undefined;

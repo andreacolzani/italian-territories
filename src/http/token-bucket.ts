@@ -1,9 +1,5 @@
 import type { Clock } from './clock.ts';
 
-/**
- * Token-bucket rate limiter (§6.1). Tokens refill continuously at `ratePerSecond` up to
- * `capacity`; callers are served in FIFO order.
- */
 export class TokenBucket {
   readonly #rate: number;
   readonly #capacity: number;
@@ -22,7 +18,6 @@ export class TokenBucket {
     this.#last = clock.now();
   }
 
-  /** Resolves when a token has been taken. */
   take(): Promise<void> {
     this.#queue = this.#queue.then(() => this.#takeOne());
     return this.#queue;

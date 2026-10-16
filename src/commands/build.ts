@@ -1,13 +1,4 @@
-/**
- * The build of the data commands (§6.6–§6.12): from the stored snapshots of the calendar,
- * the event lists and the internal crawl to the derived entities and variations, then the ANPR
- * cross-check and the invariants. It reads no network: every input comes from the store or from
- * the acquisition stages, so `rebuild` reproduces it offline.
- *
- * The order follows §6: identity per level (regions, UTS, municipalities) with registry ids, versions
- * (parents resolved through the timelines of the higher levels; versions have no id, D40),
- * variations with registry ids, overrides, derived fields, ANPR cross-check, invariants.
- */
+/** No network: every input comes from the store or the acquisition stages, so `rebuild` reproduces it offline. */
 import { AnomalyCollector } from '../anomalies.ts';
 import {
   buildMunicipalityVersions,
@@ -66,7 +57,6 @@ export interface BuiltDataset {
   accounts: EventAccount[];
   overrides: AppliedOverride[];
   invariants: InvariantReport;
-  /** The registry recorded retroactive remaps (§5.3). */
   retroactiveRemaps: boolean;
 }
 
@@ -239,7 +229,6 @@ export async function buildDataset(
   };
 }
 
-/** The level of each internal report (lists, events, details). */
 const REPORT_LEVELS: Record<InternalReportNumber, Level> = {
   1: 'region',
   2: 'province',
@@ -252,7 +241,6 @@ const REPORT_LEVELS: Record<InternalReportNumber, Level> = {
   9: 'municipality',
 };
 
-/** The internal identity of each crawled level (the crawl's events, by their typed record). */
 function internalIdentities(crawl: InternalCrawlResult): Record<Level, InternalIdentity | null> {
   return {
     region:
@@ -285,7 +273,7 @@ function internalIdentities(crawl: InternalCrawlResult): Record<Level, InternalI
   };
 }
 
-/** Golden-14 (§11.3): municipalities absent from ANPR, and how many of them are suppressed. */
+/** Golden-14 (§11.3). */
 function recordGolden14(
   ctx: RunContext,
   municipalities: readonly { id: string; status: string }[],

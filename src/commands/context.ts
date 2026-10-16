@@ -1,8 +1,6 @@
 /**
- * What a data command runs with (§10.4): configuration, reference date, logger, and the runtime
- * the CLI provides (transport, wall clock for `generated_at` and for timings). Build code never
- * reads the clock (§12): the runtime's clocks are read only for timestamps and timings, which
- * describe the run, not the data.
+ * Build code never reads the clock (§12): the runtime's clocks are read only for timestamps and
+ * timings, which describe the run, not the data.
  */
 import { AnomalyCollector } from '../anomalies.ts';
 import type { Config } from '../config.ts';
@@ -15,9 +13,7 @@ import { Store } from '../store/index.ts';
 import { SummaryBuilder } from './summary.ts';
 
 export interface Runtime {
-  /** Default: the `fetch` transport. */
   transport?: Transport;
-  /** Clock of the HTTP client (backoff, `fetched_at`); default the system clock. */
   httpClock?: Clock;
   /** Uniform in `[0, 1)`, for the backoff jitter. */
   random?: () => number;
@@ -25,12 +21,8 @@ export interface Runtime {
   now: () => number;
   /** Current time, ISO 8601 UTC: `generated_at` and the run summary. */
   wallClock: () => string;
-  /** Timer of the progress lines (default `setInterval`, every 30 s). */
   schedule?: Scheduler;
-  /**
-   * The process the run belongs to: signals and fatal errors end the run with a summary written
-   * first. Absent (e.g. in unit tests): no handlers are installed.
-   */
+  /** Signals and fatal errors end the run with the summary written first; absent in unit tests. */
   process?: RunProcess;
 }
 
@@ -42,10 +34,7 @@ export interface RunProcess {
   exit: (code: number) => void;
 }
 
-/**
- * A request in an offline run (`rebuild` without `--refetch`, §10.1): a bug, since offline stages
- * read only the store. Not a `NetworkError`, so the client neither retries nor degrades: it propagates.
- */
+/** A bug: offline stages read only the store. Not a `NetworkError`, so the client neither retries nor degrades. */
 export class OfflineRequestError extends Error {
   constructor(request: HttpRequest) {
     super(`offline run: request to ${request.url} refused (offline stages must read only the store)`);
@@ -53,11 +42,9 @@ export class OfflineRequestError extends Error {
   }
 }
 
-/** The transport of an offline run: refuses every request. */
 const offlineTransport: Transport = (request) => Promise.reject(new OfflineRequestError(request));
 
 export interface RunContext {
-  /** Offline run: the client's transport is `offlineTransport`, whatever the runtime provides. */
   offline: boolean;
   config: Config;
   today: IsoDate;
@@ -76,7 +63,6 @@ export function createRunContext(options: {
   today: IsoDate;
   logger: Logger;
   runtime: Runtime;
-  /** `rebuild` without `--refetch`: no request can reach the runtime's transport. */
   offline?: boolean;
 }): RunContext {
   const { config, logger, runtime } = options;
@@ -110,10 +96,6 @@ export function createRunContext(options: {
   };
 }
 
-/**
- * Runs `task` and records its duration (ms) under `name` in the summary's stage timings. The task gets
- * the stage's progress: counted work is logged every `PROGRESS_INTERVAL_MS` and in the final line.
- */
 export async function timed<T>(
   ctx: RunContext,
   name: string,

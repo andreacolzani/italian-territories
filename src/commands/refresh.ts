@@ -1,14 +1,7 @@
 /**
- * Refresh of stored snapshots in `update` (§10.2). Events ISTAT publishes late, and audit
- * discrepancies on calendar dates, can make the snapshots stored by earlier runs obsolete (e.g. the
- * previous run's today, stored before the event was published): the store-first provider would not
- * read them again and I12 would compare the build with stale data.
- *
- * Every stored snapshot (calendar dates and probes, every level) dated from the earliest such date
- * to the previous run's today is fetched again with `refresh`: the same content writes nothing, a
- * different one replaces it with `history` (D32). Above what is left of `update.maxRefreshSnapshots`
- * (shared with the audit corrections) nothing is refreshed and the run blocks (`refresh-too-large`):
- * a `rebuild --refetch` is needed. `rebuild --refetch` refreshes every stored snapshot, unbounded.
+ * §10.2. Late events and audit discrepancies make stored snapshots obsolete, and the store-first
+ * provider would never read them again, so I12 would compare the build with stale data. Beyond the
+ * budget nothing is refreshed and the run blocks: a `rebuild --refetch` is needed.
  */
 import {
   failureCause,
@@ -23,19 +16,14 @@ import { silentProgress, type StageProgress } from '../progress.ts';
 import type { RefreshBudget } from './audit.ts';
 import type { RunContext } from './context.ts';
 
-/**
- * Refreshes the stored snapshots dated in `[from, to]`, all of them or none when the budget cannot
- * cover them; returns how many were refreshed.
- */
+/** All of them, or none when the budget cannot cover them. */
 export async function refreshStoredSnapshots(
   ctx: RunContext,
   from: IsoDate,
   to: IsoDate,
   budget: RefreshBudget,
   options: {
-    /** HTTP cache policy of the refreshes (default `refresh`; `rebuild --refetch`: `fetchedSince`). */
     policy?: CachePolicy;
-    /** Receives `<level>|<date>` of every snapshot refreshed. */
     refreshed?: Set<string>;
     progress?: StageProgress;
   } = {},

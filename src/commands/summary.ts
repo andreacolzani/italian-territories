@@ -1,13 +1,4 @@
-/**
- * Run summary (§10.4): `.cache/last-run.json`, written at the end of every run, including runs
- * that failed, for the workflows and the maintainer. It describes the run, not the data: it holds
- * wall-clock timings and is never published.
- *
- * Besides the outcome it carries the measures of the complete run: the time of the
- * offline build, of I12 and of `sourceSummaries`, the I12 abbreviations left uncompared, the count
- * of every anomaly code (ANPR included, with the items of the aggregated `info` anomalies) and the
- * golden-14 count (suppressed municipalities absent from ANPR).
- */
+/** Describes the run, not the data: wall-clock timings, never published (§10.4). */
 import { z } from 'zod';
 import type { IsoDate } from '../dates/index.ts';
 import type { InvariantReport } from '../invariants/index.ts';
@@ -30,7 +21,6 @@ export const runSummarySchema = z.strictObject({
   /** 0–3 (§10.4); 130 / 143 when interrupted by SIGINT / SIGTERM. */
   exit_code: z.union([z.int().min(0).max(3), z.literal(130), z.literal(143)]),
   outcome: z.enum(['success', 'blocking', 'retroactive', 'unavailable', 'error', 'interrupted']),
-  /** The signal that interrupted the run. */
   signal: z.enum(['SIGINT', 'SIGTERM']).nullable(),
   message: z.string().nullable(),
   release: z
@@ -45,7 +35,7 @@ export const runSummarySchema = z.strictObject({
     blocking: count,
     warning: count,
     info: count,
-    /** Per code: level, number of anomalies and, for aggregated ones, the sum of `context.count`. */
+    /** For aggregated anomalies, the sum of `context.count`. */
     by_code: z.record(z.string(), z.strictObject({ level: z.string(), anomalies: count, items: count })),
   }),
   invariants: z.array(
@@ -60,18 +50,17 @@ export const runSummarySchema = z.strictObject({
   ),
   timings_ms: z.strictObject({
     stages: z.record(z.string(), ms),
-    /** Identity resolution to emit, from the stored sources (no network). */
+    /** From identity resolution to emit, no network. */
     build: ms.nullable(),
     i12: ms.nullable(),
     source_summaries: ms.nullable(),
   }),
   golden14: z.strictObject({
-    /** Municipalities absent from ANPR (`anpr-missing-entity` items). */
     anpr_missing_entity: count.nullable(),
     /** Of those, the suppressed ones (§11.3 golden-14). */
     anpr_missing_suppressed: count.nullable(),
   }),
-  /** `split_into` successor links per level (D44): for the maintainer's review. */
+  /** For the maintainer's review (D44). */
   derived: z.record(z.string(), z.strictObject({ split_into: count })),
   event_lists: z.array(
     z.strictObject({
@@ -86,7 +75,6 @@ export const runSummarySchema = z.strictObject({
   snapshots: z
     .strictObject({ fetched: count, from_store: count, inferred: count, removed: count, failures: count })
     .nullable(),
-  /** Stored snapshots refreshed after late events or audit discrepancies (update). */
   refreshed_snapshots: count.nullable(),
   audit: z
     .strictObject({
@@ -98,12 +86,8 @@ export const runSummarySchema = z.strictObject({
     })
     .nullable(),
   http: z.record(z.string(), count),
-  /** Endpoints disabled by a permanent validation error, with the requests refused afterwards. */
   disabled_endpoints: z.array(z.strictObject({ endpoint: z.string(), cause: z.string(), refused: count })),
-  /**
-   * The `today` of the last pipeline run ended with exit 0 or 2, this one included
-   * (`last-complete-update.json` in the store, §10.4); `null` when none is recorded.
-   */
+  /** This run included; `null` when none is recorded. */
   last_complete_update: isoDateSchema.nullable(),
   error: z.strictObject({ name: z.string(), message: z.string(), stack: z.string().nullable() }).nullable(),
 });
@@ -112,10 +96,9 @@ export type RunSummary = z.output<typeof runSummarySchema>;
 
 export type InterruptSignal = 'SIGINT' | 'SIGTERM';
 
-/** Conventional exit codes of a process ended by a signal (128 + signal number). */
+/** 128 + signal number. */
 export const INTERRUPT_EXIT_CODES: Record<InterruptSignal, 130 | 143> = { SIGINT: 130, SIGTERM: 143 };
 
-/** Collects the parts of the summary while the run goes on. */
 export class SummaryBuilder {
   readonly #command: string;
   readonly #startedAt: string;
@@ -216,7 +199,6 @@ export class SummaryBuilder {
   }
 }
 
-/** Counts of a `changes.json`. */
 export function changeCounts(changes: Changes): z.output<typeof changeCountsSchema> {
   const sets = [
     changes.regions.entities,

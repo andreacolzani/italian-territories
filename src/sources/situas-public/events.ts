@@ -1,12 +1,6 @@
 /**
- * Event list endpoints (§3.2): one per `pfun`, each with its own event code vocabulary (§6.2,
- * D21) and field mapping. Field differences between lists are mapped explicitly per endpoint:
- * pfun 100 carries the event code in `COD_VARIAZIONE_M`; pfun 104, 108 and 114 have no event
+ * §3.2. pfun 100 carries the event code in `COD_VARIAZIONE_M`; pfun 104, 108 and 114 have no event
  * code column and are renames (`CD`) by definition (§3.5).
- *
- * `*_REL` fields identify the related territory (§3.5 item 6). A related foreign state
- * (`Stato estero`, no code) is allowed only for `AS`, `AN`, `CE` and `AQ`: it becomes `abroad: true`
- * with `related: null`, so it is never resolved and never produces links (§3.5 item 15).
  */
 import { z } from 'zod';
 import type { IsoDate } from '../../dates/index.ts';
@@ -39,7 +33,6 @@ export interface RegionEventRow extends EventRowBase {
   code: string;
   name: string;
   type: RegionType;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; type: RegionType | null } | null;
 }
@@ -50,7 +43,6 @@ export interface UtsEventRow extends EventRowBase {
   type: UtsType;
   /** `SIGLA_UTS` as reported (may be a full name, §3.5 item 12). */
   abbreviation: string | null;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; abbreviation: string | null; type: UtsType | null } | null;
 }
@@ -62,7 +54,6 @@ export interface MunicipalityEventRow extends EventRowBase {
   cadastralCode: string | null;
   utsCode: string;
   utsAbbreviation: string | null;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: {
     code: string | null;
@@ -84,7 +75,6 @@ export interface EventRowByLevel {
 
 const date = { DATA_INIZIO_AMMINISTRATIVA: timestampDate, FLAG_ES_SCORPORO: flag };
 
-/** Event code column of a list: present (`COD_VARIAZIONE` or `COD_VARIAZIONE_M`) or implied `CD`. */
 type CodeColumn = 'COD_VARIAZIONE' | 'COD_VARIAZIONE_M' | null;
 
 function codeField(pfun: EventListPfun, column: CodeColumn) {
@@ -207,7 +197,6 @@ function municipalityRow(pfun: EventListPfunOf<'municipality'>, column: CodeColu
     }));
 }
 
-/** Row schema per event list (§3.2), with its explicit event code column. */
 const ROW_SCHEMAS: { [P in EventListPfun]: z.ZodType<EventRowByLevel[(typeof EVENT_LISTS)[P]['level']]> } = {
   106: regionRow(106, 'COD_VARIAZIONE'),
   107: regionRow(107, 'COD_VARIAZIONE'),
@@ -224,7 +213,7 @@ const ROW_SCHEMAS: { [P in EventListPfun]: z.ZodType<EventRowByLevel[(typeof EVE
 
 const endpoints = new Map<EventListPfun, Endpoint<unknown>>();
 
-/** Endpoint `events:pfun-<id>`. Event lists may legitimately be empty (short ranges). */
+/** May legitimately be empty (short ranges). */
 export function eventListEndpoint<P extends EventListPfun>(
   pfun: P,
 ): Endpoint<EventRowByLevel[(typeof EVENT_LISTS)[P]['level']][]> {

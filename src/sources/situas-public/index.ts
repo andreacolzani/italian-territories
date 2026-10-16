@@ -1,4 +1,3 @@
-/** SITUAS public adapter (§3.2): snapshots, event lists and counts, normalised (§6.2). */
 import type { IsoDate } from '../../dates/index.ts';
 import type { ClientResult, HttpClient, RequestOptions } from '../../http/index.ts';
 import type { Level } from '../../model/common.ts';
@@ -26,9 +25,7 @@ export * from './snapshots.ts';
 export interface SnapshotResult<L extends Level = Level> {
   snapshot: Snapshot<L>;
   pfun: SnapshotPfun;
-  /** Rows whose historical UTS code is the `COD_PROV_STORICO` fallback (§3.5); `info`. */
   historicalCodeFallbacks: number;
-  /** Distinct UTS codes of the fallback rows, sorted. */
   historicalCodeFallbackUtsCodes: string[];
 }
 
@@ -41,7 +38,6 @@ export class SituasPublicSource {
     this.#baseUrl = baseUrl;
   }
 
-  /** Snapshot of `level` on `date`, using the `pfun` of the date's regime (§3.2). */
   async fetchSnapshot<L extends Level>(
     level: L,
     date: IsoDate,
@@ -65,7 +61,7 @@ export class SituasPublicSource {
     };
   }
 
-  /** Events of list `pfun` (which must belong to `level`) with administrative date in `[from, to]`. */
+  /** Administrative date in `[from, to]`, both included. */
   async fetchEventList<L extends Level>(
     level: L,
     pfun: EventListPfunOf<L>,
@@ -83,7 +79,6 @@ export class SituasPublicSource {
     return result as ClientResult<EventRowByLevel[L][]>;
   }
 
-  /** Row count of a snapshot (`{ date }`) or event list (`{ from, to }`) request. */
   fetchCount(
     pfun: SnapshotPfun | EventListPfun,
     params: CountParams,

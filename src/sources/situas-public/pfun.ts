@@ -1,16 +1,9 @@
-/**
- * SITUAS public report catalogue (§3.2): snapshot `pfun` per regime, event list `pfun` per level
- * with the event codes each one may carry (§6.2), and the request builders. Requests are built
- * unencoded (§11.1); the HTTP client encodes them.
- */
+/** Requests are unencoded (§11.1): the HTTP client encodes them. */
 import { compareDates, toItalianDate, type IsoDate } from '../../dates/index.ts';
 import type { HttpRequest } from '../../http/index.ts';
 import type { IstatEventCode, Level } from '../../model/common.ts';
 
-/**
- * First days of the second and third snapshot regimes (§2 Regime). SITUAS constants, not
- * configuration: they select which `pfun` answers for a date.
- */
+/** SITUAS constants, not configuration: they select which `pfun` answers for a date. */
 export const REGIME_1927_START: IsoDate = '1927-01-12';
 export const REGIME_1948_START: IsoDate = '1948-01-01';
 
@@ -23,7 +16,6 @@ export const SNAPSHOT_PFUNS = {
 
 export type SnapshotPfun = (typeof SNAPSHOT_PFUNS)[Level][number];
 
-/** Regime index of a date: 0 (≤1927-01-11), 1 (1927-01-12…1947-12-31), 2 (≥1948-01-01). */
 export function regimeOf(date: IsoDate): 0 | 1 | 2 {
   if (compareDates(date, REGIME_1927_START) < 0) return 0;
   if (compareDates(date, REGIME_1948_START) < 0) return 1;
@@ -34,7 +26,6 @@ export function snapshotPfun(level: Level, date: IsoDate): SnapshotPfun {
   return SNAPSHOT_PFUNS[level][regimeOf(date)];
 }
 
-/** Level and regime of a snapshot `pfun`, or `undefined` if it is not a snapshot report. */
 export function describeSnapshotPfun(pfun: number): { level: Level; regime: 0 | 1 | 2 } | undefined {
   for (const [level, pfuns] of Object.entries(SNAPSHOT_PFUNS) as [Level, readonly number[]][]) {
     const regime = pfuns.indexOf(pfun);
@@ -43,11 +34,7 @@ export function describeSnapshotPfun(pfun: number): { level: Level; regime: 0 | 
   return undefined;
 }
 
-/**
- * Event list reports (§3.2) and the event codes each may carry (§6.2). Any other code in a row
- * is a permanent validation error (D21). pfun 104 and 108/114 rows have no event code column:
- * they are renames by definition.
- */
+/** Any other event code in a row is a permanent validation error (D21). */
 export const EVENT_LISTS = {
   106: { level: 'region', events: ['ES', 'ESCT', 'AS'] },
   107: { level: 'region', events: ['CS', 'CSCT', 'AN'] },
@@ -71,7 +58,6 @@ export function isEventListPfun(pfun: number): pfun is EventListPfun {
   return Object.hasOwn(EVENT_LISTS, pfun);
 }
 
-/** Parameters of a count request: those of the snapshot or of the event list it counts. */
 export type CountParams = { date: IsoDate } | { from: IsoDate; to: IsoDate };
 
 const LIST_PATH = 'reportspooljson';

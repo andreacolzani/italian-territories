@@ -1,4 +1,3 @@
-/** Source adapters (§3, §6.2), wired to the configured URLs. */
 import type { Config } from '../config.ts';
 import type { HttpClient } from '../http/index.ts';
 import { AnprSource } from './anpr/index.ts';

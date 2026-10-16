@@ -25,7 +25,6 @@ const INTERNAL_BY_REPORT = new Map<string, Endpoint<unknown>>(
   }),
 );
 
-/** The adapter endpoint that serves a request. */
 function adapterEndpoint(request: HttpRequest): Endpoint<unknown> {
   const url = new URL(request.url);
   if (url.host === 'www.anagrafenazionale.interno.it') return ANPR_ENDPOINT;

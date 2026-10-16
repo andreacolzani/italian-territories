@@ -1,4 +1,3 @@
-/** Release tooling (§9): CHANGELOG entries, versions, checks, the staged npm package and the delivery target. */
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

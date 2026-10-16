@@ -55,7 +55,6 @@ async function exists(path: string): Promise<boolean> {
   );
 }
 
-/** The files of the release: `dist/` and `reports/`. */
 async function releaseFiles(box: Sandbox): Promise<Map<string, string>> {
   return new Map([...(await files(box.config.paths.dist)), ...(await files(box.config.paths.releaseReports))]);
 }

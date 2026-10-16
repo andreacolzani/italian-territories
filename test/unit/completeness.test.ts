@@ -26,7 +26,6 @@ import { withSources } from '../helpers/sources.ts';
 const TODAY = '2026-10-01';
 const REQUEST: HttpRequest = { method: 'GET', url: 'https://situas-servizi.istat.it/publish/reportspooljson?pfun=61' };
 
-/** Calendar with the regime boundaries, today and `dates` (as event dates). */
 function calendar(dates: IsoDate[] = []): Calendar {
   return buildCalendar({
     start: '1861-03-17',

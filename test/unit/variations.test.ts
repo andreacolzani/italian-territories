@@ -1,8 +1,3 @@
-/**
- * Variation builder (§4.3) on synthetic worlds: event rules (D27), link kinds and dedup,
- * grouping by act and by connected components, effect per event, `indirect` participants,
- * `inferred` variations and unexplained boundaries, I14 accounting.
- */
 import { describe, expect, it } from 'vitest';
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import { checkEventRules, eventRule, EVENT_RULES, type InternalVariationEvent } from '../../src/build/index.ts';

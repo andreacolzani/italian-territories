@@ -1,8 +1,4 @@
-/**
- * The resolution to the current territory (§7, D45) on the derived fields of a synthetic world:
- * automatic only with exactly one current successor and no former Italian successor, direct or
- * indirect.
- */
+/** §7, D45, on the derived fields of a synthetic world. */
 import { describe, expect, it } from 'vitest';
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import type { IsoDate } from '../../src/dates/index.ts';

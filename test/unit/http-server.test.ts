@@ -1,7 +1,3 @@
-/**
- * The real fetch transport and the client against a local HTTP server: encoding, headers,
- * 429/5xx with `Retry-After`, timeouts, connection resets and the SITUAS body quirks.
- */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

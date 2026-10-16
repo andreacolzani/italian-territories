@@ -1,32 +1,7 @@
 /**
- * Transition matcher (§6.7): continuity of the snapshot intervals of one level across every
- * transition `S(d − 1) → S(d)` of the calendar, from public data and event rows only. Each
- * calendar date `d` closes the intervals with `validTo = d` and opens those with `validFrom = d`
- * (the interval index, §6.6); the matcher links each closed interval to the opened one that
- * continues the same territory, or explains why it has none.
- *
- * 1. Code changes on `d` (municipalities: pfun 105; UTS and regions: internal `RN` and type
- *    changes, i.e. the same-day aliases of §6.6) link the interval of the old code on `d − 1` to
- *    the interval of the new code on `d`.
- * 2. The same code closed and reopened on `d` (a change of the row) is the same territory,
- *    unless events on `d` suppress that code and establish it again (code reuse, §3.5 item 4),
- *    or a code change already links one of the two intervals: an explicit code change is
- *    stronger evidence than code equality (e.g. two codes swapped on the same day).
- * 3. A closed interval without successor must be ended by `ES`/`ESCT`/`AS` on `d`; an opened
- *    interval without predecessor must be started by `CS`/`CSCT`/`AN` on `d` (resolved through
- *    the code resolver with the side rule of §3.5 item 6).
- * 4. Anything else: for municipalities, one closed and one opened interval with the same
- *    non-null cadastral code and no events are the same territory (an `inferred` transition,
- *    `warning`); otherwise `blocking`.
- *
- * An interval with more than one successor or predecessor is a `blocking` conflict and keeps
- * none of those links. A name change along a link needs a `CD`/`CDAP` event on `d` (`warning`
- * otherwise; known ISTAT inconsistencies exist). Public establishment and suppression rows of
- * UTS and regions are cross-checks (`warning` when no internal event explains the same
- * interval), never explanations.
- *
- * The result is a set of chains (maximal sequences of linked intervals): an identity built from
- * public data only. Internal origin ids are attached afterwards (`entities.ts`, §5.2).
+ * §6.7, from public data and event rows only. An explicit code change is stronger evidence than code
+ * equality (two codes swapped on the same day). A name change without `CD`/`CDAP` is only a
+ * `warning`: ISTAT has known inconsistencies. Origin ids are attached afterwards (§5.2).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import type { IsoDate } from '../dates/index.ts';
@@ -40,7 +15,6 @@ import {
   type SnapshotInterval,
 } from '../resolve/index.ts';
 
-/** An event row as the matcher needs it: the territory it happens to and its side (§3.5 item 6). */
 export interface TransitionEvent {
   event: IstatEventCode;
   /** First day of the new state. */
@@ -48,13 +22,10 @@ export interface TransitionEvent {
   /** Code identifying the territory on its side: `date − 1` for a predecessor, `date` otherwise. */
   code: string;
   side: ResolutionSide;
-  /** Cadastral code reported by the row (municipalities only), for the resolver fallback. */
   cadastralCode: string | null;
-  /** Endpoint id of the source row. */
   source: string;
 }
 
-/** Events that end a territory, start one, or rename it. */
 export const ENDING_EVENTS: readonly IstatEventCode[] = ['ES', 'ESCT', 'AS'];
 export const STARTING_EVENTS: readonly IstatEventCode[] = ['CS', 'CSCT', 'AN'];
 export const RENAMING_EVENTS: readonly IstatEventCode[] = ['CD', 'CDAP'];
@@ -66,18 +37,13 @@ export function subjectSide(event: IstatEventCode): ResolutionSide {
 
 export type TransitionRule = 'code-change' | 'type-change' | 'same-code' | 'cadastral';
 
-/**
- * A type change within one identity component (UTS and regions): on `date` the member coded `from`
- * disappears and the `CSCT` record coded `to` appears (`from` may equal `to`). Built by
- * `typeChanges` (level identity) from the internal events and the snapshots.
- */
+/** `from` may equal `to`. */
 export interface TypeChange {
   date: IsoDate;
   from: string;
   to: string;
 }
 
-/** Continuity between a closed interval and the opened one continuing it, on `date`. */
 export interface IntervalLink {
   date: IsoDate;
   /** Interval keys (`<code>@<validFrom>`). */
@@ -88,46 +54,31 @@ export interface IntervalLink {
 
 export interface TransitionResult<L extends Level = Level> {
   level: L;
-  /** Every interval of the index, by key. */
   intervals: ReadonlyMap<string, SnapshotInterval<L>>;
   links: IntervalLink[];
-  /** Intervals ended (at their `validTo`) by suppression events, with the event codes. */
   ends: ReadonlyMap<string, IstatEventCode[]>;
-  /** Intervals started (at their `validFrom`) by establishment events, with the event codes. */
   starts: ReadonlyMap<string, IstatEventCode[]>;
-  /** Maximal sequences of linked intervals, sorted by first `validFrom`, then code. */
   chains: SnapshotInterval<L>[][];
-  /** Links along which the name changes without a `CD`/`CDAP` event (`name-change-without-event`). */
   renamesWithoutEvent: IntervalLink[];
 }
 
 export interface MatchTransitionsOptions<L extends Level> {
   level: L;
   index: IntervalIndex<L>;
-  /** Resolver of this level, built with the same aliases. */
+  /** Built with the same aliases. */
   resolver: CodeResolver;
-  /** Explanations (establishments, suppressions) and renames. */
   events: readonly TransitionEvent[];
-  /** Code changes (§6.6 step 2). */
   aliases: readonly CodeAlias[];
-  /** Public establishment and suppression rows checked against the explanations (UTS, regions). */
   crossCheck?: readonly TransitionEvent[];
-  /** Type changes of the level (UTS, regions): links, and explanations of the public rows. */
   typeChanges?: readonly TypeChange[];
   anomalies: AnomalyCollector;
 }
 
-/** Stable anomaly codes of the transition matcher (§8.2). */
 export const TRANSITION_ANOMALIES = {
-  /** A closed or opened interval explained by neither continuity nor events. */
   unexplained: 'transition-unexplained',
-  /** An interval with more than one successor or predecessor. */
   conflict: 'identity-transition-conflict',
-  /** Continuity through an unchanged cadastral code, without events (§6.7 rule 5). */
   cadastral: 'identity-cadastral-continuity',
-  /** A name change along a link without a `CD`/`CDAP` event. */
   nameChange: 'name-change-without-event',
-  /** A public establishment or suppression row that no internal event explains. */
   publicEventUnmatched: 'identity-public-event-unmatched',
 } as const;
 
@@ -291,7 +242,6 @@ export function matchTransitions<L extends Level>(options: MatchTransitionsOptio
   };
 }
 
-/** Interval key, as produced by the resolver (`<code>@<validFrom>`). */
 export function keyOf(interval: SnapshotInterval): string {
   return `${interval.code}@${interval.validFrom}`;
 }
@@ -306,7 +256,6 @@ function cadastralOf(interval: SnapshotInterval): string | null {
   return 'cadastralCode' in interval.row ? interval.row.cadastralCode : null;
 }
 
-/** Closed and opened intervals pairing one-to-one on a non-null cadastral code. */
 function cadastralPairs<L extends Level>(
   closed: readonly SnapshotInterval<L>[],
   opened: readonly SnapshotInterval<L>[],
@@ -322,7 +271,7 @@ function cadastralPairs<L extends Level>(
   return pairs;
 }
 
-/** Links of intervals with several successors or predecessors are all dropped (`blocking`). */
+/** A conflict keeps none of its links. */
 function dropConflicts(level: Level, links: readonly IntervalLink[], anomalies: AnomalyCollector): IntervalLink[] {
   const outgoing = groupBy(links, (l) => l.from);
   const incoming = groupBy(links, (l) => l.to);

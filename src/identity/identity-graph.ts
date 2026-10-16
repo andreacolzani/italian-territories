@@ -1,26 +1,12 @@
 /**
- * Identity graph of one level (§5.1, D4): union-find over the `id → id_origine` pointers of the
- * SITUAS internal reports, and nothing else (no names, codes or public data). Each connected
- * component is one entity line.
- *
- * - UTS: nodes are `id_uts`, pointers `id_uts → id_uts_origine` (a type change creates a new
- *   `id_uts` pointing to the record it continues; `RN` keeps it, §3.5 item 14).
- * - Regions and municipalities: ISTAT exposes only `id_regione_origine` / `id_comune_origine`,
- *   so every pointer is a self-pointer; the same algorithm is applied for uniformity.
- *
- * The root (the entity's `istat_origin_id`) is the end of the pointer chain: the only node of
- * the component without a pointer to another node. It must also be the oldest record, i.e. its
- * first event is the earliest of the component. A component with no unique chain end, or whose
- * chain end is not the oldest record, is a `blocking` anomaly and falls back to the oldest one.
- *
- * Every record listed by r1/r2 also carries an origin id: it must belong to the component of the
- * record's events, otherwise the record is inconsistent (`blocking`).
+ * §5.1, D4: only the `id → id_origine` pointers, never names, codes or public data. A UTS type change
+ * creates a new `id_uts` pointing to the record it continues, while `RN` keeps it (§3.5 item 14).
+ * Regions and municipalities expose only self-pointers; the same algorithm runs for uniformity.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareDates, type IsoDate } from '../dates/index.ts';
 import type { Level, RegionType, UtsType } from '../model/common.ts';
 
-/** A typed ISTAT record of an entity: `(id, code, name, type)`; municipalities have no type. */
 export interface IdentityRecord {
   id: number;
   code: string;
@@ -28,15 +14,13 @@ export interface IdentityRecord {
   type: RegionType | UtsType | null;
 }
 
-/** The `id → id_origine` pointer carried by an event row. */
 export interface IdentityPointer {
   id: number;
   originId: number;
 }
 
-/** One queried record and the events of its report. */
 export interface IdentitySource<E> {
-  /** The record as listed (r1–r3); `originId` is null when the list carries none (r3). */
+  /** `originId` is null for r3, which carries none. */
   listed: { code: string; name: string; type: RegionType | UtsType | null; originId: number | null };
   events: readonly E[];
 }
@@ -45,48 +29,37 @@ export interface IdentityGraphOptions<E> {
   level: Level;
   sources: readonly IdentitySource<E>[];
   pointer: (event: E) => IdentityPointer;
-  /** The record as it was at the event (code and name at the time of the event). */
+  /** At the time of the event. */
   record: (event: E) => IdentityRecord;
   date: (event: E) => IsoDate;
-  /** Identity of an event row: rows returned by several records of the entity are merged. */
+  /** Rows returned by several records of the entity are merged by it. */
   eventKey: (event: E) => string;
   anomalies: AnomalyCollector;
 }
 
 export interface IdentityComponent<E> {
   level: Level;
-  /** The ISTAT origin id of the entity (§5.1). */
   root: number;
-  /** Every node of the component, ascending. */
   ids: number[];
-  /** Distinct typed records, listed or seen in events, sorted by id, code, name, type. */
   records: IdentityRecord[];
-  /** Merged event history without duplicates, sorted by date, then by event key. */
   events: E[];
 }
 
 export interface IdentityGraph<E> {
   level: Level;
-  /** Sorted by root. */
   components: IdentityComponent<E>[];
-  /** Component of every node id. */
   byId: ReadonlyMap<number, IdentityComponent<E>>;
 }
 
-/** Stable anomaly codes of the identity graph (§8.2). */
 export const IDENTITY_ANOMALIES = {
-  /** No unique end of the pointer chain, or the chain end is not the oldest record. */
   ambiguousRoot: 'identity-root-ambiguous',
-  /** A listed record whose origin id or events belong to different components. */
   inconsistentRecord: 'identity-record-inconsistent',
 } as const;
 
 export function buildIdentityGraph<E>(options: IdentityGraphOptions<E>): IdentityGraph<E> {
   const { level, pointer, anomalies } = options;
   const uf = new UnionFind();
-  /** Pointers leaving each node towards another node. */
   const outgoing = new Map<number, Set<number>>();
-  /** First event date of each node (as `id`). */
   const firstDate = new Map<number, IsoDate>();
   const events = new Map<string, E>();
 

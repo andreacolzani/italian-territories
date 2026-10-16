@@ -1,15 +1,6 @@
 /**
- * Identity resolution of one level (§6.7): the inputs of the transition matcher built from
- * the sources of that level, then the entities with their ISTAT origin ids.
- *
- * - Municipalities: explanations and renames from the public lists 98 (`ES`, `AS`), 100 (`CS`,
- *   `AN`), 104 (`CD`) and the `CDAP` rows of 105; code changes from every pfun 105 row (§6.7
- *   rules 1–4). Internal ids (r6) are attached afterwards (§5.2).
- * - UTS and regions: explanations and code changes from the internal events of the identity graph
- *   (§6.7); public renames (114, 108) count for the name check; public establishment and
- *   suppression lists (112/113, 106/107) are cross-checks.
- *
- * Territorial events (pfun 103, `AQ`/`CE`/…) never change identity and are not read here.
+ * §6.7. UTS and region identity comes from the internal events; their public establishment and
+ * suppression lists are only cross-checks. Territorial events never change identity.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import type { Level } from '../model/common.ts';
@@ -28,7 +19,7 @@ import {
 } from './transitions.ts';
 import { compareDates } from '../dates/index.ts';
 
-/** Public event lists of one level by `pfun` (the full stored range, §6.3). */
+/** The full stored range (§6.3). */
 export type LevelEventLists<L extends Level> = Partial<Record<EventListPfunOf<L>, readonly EventRowByLevel[L][]>>;
 
 export interface LevelIdentityOptions<L extends Level> {
@@ -36,7 +27,6 @@ export interface LevelIdentityOptions<L extends Level> {
   index: IntervalIndex<L>;
   /** `null` when the level was not crawled or its list could not be obtained. */
   internal: InternalIdentity | null;
-  /** Why the level's internal data is incomplete (`internal-data-required`, default `absent`). */
   internalCause?: InternalDataCause;
   eventLists: LevelEventLists<L>;
   anomalies: AnomalyCollector;
@@ -45,7 +35,6 @@ export interface LevelIdentityOptions<L extends Level> {
 export interface LevelIdentity<L extends Level = Level> {
   transitions: TransitionResult<L>;
   entities: ResolvedEntity<L>[];
-  /** The resolver of the level, with its same-day aliases (§6.6). */
   resolver: CodeResolver;
 }
 
@@ -101,10 +90,8 @@ export function resolveLevelIdentity<L extends Level>(options: LevelIdentityOpti
 }
 
 /**
- * The matcher view of a public event row (§3.5 item 6): suppressions identify the subject by its
- * code on `D − 1`, establishments by its code on `D`; renames (`CD`, `CDAP`) by the related code,
- * which is the state of `D`. Other rows (code changes, territorial events) are not events of the
- * matcher: code changes are aliases.
+ * Suppressions identify the subject on `D − 1`, establishments on `D`, renames by the related code,
+ * the state of `D` (§3.5 item 6). Code changes are aliases, not events of the matcher.
  */
 function publicTransitionEvent(row: EventRowByLevel[Level], source: string): TransitionEvent | null {
   const cadastral = 'cadastralCode' in row ? row.cadastralCode : null;
@@ -125,20 +112,14 @@ function publicTransitionEvent(row: EventRowByLevel[Level], source: string): Tra
   return null;
 }
 
-/** Stable anomaly codes of the level identity (§8.2). */
 const LEVEL_IDENTITY_ANOMALIES = {
-  /** A type change found in the internal events that the public lists (106/107, 112/113) do not show. */
   typeChangeUnconfirmed: 'type-change-unconfirmed',
 } as const;
 
 /**
- * Type changes of a level (§6.7): within one identity component, a `CSCT` on `d` pairs with the
- * member whose interval ends on `d`, whatever its own events (`ESCT`, `ES` as for the compartments
- * of 1948, or none, as for Venezia Tridentina `82` → Trentino-Alto Adige `04`). The members are
- * the codes of the component's events. A `CSCT` with no such member, or with more than one, pairs
- * with nothing (the matcher reports what stays unexplained). A pairing documented by an `ESCT` of
- * the member, or confirmed by the public lists (`ESCT` from → to, or `CSCT` to ← from on `d`), is
- * silent; otherwise a `warning`.
+ * D35: a `CSCT` on `d` pairs with the component member whose interval ends on `d`, whatever its own
+ * events (`ES` for the compartments of 1948, none for Venezia Tridentina `82` → Trentino-Alto Adige
+ * `04`). Without an `ESCT` of the member or the public lists to confirm it, the pairing is a `warning`.
  */
 function typeChanges<L extends Level>(
   level: L,
@@ -184,7 +165,6 @@ function compareCodes(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-/** Every internal event of the level, identified on the side of its event code. */
 function internalTransitionEvents(level: Level, internal: InternalIdentity | null): TransitionEvent[] {
   const source = level === 'province' ? 'r5:uts-events' : 'r4:region-events';
   return (internal?.components ?? []).flatMap((component) =>

@@ -1,35 +1,9 @@
 /**
- * Id registry (§5.3): stable ids for entities and variations, keyed by natural keys and committed
- * in `registry/`. Ids are assigned on first appearance and never reused for another key. New keys
- * of one call get ids in a total, deterministic order that does not depend on the order of the
- * input: entities by first `validFrom`, then first ISTAT code, then natural key; variations by
- * date, then natural key. Versions have no id (D40).
- *
- * - Entity ids (D42) are `<prefix>-<code>`: the code is a 30-bit window of the SHA-256 of
- *   `<level>|<natural key>` (the key with which the entity first enters the registry) in Crockford
- *   base32; window 0, or the next one when the id is already held in the level's registry by
- *   another key. The id is stored and never recomputed: it survives remaps.
- * - Variation ids are positive integers from a `next_id` counter.
- *
- * One file per kind, entries sorted by key:
- * - entities (`regions.json`, `provinces.json`, `municipalities.json`): `{ kind, entries }`, entries
- *   `{ id, members }`, the ISTAT ids of the identity component (§5.1), ascending; empty for `nk:`
- *   keys;
- * - variations (`variations.json`): `{ kind, next_id, entries }`, entries `{ id }`.
- *
- * A key that changes keeps its id, the entry moves to the new key and the correspondence is
- * appended to `remaps.json` (`{ kind, from_key, to_key, id, reason, recorded_on }`; the remaps of
- * one run sorted by kind, then by `from_key`):
- * - `origin-id-available`: an `nk:` entity gains its ISTAT origin id (`istat:<root>`). Not
- *   retroactive: no published field changes.
- * - `root-changed`: an identity component changes root but shares members with an entity already
- *   registered whose key disappeared. Retroactive (`warning`).
- *
- * Re-keying goes from `nk:` to `istat:` only, never back: a registered `istat:` entity whose key
- * disappears while none of its members is in any entity of the run has lost its internal history
- * (e.g. an r6 missing from the store in an offline `rebuild`). That is `internal-data-required`
- * (`blocking`, one per level, every such entity in `context`), never a new `nk:` key with a new id:
- * the blocking anomaly keeps `registry/` and `dist/` unwritten.
+ * §5.3. Ids are never reused, and new ones follow a total order independent of the input. An entity
+ * id is stored, never recomputed, so it survives remaps (D42). `origin-id-available` is not
+ * retroactive, since no published field changes; `root-changed` is. Re-keying never goes from
+ * `istat:` back to `nk:`: an `istat:` entity that lost its internal history is `internal-data-required`,
+ * whose blocking anomaly keeps `registry/` and `dist/` unwritten.
  */
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -66,7 +40,6 @@ const variationEntry = z.strictObject({ id: intId });
 export type EntityEntry = z.output<typeof entityEntry>;
 export type VariationEntry = z.output<typeof variationEntry>;
 type Entry = EntityEntry | VariationEntry;
-/** The fields of an entry besides its id (none for variations). */
 type EntryData = Partial<Pick<EntityEntry, 'members'>>;
 
 function isEntityKind(kind: RegistryKind): kind is Level {
@@ -114,22 +87,16 @@ const remapSchema = z.strictObject({
 });
 export type Remap = z.output<typeof remapSchema>;
 
-/** A remap recorded by this run, with its classification (§10.2). */
 export interface RunRemap extends Remap {
   retroactive: boolean;
 }
 
-/** Crockford base32 alphabet (no I, L, O, U). */
+/** No I, L, O, U. */
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const WINDOW_BITS = 30;
-/** Number of whole 30-bit windows in a SHA-256 digest. */
 export const ID_WINDOWS = Math.floor(256 / WINDOW_BITS);
 
-/**
- * The candidate entity id of `key` at `level` in `window` (§5.3, D42): bits
- * `[30·window, 30·window + 30)` of the SHA-256 of `<level>|<key>`, most significant bit first,
- * as 6 Crockford base32 characters after the level's prefix.
- */
+/** Bits `[30·window, 30·window + 30)` of the SHA-256 of `<level>|<key>`, most significant first (D42). */
 export function candidateEntityId(level: Level, key: string, window: number): EntityId {
   if (!Number.isInteger(window) || window < 0 || window >= ID_WINDOWS) throw new RangeError(`window ${window}`);
   const digest = createHash('sha256').update(`${level}|${key}`, 'utf8').digest();
@@ -146,33 +113,27 @@ export function candidateEntityId(level: Level, key: string, window: number): En
 }
 
 export interface Assignment<Id extends number | string = number | string> {
-  /** Natural key → id, for every key given. */
   ids: Map<string, Id>;
-  /** Keys that changed in this call. */
   remaps: RunRemap[];
   retroactive: boolean;
 }
 
 export interface AssignOptions {
-  /** Date of the run (`dates.today`), recorded in `remaps.json`. */
   recordedOn: IsoDate;
   anomalies: AnomalyCollector;
-  /** Why the level's internal data is incomplete, for `internal-data-required` (default `absent`). */
   internalCause?: InternalDataCause;
 }
 
-/** An entity to register (a resolved entity, §6.7). */
 export interface EntityKeyInput {
   key: string;
   /** `nk:` key of the entity, equal to `key` when it has no ISTAT origin id. */
   fallbackKey: string;
   members: readonly number[];
-  /** Start and ISTAT code of the entity's first interval (assignment order). */
+  /** Assignment order (§5.3). */
   firstValidFrom: IsoDate;
   firstCode: string;
 }
 
-/** A variation to register: its natural key and date (assignment order). */
 export interface VariationKeyInput {
   key: string;
   date: IsoDate;
@@ -183,7 +144,6 @@ export const REGISTRY_ANOMALIES = {
   originIdAvailable: 'registry-origin-id-available',
 } as const;
 
-/** The registry on disk is unreadable or inconsistent. */
 export class RegistryError extends Error {
   readonly path: string;
 
@@ -199,7 +159,6 @@ function entityKind(level: Level): RegistryKind {
 }
 
 interface RegistryFile {
-  /** Variations only: the next integer id. */
   next_id: number;
   entries: Map<string, Entry>;
 }
@@ -237,34 +196,28 @@ export class Registry {
     return new Registry(dir, files, remaps);
   }
 
-  /** Every recorded remap, those of this run included (appended on save). */
   get remaps(): readonly Remap[] {
     return [...this.#remaps, ...sortRemaps(this.#pending)];
   }
 
-  /** Remaps recorded by this run. */
   get runRemaps(): readonly RunRemap[] {
     return sortRemaps(this.#pending);
   }
 
-  /** Whether this run changed a key retroactively (§10.2). */
   get retroactive(): boolean {
     return this.#pending.some((r) => r.retroactive);
   }
 
-  /** The id of an entity key of `level`, if registered. */
   entityId(level: Level, key: string): EntityId | undefined {
     const id = this.#files.get(level)?.entries.get(key)?.id;
     return typeof id === 'string' ? id : undefined;
   }
 
-  /** The id of a variation key, if registered. */
   variationId(key: string): number | undefined {
     const id = this.#files.get('variation')?.entries.get(key)?.id;
     return typeof id === 'number' ? id : undefined;
   }
 
-  /** Ids of the entities of `level` (§5.3: `istat:<root>`, fallback `nk:…`). */
   assignEntities(level: Level, entities: readonly EntityKeyInput[], options: AssignOptions): Assignment<EntityId> {
     const kind = entityKind(level);
     const file = this.#file(kind);
@@ -295,7 +248,6 @@ export class Registry {
     return run.result() as Assignment<EntityId>;
   }
 
-  /** Registered `istat:` entities of `level` with no member in any entity of the run (see above). */
   #reportLostHistories(
     level: Level,
     entries: ReadonlyMap<string, Entry>,
@@ -327,7 +279,6 @@ export class Registry {
     });
   }
 
-  /** Ids of variations (§5.3: `act:…`, `nk:…`, `inferred:…`). */
   assignVariations(variations: readonly VariationKeyInput[], options: AssignOptions): Assignment<number> {
     const file = this.#file('variation');
     const run = this.#run('variation', options);
@@ -341,7 +292,7 @@ export class Registry {
     return run.result() as Assignment<number>;
   }
 
-  /** Writes every kind in use and appends this run's remaps; same content, same bytes. */
+  /** Same content, same bytes. */
   async save(): Promise<void> {
     for (const kind of REGISTRY_KINDS) {
       const file = this.#files.get(kind);
@@ -375,7 +326,6 @@ export class Registry {
   }
 }
 
-/** One assignment call: entries kept, moved or created, and the remaps it produced. */
 class Run {
   readonly #onRemap: (remap: RunRemap) => void;
   readonly #kind: RegistryKind;
@@ -409,7 +359,6 @@ class Run {
     this.#ids.set(key, id);
   }
 
-  /** The first window of the key's hash whose id no other entry of the level holds (D42). */
   #freshEntityId(level: Level, key: string): EntityId {
     const taken = new Set([...this.#file.entries.values()].map((e) => e.id));
     for (let window = 0; window < ID_WINDOWS; window++) {
@@ -457,7 +406,7 @@ class Run {
   }
 }
 
-/** The input without duplicate keys; a duplicate natural key in one call is a bug of the caller. */
+/** A duplicate natural key in one call is a bug of the caller. */
 function unique<T>(items: readonly T[], key: (item: T) => string): T[] {
   const seen = new Set<string>();
   for (const item of items) {

@@ -173,10 +173,6 @@ export function withSilentCadastralChange(world: World, code: string, date: IsoD
   };
 }
 
-// ---------------------------------------------------------------------------------------------
-// Raw rows
-// ---------------------------------------------------------------------------------------------
-
 const within = (from: IsoDate, to: IsoDate | null, date: IsoDate) =>
   compareDates(from, date) <= 0 && (to === null || compareDates(date, to) < 0);
 
@@ -288,7 +284,7 @@ function relatedFields(world: World, mu: WorldMunicipality) {
   };
 }
 
-/** Rows of event list `pfun` dated in `[from, to]`. */
+/** Dated in `[from, to]`, both included. */
 export function eventListRows(world: World, pfun: number, from: IsoDate, to: IsoDate): Record<string, unknown>[] {
   const inRange = (date: IsoDate) => compareDates(from, date) <= 0 && compareDates(date, to) <= 0;
   const rows: Record<string, unknown>[] = [];
@@ -339,10 +335,6 @@ export function eventListRows(world: World, pfun: number, from: IsoDate, to: Iso
   }
   return rows;
 }
-
-// ---------------------------------------------------------------------------------------------
-// Internal reports
-// ---------------------------------------------------------------------------------------------
 
 export function regionListItems(world: World): Record<string, unknown>[] {
   return world.regions.map((r, i) => ({
@@ -480,10 +472,6 @@ function isoOf(italianDate: unknown): IsoDate {
   return `${y}-${m}-${d}`;
 }
 
-// ---------------------------------------------------------------------------------------------
-// ANPR
-// ---------------------------------------------------------------------------------------------
-
 export const ANPR_HEADER =
   '"ID","DATAISTITUZIONE","DATACESSAZIONE","CODISTAT","CODCATASTALE","DENOMINAZIONE_IT","DENOMTRASLITTERATA",' +
   '"ALTRADENOMINAZIONE","ALTRADENOMTRASLITTERATA","ID_PROVINCIA","IDPROVINCIAISTAT","IDREGIONE","IDPREFETTURA",' +
@@ -545,10 +533,6 @@ export function anprCsv(world: World): string {
 function q(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
-
-// ---------------------------------------------------------------------------------------------
-// Transport
-// ---------------------------------------------------------------------------------------------
 
 export interface WorldTransport {
   transport: Transport;

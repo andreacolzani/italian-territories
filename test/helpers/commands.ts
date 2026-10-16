@@ -1,4 +1,3 @@
-/** A sandbox for the commands: temporary paths, the world transport, a captured CLI. */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,7 +13,6 @@ import { worldTransport, type World, type WorldTransport } from './world.ts';
 export interface FakeProcess extends RunProcess {
   emit: (event: RunProcessEvent, value?: unknown) => void;
   listeners: (event: RunProcessEvent) => number;
-  /** Exit codes requested, in order. */
   exits: number[];
 }
 
@@ -66,9 +64,7 @@ export interface Sandbox {
   clock: FakeClock;
   process: FakeProcess;
   scheduler: FakeScheduler;
-  /** Lines of stderr written so far by the current run. */
   live: string[];
-  /** Runs the CLI; stdout and stderr of the last run are kept. */
   run: (...argv: string[]) => Promise<number>;
   out: string;
   err: string;
@@ -89,7 +85,6 @@ const TEST_OVERRIDES = [
   },
 ];
 
-/** `http` overrides the sandbox's fast HTTP settings. */
 export async function sandbox(world: World, input: Pick<ConfigInput, 'update' | 'http'> = {}): Promise<Sandbox> {
   const dir = await mkdtemp(join(tmpdir(), 'it-commands-'));
   const overrides = join(dir, 'overrides');

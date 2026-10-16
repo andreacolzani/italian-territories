@@ -36,7 +36,7 @@ const SNAPSHOT_DATES: IsoDate[] = ['1861-03-17', '1900-01-01', '1950-01-01', '19
 type Interval = [IsoDate, IsoDate | null];
 const span = ([validFrom, validTo]: Interval): HalfOpenInterval => ({ validFrom, validTo });
 
-/** A test entity id of `level`: the prefix and `n` zero-padded (valid Crockford base32). */
+/** Zero-padded `n`, valid Crockford base32. */
 function testId(level: Level, n: number): EntityId {
   return `${ENTITY_ID_PREFIXES[level]}-${String(n).padStart(6, '0')}`;
 }
@@ -124,7 +124,6 @@ export interface Baseline extends InvariantWorld {
   counts: NonNullable<InvariantWorld['counts']>;
   accounts: EventAccount[];
   variationIdOf: NonNullable<InvariantWorld['variationIdOf']>;
-  /** The provinces with their unpublished historical codes. */
   provinceEntities: ProvinceEntity[];
 }
 
@@ -347,7 +346,6 @@ export function mut<T>(value: T): DeepWritable<T> {
   return value as DeepWritable<T>;
 }
 
-/** The (writable) entity `testId(level, n)`. */
 export function entityOf<L extends Level>(world: Baseline, level: L, n: number): DeepWritable<InvariantEntity<L>> {
   const id = testId(level, n);
   const found = (world.entities[level] as readonly InvariantEntity<L>[]).find((e) => e.id === id);
@@ -355,7 +353,6 @@ export function entityOf<L extends Level>(world: Baseline, level: L, n: number):
   return mut(found);
 }
 
-/** The (writable) version of entity `testId(level, n)` starting on `validFrom`. */
 export function versionOf<L extends Level>(
   world: Baseline,
   level: L,
@@ -367,21 +364,18 @@ export function versionOf<L extends Level>(
   return found;
 }
 
-/** The (writable) variation `id`. */
 export function variationOf(world: Baseline, id: number): DeepWritable<Variation> {
   const found = world.variations.find((v) => v.id === id);
   if (found === undefined) throw new Error(`no variation ${id}`);
   return mut(found);
 }
 
-/** The element at `index` of a list the test knows to have it. */
 export function at<T>(list: readonly T[] | undefined, index = 0): T {
   const found = list?.[index];
   if (found === undefined) throw new Error(`no element at ${index}`);
   return found;
 }
 
-/** The (writable) rows of `level` in a snapshot set. */
 export function rowsOf<L extends Level>(set: SnapshotSet, level: L): DeepWritable<SnapshotRowByLevel[L]>[] {
   const rows = set.rows[level];
   if (rows === undefined) throw new Error(`no ${level} rows on ${set.date}`);

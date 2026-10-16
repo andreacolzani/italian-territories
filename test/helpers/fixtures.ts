@@ -1,7 +1,3 @@
-/**
- * Fixture conventions of §11.1: request → path mapping, manifest model and a mock transport
- * that serves recorded responses.
- */
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +15,6 @@ const ANPR_URL = 'https://www.anagrafenazionale.interno.it/wp-content/uploads/AN
 type Level = 'regions' | 'provinces' | 'municipalities';
 export type FixtureSource = 'situas-public' | 'situas-internal' | 'anpr';
 
-/** Snapshot pfun ids by level (§3.2). */
 const SNAPSHOT_PFUN: Record<number, Level> = {
   44: 'regions',
   46: 'regions',
@@ -32,7 +27,6 @@ const SNAPSHOT_PFUN: Record<number, Level> = {
   61: 'municipalities',
 };
 
-/** Event list pfun ids by level (§3.2). */
 const EVENTS_PFUN: Record<number, Level> = {
   106: 'regions',
   107: 'regions',
@@ -50,11 +44,9 @@ const EVENTS_PFUN: Record<number, Level> = {
 interface InternalReport {
   n: number;
   name: string;
-  /** File name (without extension) built from the report parameters. */
   file: (p: Params) => string;
 }
 
-/** Internal reports 1–9 (§3.3), keyed by report name. */
 const INTERNAL_REPORTS: Record<string, InternalReport> = {
   var_get_ua_reg_lov_diffusione: { n: 1, name: 'region-list', file: () => 'all' },
   var_get_ua_uts_lov_diffusione: { n: 2, name: 'uts-list', file: () => 'all' },
@@ -104,7 +96,7 @@ function decode(value: string): string {
   }
 }
 
-/** Parses a query string that may be encoded or not (request URLs are stored unencoded, §11.1). */
+/** Encoded or not: request URLs are stored unencoded (§11.1). */
 function parseQuery(query: string, context: string): Params {
   const map = new Map<string, string>();
   for (const part of query.split('&')) {
@@ -138,7 +130,6 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-/** `DD/MM/YYYY` → `YYYY-MM-DD`. */
 function situasDateToIso(value: string, context: string): string {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
   if (!m) throw new Error(`${context}: invalid date '${value}' (expected DD/MM/YYYY)`);
@@ -146,7 +137,7 @@ function situasDateToIso(value: string, context: string): string {
 }
 
 export interface FixtureOptions {
-  /** Download date (`YYYY-MM-DD`) of an ANPR CSV; the ANPR request carries no parameters. */
+  /** The ANPR request carries no parameters, so the download date picks the CSV. */
   downloadDate?: string;
 }
 
@@ -156,7 +147,6 @@ export interface FixtureDescription {
   endpoint: string;
 }
 
-/** Maps a request to its conventional fixture path, source and endpoint id (§11.1). Pure. */
 export function describeRequest(request: HttpRequest, options: FixtureOptions = {}): FixtureDescription {
   const { base, query } = splitUrl(request.url);
 
@@ -252,14 +242,10 @@ export async function loadManifest(path: string = MANIFEST_PATH): Promise<Manife
 export interface FixtureTransportOptions {
   root?: string;
   manifest?: Manifest;
-  /** ANPR download date to serve; defaults to the most recent full ANPR fixture. */
   anprDownloadDate?: string;
 }
 
-/**
- * Mock transport serving full fixtures by their conventional path. Requests without a
- * matching full fixture (unknown, subset-only or method mismatch) fail loudly.
- */
+/** Requests without a full fixture (unknown, subset-only or method mismatch) fail loudly. */
 export async function createFixtureTransport(options: FixtureTransportOptions = {}): Promise<Transport> {
   const root = options.root ?? FIXTURES_ROOT;
   const manifest = options.manifest ?? (await loadManifest(join(root, 'manifest.json')));

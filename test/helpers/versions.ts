@@ -1,7 +1,3 @@
-/**
- * Worlds for version tests: identity resolution of each level, registry ids for the
- * entities, then the version builder, from the regions down to the municipalities.
- */
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import {
   buildMunicipalityVersions,
@@ -35,7 +31,6 @@ export interface VersionWorld {
   province: LevelWorld<'province'>;
   /** Without municipalities, pre-1948 UTS abbreviations cannot be derived. */
   municipality?: LevelWorld<'municipality'>;
-  /** Overrides applied by the UTS version builder (§6.10). */
   overrides?: readonly Override[];
 }
 
@@ -44,17 +39,13 @@ export interface BuiltWorld {
   province: EntityByLevel['province'][];
   municipality: EntityByLevel['municipality'][];
   identity: { [L in Level]?: LevelIdentity<L> };
-  /** Snapshot intervals of each entity id, per level. */
   intervals: Record<Level, Map<EntityId, readonly HalfOpenInterval[]>>;
-  /** The entities of identity resolution with their registry ids, per level. */
   identified: { [L in Level]: IdentifiedEntity<L>[] };
-  /** The registry of the build (in memory: its directory is removed). */
+  /** In memory: its directory is removed. */
   registry: Registry;
-  /** Anomalies of identity resolution. */
   identityAnomalies: AnomalyCollector;
-  /** Anomalies of the version builder only (overrides included). */
+  /** Of the version builder only, overrides included. */
   anomalies: AnomalyCollector;
-  /** The values the overrides replaced. */
   appliedOverrides: AppliedOverride[];
 }
 
@@ -136,7 +127,6 @@ function intervalsById(entities: readonly IdentifiedEntity[]): Map<EntityId, rea
   return new Map(entities.map((e) => [e.id, e.intervals]));
 }
 
-/** The entity with a version of `code` on `date`. */
 export function entityAt<E extends { versions: readonly (HalfOpenInterval & { istatCode: string })[] }>(
   entities: readonly E[],
   code: string,
@@ -151,11 +141,7 @@ function within(interval: HalfOpenInterval, date: IsoDate): boolean {
   return interval.validFrom <= date && (interval.validTo === null || date < interval.validTo);
 }
 
-/**
- * I1–I3 as properties of built versions: sorted, non-empty, non-overlapping (I1); consecutive
- * versions contiguous or separated by a gap in the entity's snapshot intervals (I2); contiguous
- * versions differ in a published field (I3). Returns the violations.
- */
+/** I1–I3 as properties of built versions. */
 export function versionPropertyViolations(
   entities: readonly EntityByLevel[Level][],
   intervalsOf: (entityId: EntityId) => readonly HalfOpenInterval[],

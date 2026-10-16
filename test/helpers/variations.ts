@@ -1,7 +1,3 @@
-/**
- * Worlds for variation tests: the version worlds of `versions.ts`, then the variation builder
- * over their event lists and internal events.
- */
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import {
   buildVariations,
@@ -23,20 +19,17 @@ import { withSources } from './sources.ts';
 import { buildWorld, type BuiltWorld, type VersionWorld } from './versions.ts';
 
 export interface VariationWorld extends VersionWorld {
-  /** Internal events per level (r4/r5/r6 with r7/r8 details). */
   internalEvents?: Partial<Record<Level, InternalVariationEvent[]>>;
-  /** Calendar dates of inferred breakpoints. */
   inferredDates?: IsoDate[];
-  /** Reference date of the run (default: no event is in the future). */
+  /** Default: no event is in the future. */
   today?: IsoDate;
 }
 
 export interface BuiltVariations extends BuiltWorld {
-  /** Entities with their versions. */
   entities: { [L in Level]: EntityByLevel[L][] };
   variations: Variation[];
   accounts: EventAccount[];
-  /** Anomalies of the variation builder only. */
+  /** Of the variation builder only. */
   variationAnomalies: AnomalyCollector;
 }
 
@@ -70,7 +63,6 @@ export async function buildVariationWorld(world: VariationWorld): Promise<BuiltV
   return { ...built, entities, variations, accounts, variationAnomalies };
 }
 
-/** The internal events of an identity graph, with the r7/r8 details of `details` when given. */
 export function variationEvents<
   E extends {
     event: IstatEventCode;
@@ -94,17 +86,17 @@ export function variationEvents<
   );
 }
 
-/** r8 fixtures (`<id_uts_origine>_<event>_<act>.json`) by origin id, event and act. */
+/** `<id_uts_origine>_<event>_<act>.json`. */
 async function utsDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
   return eventDetails('utsEventDetails', 'r8-uts-event-details', files);
 }
 
-/** r7 fixtures (`<id_regione_origine>_<event>_<act>.json`) by origin id, event and act. */
+/** `<id_regione_origine>_<event>_<act>.json`. */
 export async function regionDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
   return eventDetails('regionEventDetails', 'r7-region-event-details', files);
 }
 
-/** r9 fixtures (`<id_origine>_<event>_<act>.json`) by origin id, event and act. */
+/** `<id_origine>_<event>_<act>.json`. */
 async function municipalityDetails(files: readonly string[]): Promise<Map<string, InternalVariationEvent['details']>> {
   return eventDetails('municipalityEventDetails', 'r9-municipality-event-details', files);
 }
@@ -130,12 +122,10 @@ function detailKey(originId: number, event: IstatEventCode, actId: number): stri
   return `${originId}|${event}|${actId}`;
 }
 
-/** Only the rows and events dated on `dates` (a world of those dates). */
 export function onDates<T extends { date: IsoDate }>(rows: readonly T[], dates: readonly IsoDate[]): T[] {
   return rows.filter((r) => dates.includes(r.date));
 }
 
-/** The variation of `date` in which the entity participates. */
 export function variationOf(built: BuiltVariations, level: Level, entityId: EntityId, date: IsoDate): Variation {
   const found = built.variations.filter(
     (v) => v.date === date && v.participants.some((p) => p.level === level && p.entityId === entityId),
@@ -147,11 +137,7 @@ export function variationOf(built: BuiltVariations, level: Level, entityId: Enti
   return variation;
 }
 
-/**
- * I9 and I10 as properties of the built variations: every version boundary (except the world's
- * first date) is referenced by a participant of a variation of that date, every referenced
- * version exists with coherent dates; no participant with effect lacks a role. Returns violations.
- */
+/** I9 and I10 as properties of the built variations. */
 export function variationPropertyViolations(built: BuiltVariations): string[] {
   const violations: string[] = [];
   const versions = new Map<string, { entityId: EntityId; validFrom: IsoDate; validTo: IsoDate | null }>();
@@ -204,7 +190,7 @@ export function variationPropertyViolations(built: BuiltVariations): string[] {
   return violations;
 }
 
-/** I14: every event row is represented in a registered variation or dropped with a reason. */
+/** I14. */
 export function accountViolations(built: BuiltVariations): string[] {
   return built.accounts.flatMap((a) => {
     if ((a.variation === null) === (a.dropped === null)) return [`${a.source}#${a.index}: not accounted`];
@@ -243,36 +229,29 @@ function loadEventLists() {
 
 let loaded: ReturnType<typeof loadEventLists> | undefined;
 
-/** The full-range event list fixtures of every level (loaded once). */
 export function eventLists(): ReturnType<typeof loadEventLists> {
   loaded ??= loadEventLists();
   return loaded;
 }
 
-/** The lists of a level with only the rows of `dates`. */
 async function listsOn(level: Level, dates: readonly IsoDate[]): Promise<Record<number, unknown[]>> {
   const byPfun = (await eventLists())[level] as Record<number, { date: IsoDate }[]>;
   return Object.fromEntries(Object.entries(byPfun).map(([pfun, rows]) => [pfun, onDates(rows, dates)]));
 }
 
 export interface WorldOptions {
-  /** Codes kept per level; `false`: an empty level (no snapshots of those dates). */
+  /** `false`: an empty level. */
   codes?: { region?: string[] | false; province?: string[] | false; municipality?: string[] };
   municipalities?: IdentityGraph<InternalMunicipalityEvent>;
-  /** r9 fixtures of `municipalities`' events (the ambiguous ones, §6.8). */
+  /** The ambiguous events (§6.8). */
   municipalityDetails?: string[];
   provinces?: { graph: IdentityGraph<InternalUtsEvent>; details?: string[] };
   overrides?: readonly Override[];
-  /** Municipality event lists replacing the full-range fixtures (e.g. a list of another download). */
   municipalityLists?: Record<number, readonly { date: IsoDate }[]>;
-  /** Internal municipality events added to those of `municipalities`. */
   extraMunicipalityEvents?: InternalVariationEvent[];
 }
 
-/**
- * A world of the real snapshots of `dates` (optionally reduced to some codes), with the event rows and
- * internal events of every date but the first.
- */
+/** The events of every date but the first. */
 export async function fixtureWorld(dates: readonly IsoDate[], options: WorldOptions = {}): Promise<BuiltVariations> {
   const { codes = {} } = options;
   const eventDates = dates.slice(1);

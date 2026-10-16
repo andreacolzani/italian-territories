@@ -1,4 +1,3 @@
-/** Worlds for identity tests: interval indexes of real snapshots, optionally reduced to some codes. */
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import { storeSnapshotProvider } from '../../src/completeness/index.ts';
 import type { IsoDate } from '../../src/dates/index.ts';
@@ -24,8 +23,7 @@ import { withTempDir } from './http.ts';
 import { decodedRows } from './internal.ts';
 
 /**
- * Interval index of the real snapshots of `dates`. With `codes`, only the rows of those codes are
- * kept: a reduced world, whose non-consecutive dates must not hide changes of the kept codes
+ * With `codes`, a reduced world: its non-consecutive dates must not hide changes of the kept codes
  * that the test does not expect.
  */
 export async function snapshotIndex<L extends Level>(
@@ -53,7 +51,7 @@ export async function snapshotIndex<L extends Level>(
 
 const utsList = await decodedRows('utsList', 'r2-uts-list/all.json');
 
-/** Internal UTS identity from r5 fixtures, as `[code, type, fixture file]`. */
+/** As `[code, type, fixture file]`. */
 export async function utsIdentity(
   records: readonly [string, UtsListRecord['type'], string][],
   complete = true,
@@ -61,7 +59,7 @@ export async function utsIdentity(
   return internalIdentity(await utsGraph(records), complete, (e) => ({ ...e, recordId: e.utsId }), 'r5:uts-events');
 }
 
-/** The UTS identity graph of r5 fixtures, as `[code, type, fixture file]`. */
+/** As `[code, type, fixture file]`. */
 export async function utsGraph(
   records: readonly [string, UtsListRecord['type'], string][],
 ): Promise<IdentityGraph<InternalUtsEvent>> {
@@ -82,7 +80,7 @@ export async function utsGraph(
   });
 }
 
-/** Internal municipality identity from r6 fixtures (file names); never complete. */
+/** Never complete. */
 export async function municipalityIdentity(files: readonly string[]): Promise<InternalIdentity> {
   return internalIdentity(
     await municipalityGraph(files),
@@ -92,7 +90,6 @@ export async function municipalityIdentity(files: readonly string[]): Promise<In
   );
 }
 
-/** The municipality identity graph of r6 fixtures (file names). */
 export async function municipalityGraph(files: readonly string[]): Promise<IdentityGraph<InternalMunicipalityEvent>> {
   const sources: IdentitySource<InternalMunicipalityEvent>[] = [];
   for (const file of files) {
@@ -112,7 +109,7 @@ export async function municipalityGraph(files: readonly string[]): Promise<Ident
   });
 }
 
-/** Internal identity of Piemonte (r4 for its compartment and region records); never complete. */
+/** Never complete. */
 export async function piemonteIdentity(): Promise<InternalIdentity> {
   return regionIdentity([
     ['01', 'compartment', '01_1_piemonte.json'],
@@ -120,7 +117,7 @@ export async function piemonteIdentity(): Promise<InternalIdentity> {
   ]);
 }
 
-/** Internal region identity from r4 fixtures, as `[code, type, fixture file]`; never complete. */
+/** As `[code, type, fixture file]`; never complete. */
 export async function regionIdentity(
   records: readonly [string, InternalRegionEvent['type'], string][],
 ): Promise<InternalIdentity> {
@@ -132,7 +129,7 @@ export async function regionIdentity(
   );
 }
 
-/** The region identity graph of r4 fixtures, as `[code, type, fixture file]`. */
+/** As `[code, type, fixture file]`. */
 export async function regionGraph(
   records: readonly [string, InternalRegionEvent['type'], string][],
 ): Promise<IdentityGraph<InternalRegionEvent>> {

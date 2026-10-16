@@ -1,4 +1,3 @@
-/** Source adapters wired to the fixture transport (or any transport) with a temporary cache. */
 import { resolveConfig, type ConfigInput } from '../../src/config.ts';
 import { HttpClient, type HttpClientEvent } from '../../src/http/client.ts';
 import type { HttpRequest, HttpResponse, Transport } from '../../src/http/transport.ts';
@@ -9,12 +8,10 @@ import { fakeClock, httpSettings, withTempDir } from './http.ts';
 export interface SourcesHarness extends Sources {
   client: HttpClient;
   events: HttpClientEvent[];
-  /** Requests that reached the transport. */
   calls: HttpRequest[];
 }
 
 export interface SourcesHarnessOptions {
-  /** Defaults to the fixture transport. */
   transport?: Transport;
   http?: NonNullable<ConfigInput['http']>;
 }
@@ -42,7 +39,6 @@ export async function withSources<T>(
   });
 }
 
-/** Fixture transport whose responses pass through `patch` (e.g. to drop a field). */
 export async function patchedFixtureTransport(
   patch: (response: HttpResponse, request: HttpRequest) => HttpResponse,
 ): Promise<Transport> {
@@ -50,7 +46,6 @@ export async function patchedFixtureTransport(
   return async (request, options) => patch(await fixtures(request, options), request);
 }
 
-/** Rewrites the rows of a public (`resultset`) JSON response. */
 export function mapResultset(
   response: HttpResponse,
   map: (rows: Record<string, unknown>[]) => Record<string, unknown>[],
@@ -59,7 +54,6 @@ export function mapResultset(
   return { ...response, body: JSON.stringify({ resultset: map(document.resultset) }) };
 }
 
-/** A transport answering every request with the same response. */
 export function constant(response: HttpResponse): Transport {
   return () => Promise.resolve(response);
 }

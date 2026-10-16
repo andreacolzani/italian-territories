@@ -1,4 +1,3 @@
-/** SITUAS internal fixtures as raw items and decoded rows, and a transport for crawl tests. */
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NetworkError, type HttpRequest, type HttpResponse, type Transport } from '../../src/http/transport.ts';
@@ -7,14 +6,13 @@ import { createFixtureTransport, FIXTURES_ROOT } from './fixtures.ts';
 
 type RawItem = Record<string, unknown>;
 
-/** Items of an internal fixture (`situas-internal/<path>`), parsed once more when double-encoded. */
+/** Parsed once more when double-encoded. */
 export async function rawItems(path: string): Promise<RawItem[]> {
   let document = JSON.parse(await readFile(join(FIXTURES_ROOT, 'situas-internal', path), 'utf8')) as unknown;
   if (typeof document === 'string') document = JSON.parse(document);
   return (document as { items: RawItem[] }).items;
 }
 
-/** Decoded rows of an internal fixture through the endpoint's own decoder. */
 export async function decodedRows<K extends keyof typeof INTERNAL_ENDPOINTS>(
   endpoint: K,
   path: string,
@@ -27,7 +25,6 @@ export async function decodedRows<K extends keyof typeof INTERNAL_ENDPOINTS>(
   }) as ReturnType<(typeof INTERNAL_ENDPOINTS)[K]['decode']>;
 }
 
-/** The report number of an internal request (`ReportByUrl` body). */
 export function reportOf(request: HttpRequest): number | undefined {
   const url = (request.body as { url?: string } | undefined)?.url ?? '';
   const name = url.slice(0, url.indexOf('?'));
@@ -55,19 +52,14 @@ export function internalItems(items: readonly RawItem[]): HttpResponse {
 }
 
 export interface InternalWorldOptions {
-  /** Items of r1, r2, r3 (normally subsets of the real lists, never stored as fixtures). */
+  /** Normally subsets of the real lists, never stored as fixtures. */
   lists: { 1?: RawItem[]; 2?: RawItem[]; 3?: RawItem[] };
-  /** Responses that take precedence over the fixtures, by unencoded report URL. */
+  /** By unencoded report URL. */
   responses?: Record<string, HttpResponse>;
-  /** Every internal request fails with a connection error. */
   offline?: boolean;
 }
 
-/**
- * r6 responses of the real fixtures by every `(code, name)` pair their history mentions (at an
- * event or as current pair): any historical pair of a municipality returns its full history
- * (§3.3 report 6).
- */
+/** Any historical pair of a municipality returns its full history (§3.3 report 6). */
 async function municipalityHistories(): Promise<Map<string, HttpResponse>> {
   const dir = 'r6-municipality-events';
   const histories = new Map<string, HttpResponse>();
@@ -83,9 +75,8 @@ async function municipalityHistories(): Promise<Map<string, HttpResponse>> {
 }
 
 /**
- * Lists from `lists`, other reports from the real fixtures; r6 answers every historical pair of
- * a fixture's municipality. Details reports (r7, r8, r9) without a fixture are served empty, as the
- * API does for events without associated territories; any other unknown request fails loudly.
+ * Details without a fixture are served empty, as the API does for events without associated
+ * territories; any other unknown request fails loudly.
  */
 export async function internalWorld(options: InternalWorldOptions): Promise<Transport> {
   const fixtures = await createFixtureTransport();

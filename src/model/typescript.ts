@@ -1,23 +1,13 @@
 /**
- * TypeScript declarations of the published files (§9), generated from their JSON Schemas
- * (`dist/schema/*.schema.json`) when the npm package is staged (`release -- pack`): for each data
- * file an interface per schema definition (`Municipality`, `MunicipalityVersion`, `Link`, …), the
- * file type (`Municipalities`) and the value of the JSON module, in two flavours: `<name>.d.mts`
- * for `import` (the array is the default export) and `<name>.d.cts` for `require` (the array is
- * the module, `export =`, with the types in a namespace of the same name). The package maps each
- * JSON file to them through the `types` condition of its `exports`. Types only: the package ships
- * no executable code.
- *
- * Only the constructs the published schemas use are supported (objects with `properties`,
- * arrays, strings with `enum`, booleans, `null`, `anyOf`, local `$ref`s): anything else throws,
- * so a schema change cannot silently produce wrong declarations.
+ * Declarations for `import` (`.d.mts`, default export) and `require` (`.d.cts`, `export =`), mapped by
+ * the `types` condition of the package's `exports`. Only the constructs the published schemas use are
+ * supported: anything else throws, so a schema change cannot silently produce wrong declarations.
  */
 import type { JsonSchema } from './json-schema.ts';
 
 const DEF_REF = /^#\/\$defs\/([A-Za-z][A-Za-z0-9]*)$/;
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
-/** Keywords that only constrain values (or annotate them): no effect on the declared type. */
 const VALUE_KEYWORDS = new Set([
   'description',
   'pattern',
@@ -35,10 +25,9 @@ export class TypeDeclarationError extends Error {
   override name = 'TypeDeclarationError';
 }
 
-/** Declarations for `import` (`esm`, `.d.mts`) or for `require` (`cjs`, `.d.cts`) of a JSON module. */
 export type DeclarationFlavour = 'esm' | 'cjs';
 
-/** The declarations of one published file: `name` is the data file without extension. */
+/** `name` without extension. */
 export function typeDeclarations(name: string, schema: JsonSchema, flavour: DeclarationFlavour): string {
   const title = stringOf(schema.title, `${name}: title`);
   if (!IDENTIFIER.test(title)) throw new TypeDeclarationError(`${name}: title ${title} is not a valid type name`);
@@ -127,7 +116,7 @@ function arrayOf(type: string): string {
   return /^[A-Za-z0-9_$]+$/.test(type) ? `${type}[]` : `(${type})[]`;
 }
 
-/** JSDoc from `description`, plus the `pattern` of a string (types cannot express it). */
+/** The `pattern` too, which types cannot express. */
 function docComment(schema: JsonSchema, indent: string): string[] {
   const lines: string[] = [];
   if (typeof schema.description === 'string') lines.push(schema.description);

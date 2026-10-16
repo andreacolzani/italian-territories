@@ -1,4 +1,3 @@
-/** SITUAS internal adapter (§3.3): reports 1–9, normalised (§6.2). */
 import type { ClientResult, Endpoint, HttpClient, RequestOptions } from '../../http/index.ts';
 import { INTERNAL_ENDPOINTS } from './reports.ts';
 import {
@@ -50,17 +49,17 @@ export class SituasInternalSource {
     return this.#request(INTERNAL_ENDPOINTS.municipalityList, reportUrls.municipalityList(), options);
   }
 
-  /** r4: events of one typed region record. */
+  /** r4. */
   regionEvents(query: RegionRecordQuery, options?: RequestOptions): Promise<ClientResult<InternalRegionEvent[]>> {
     return this.#request(INTERNAL_ENDPOINTS.regionEvents, reportUrls.regionEvents(query), options);
   }
 
-  /** r5: events of one typed UTS record. */
+  /** r5. */
   utsEvents(query: UtsRecordQuery, options?: RequestOptions): Promise<ClientResult<InternalUtsEvent[]>> {
     return this.#request(INTERNAL_ENDPOINTS.utsEvents, reportUrls.utsEvents(query), options);
   }
 
-  /** r6: full history of the municipality owning a `(code, name)` pair. */
+  /** r6: the full history of the municipality owning the pair. */
   municipalityEvents(
     query: MunicipalityRecordQuery,
     options?: RequestOptions,
@@ -68,17 +67,17 @@ export class SituasInternalSource {
     return this.#request(INTERNAL_ENDPOINTS.municipalityEvents, reportUrls.municipalityEvents(query), options);
   }
 
-  /** r7: associated regions of one event. */
+  /** r7. */
   regionEventDetails(query: RegionEventQuery, options?: RequestOptions): Promise<ClientResult<RegionEventDetail[]>> {
     return this.#request(INTERNAL_ENDPOINTS.regionEventDetails, reportUrls.regionEventDetails(query), options);
   }
 
-  /** r8: associated UTS of one event. */
+  /** r8. */
   utsEventDetails(query: UtsEventQuery, options?: RequestOptions): Promise<ClientResult<UtsEventDetail[]>> {
     return this.#request(INTERNAL_ENDPOINTS.utsEventDetails, reportUrls.utsEventDetails(query), options);
   }
 
-  /** r9: associated municipalities of one event. */
+  /** r9. */
   municipalityEventDetails(
     query: MunicipalityEventQuery,
     options?: RequestOptions,

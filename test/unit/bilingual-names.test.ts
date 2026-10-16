@@ -1,7 +1,3 @@
-/**
- * Bilingual names of regions and UTS (§4.2, D7, golden-23): the closed table, checked against the
- * decomposition rule.
- */
 import { describe, expect, it } from 'vitest';
 import {
   BILINGUAL_NAMES,

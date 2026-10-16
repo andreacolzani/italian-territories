@@ -1,7 +1,4 @@
-/**
- * SITUAS internal reports 1–9 (§3.3): report URLs and `ReportByUrl` requests. Report URLs are
- * built unencoded (§11.1); the HTTP client encodes the URL inside the body.
- */
+/** Report URLs are unencoded (§11.1): the HTTP client encodes the URL inside the body. */
 import type { HttpRequest } from '../../http/index.ts';
 import {
   regionTypeToIstat,
@@ -11,7 +8,6 @@ import {
   type UtsType,
 } from '../../model/common.ts';
 
-/** Report number → report name and endpoint id (§3.3, §11.1). */
 export const INTERNAL_REPORTS = {
   1: { report: 'var_get_ua_reg_lov_diffusione', endpoint: 'r1:region-list' },
   2: { report: 'var_get_ua_uts_lov_diffusione', endpoint: 'r2:uts-list' },
@@ -26,21 +22,20 @@ export const INTERNAL_REPORTS = {
 
 export type InternalReportNumber = keyof typeof INTERNAL_REPORTS;
 
-/** A typed region record as listed by r1 (`codreg`, `reg`, `reg_tipo`). */
+/** r1 `codreg`, `reg`, `reg_tipo`. */
 export interface RegionRecordQuery {
   code: string;
   name: string;
   type: RegionType;
 }
 
-/** A typed UTS record as listed by r2 (`coduts`, `uts`, `uts_tipo`). */
+/** r2 `coduts`, `uts`, `uts_tipo`. */
 export interface UtsRecordQuery {
   code: string;
   name: string;
   type: UtsType;
 }
 
-/** A historical `(pro_com_t, comune)` pair of a municipality. */
 export interface MunicipalityRecordQuery {
   code: string;
   name: string;
@@ -66,7 +61,7 @@ export interface MunicipalityEventQuery {
   event: IstatEventCode;
 }
 
-/** Report URLs, with parameters in the order of §3.3. */
+/** Parameters in the order of §3.3. */
 export const reportUrls = {
   regionList: (): string => `${INTERNAL_REPORTS[1].report}?reg=`,
   utsList: (): string => `${INTERNAL_REPORTS[2].report}?uts=`,
@@ -87,7 +82,6 @@ export const reportUrls = {
     `${INTERNAL_REPORTS[9].report}?idcomuneorig=${q.originId}&mcrvar=${q.event}&idprovv=${q.actId}`,
 };
 
-/** `POST ReportByUrl` carrying an unencoded report URL (§3.3). */
 export function internalRequest(endpointUrl: string, reportUrl: string): HttpRequest {
   return {
     method: 'POST',

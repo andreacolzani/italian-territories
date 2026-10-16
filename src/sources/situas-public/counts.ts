@@ -1,7 +1,4 @@
-/**
- * Count endpoints (`reportspooljsoncount`, §3.2): `{ "resultset": [ { "NUM_ROWS": n } ] }`.
- * Exactly one row; zero is a valid count.
- */
+/** `{ "resultset": [ { "NUM_ROWS": n } ] }`: exactly one row, and zero is a valid count. */
 import { z } from 'zod';
 import { CONTENT_TYPES, jsonRowsDecoder, ResponseValidationError, type Endpoint } from '../../http/index.ts';
 import { integer } from '../normalise.ts';
@@ -11,7 +8,6 @@ const countRow = z.object({ NUM_ROWS: integer.pipe(z.int().nonnegative()) });
 
 const endpoints = new Map<number, Endpoint<number>>();
 
-/** Endpoint `count:pfun-<id>`. */
 export function countEndpoint(pfun: SnapshotPfun | EventListPfun): Endpoint<number> {
   let endpoint = endpoints.get(pfun);
   if (endpoint === undefined) {

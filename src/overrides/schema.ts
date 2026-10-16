@@ -1,10 +1,6 @@
 /**
- * Override entries (§6.10): curated corrections of a published field, one JSON array per topic in
- * `overrides/`. Keys are snake_case as in the files; the target interval is inclusive like the
- * public model (§4.1) and converted to half-open by the loader.
- *
- * The overridable fields form a closed set, discriminated by `field`: adding one is a deliberate
- * extension of this schema and of the applier, never a generic field name.
+ * The overridable fields are a closed set (§6.10): adding one is a deliberate extension of this
+ * schema and of the applier, never a generic field name.
  */
 import { z } from 'zod';
 import { compareDates, isIsoDate } from '../dates/index.ts';
@@ -20,7 +16,7 @@ const abbreviationOverrideSchema = z.strictObject({
       level: z.literal('province'),
       istat_code: z.string().regex(ISTAT_CODE_PATTERNS.province),
       date_from: isoDateSchema,
-      /** Last day covered (inclusive); null = no end. */
+      /** Inclusive; null = no end. */
       date_to: isoDateSchema.nullable(),
     })
     // Invalid dates are already reported by their own schema; compare only valid ones.
@@ -37,7 +33,6 @@ const abbreviationOverrideSchema = z.strictObject({
 
 const overrideEntrySchema = z.discriminatedUnion('field', [abbreviationOverrideSchema]);
 
-/** One override file: an array of entries. */
 export const overrideFileSchema = z.array(overrideEntrySchema);
 
 export type OverrideEntry = z.output<typeof overrideEntrySchema>;

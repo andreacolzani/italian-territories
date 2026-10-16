@@ -1,22 +1,9 @@
 /**
- * Entities of one level (§5.1, §5.2, §6.7): the chains of the transition matcher with the ISTAT
- * origin ids of the internal identity graph attached.
- *
- * Every internal event is resolved to the snapshot interval it happens to (side rule of §3.5
- * item 6), which gives that interval the root of the event's identity component. Then ISTAT ids
- * win over the public path (§5.2):
- * - a chain whose intervals carry two roots is cut where the root changes (`warning`); when
- *   intervals without events lie between the two roots the cut cannot be placed (`blocking`,
- *   cut after the last interval of the first root);
- * - chains with the same root are one entity. No anomaly when the earlier one ends with a
- *   suppression and the later one starts with an establishment (a documented reconstitution,
- *   e.g. Sassofeltrio `ES` 1929, `CS` 1947); a `warning` otherwise, and `blocking` if they overlap.
- *
- * Entities without a root (§5.3 fallback key `nk:`):
- * - regions and UTS: always `blocking`, internal data is required for their identity (§3.1);
- * - municipalities with the municipality crawl complete: `warning` (public/internal
- *   disagreement); with internal data incomplete: `blocking` only when the entity starts with an
- *   establishment after the first calendar date (a possible reconstitution, §6.1).
+ * §5.2: ISTAT ids win over the public path, so a chain is cut where its root changes and chains with
+ * one root are joined. A suppression followed by an establishment is a documented reconstitution
+ * (Sassofeltrio `ES` 1929, `CS` 1947), not a disagreement. Without a root, regions and UTS always
+ * block (their identity needs internal data, §3.1); a municipality blocks only with incomplete
+ * internal data and an establishment after the first calendar date (a possible reconstitution).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareDates, type IsoDate } from '../dates/index.ts';
@@ -33,32 +20,20 @@ import type { IdentityGraph } from './identity-graph.ts';
 import { keyOf, subjectSide, type TransitionResult } from './transitions.ts';
 
 /**
- * Why internal data a decision needs is missing (`internal-data-required`, `context.cause`):
- * `unavailable` when a request of the level could not be obtained because the source was
- * unavailable (network, exhausted retries, open circuit, or a report missing from the store in an
- * offline `rebuild`); `absent` when every request succeeded (or failed otherwise, with its own
- * blocking anomaly) and the data is not there. With `unavailable` the anomaly counts among the
- * unavailabilities (exit 3, §10.4); with `absent` it is exit 1.
+ * `unavailable`: a request of the level failed for unavailability (offline `NotInStoreError`
+ * included), exit 3; `absent`: the data is not there, exit 1.
  */
 export type InternalDataCause = 'unavailable' | 'absent';
 
-/** An internal event as identity resolution needs it. */
 export type IdentityEvent = InternalAliasEvent;
 
-/** The internal identity of one level, decoupled from the report row types. */
 export interface InternalIdentity {
-  /** Every listed record and every needed report was obtained. */
   complete: boolean;
   components: readonly { root: number; ids: readonly number[]; events: readonly IdentityEvent[] }[];
-  /** Same-day aliases of the internal `RN` and type change events (UTS and regions, §6.6). */
   aliases: readonly CodeAlias[];
 }
 
-/**
- * The internal identity of a crawled level. `source` is the endpoint id of its events report
- * (`r4:region-events`, `r5:uts-events`, `r6:municipality-events`). Municipality aliases come from
- * pfun 105, not from internal events.
- */
+/** Municipality aliases come from pfun 105, not from internal events. */
 export function internalIdentity<E>(
   graph: IdentityGraph<E>,
   complete: boolean,
@@ -78,40 +53,30 @@ export interface ResolvedEntity<L extends Level = Level> {
   key: string;
   /** `nk:<level>:<first istat_code>:<first valid_from>`, used to re-key an entity that gains a root. */
   fallbackKey: string;
-  /** Start and ISTAT code of the first interval (registry assignment order, §5.3). */
+  /** Registry assignment order (§5.3). */
   firstValidFrom: IsoDate;
   firstCode: string;
   istatOriginId: number | null;
-  /** Ids of the identity component, ascending (empty without a root). */
+  /** Empty without a root. */
   members: number[];
-  /** Snapshot intervals of the entity, sorted, non-overlapping. */
   intervals: SnapshotInterval<L>[];
 }
 
 export interface ResolveEntitiesOptions<L extends Level> {
   transitions: TransitionResult<L>;
-  /** Resolver of this level (for internal events). */
   resolver: CodeResolver;
   /** `null` when the level was not crawled or its list could not be obtained. */
   internal: InternalIdentity | null;
-  /** Why the level's internal data is incomplete (default `absent`). */
   internalCause?: InternalDataCause;
   anomalies: AnomalyCollector;
 }
 
-/** Stable anomaly codes of identity resolution (§8.2). */
 export const ENTITY_ANOMALIES = {
-  /** Public path and ISTAT ids disagree (a chain cut, or chains joined without reconstitution). */
   mismatch: 'identity-public-internal-mismatch',
-  /** Two roots in one chain with intervals without events between them. */
   splitUndetermined: 'identity-split-undetermined',
-  /** Events of two identity components resolve to the same interval. */
   originConflict: 'identity-origin-conflict',
-  /** Chains with the same root overlap in time. */
   overlap: 'identity-overlap',
-  /** No internal event resolves to the entity although internal data is complete. */
   originMissing: 'identity-origin-missing',
-  /** A decision needs internal data that could not be obtained (§6.1). */
   internalDataRequired: 'internal-data-required',
 } as const;
 
@@ -198,7 +163,6 @@ interface Piece<L extends Level> {
   intervals: SnapshotInterval<L>[];
 }
 
-/** Cuts a chain where the root of its intervals changes; intervals without root join a neighbour. */
 function splitChain<L extends Level>(
   level: Level,
   chain: readonly SnapshotInterval<L>[],
@@ -207,7 +171,6 @@ function splitChain<L extends Level>(
 ): Piece<L>[] {
   const pieces: Piece<L>[] = [];
   let current: Piece<L> = { root: null, intervals: [] };
-  /** Intervals without root since the last interval with one. */
   let pending: SnapshotInterval<L>[] = [];
   for (const interval of chain) {
     const root = rootOf(interval);
@@ -253,7 +216,6 @@ function splitChain<L extends Level>(
   return pieces;
 }
 
-/** Two consecutive chains of one ISTAT entity: a documented reconstitution, or a disagreement. */
 function checkJoin<L extends Level>(
   level: Level,
   root: number,

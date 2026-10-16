@@ -25,10 +25,9 @@ export interface CliIo {
 interface CommandContext {
   /** `dates.today` is always set: the flag, the configured value or the current date. */
   config: Config;
-  /** Reference date of the run (§12 Determinism); build code never reads the clock. */
+  /** Build code never reads the clock (§12). */
   today: IsoDate;
   io: CliIo;
-  /** NDJSON logger on stderr; `debug` only with `--verbose` (§12 Logging). */
   logger: Logger;
   values: Record<string, string | boolean | undefined>;
   positionals: string[];
@@ -50,21 +49,17 @@ interface Command {
 
 const PROGRAM = 'italian-territories';
 
-/** Options accepted by every command. */
 const GLOBAL_OPTIONS = {
   help: { type: 'boolean', short: 'h' },
   today: { type: 'string' },
   verbose: { type: 'boolean' },
 } as const satisfies ParseArgsOptionsConfig;
 
-/** A data command: the run summary is always written (`paths.runSummary`). */
 function dataCommand(
   name: string,
   run: (ctx: RunContext, command: CommandContext) => Promise<ExitCode>,
   options: {
-    /** Whether the run is offline (default never). */
     offline?: (command: CommandContext) => boolean;
-    /** A pipeline command: exit 0 or 2 records the last complete update (§10.4). */
     completeUpdate?: boolean;
   } = {},
 ) {
@@ -81,13 +76,12 @@ function dataCommand(
     });
 }
 
-/** `--samples N`, or the configured default; `undefined` when malformed. */
+/** `undefined` when malformed. */
 function parseSamples(value: string | boolean | undefined, fallback: number): number | undefined {
   if (typeof value !== 'string') return fallback;
   return /^\d+$/.test(value) ? Number(value) : undefined;
 }
 
-/** Commands of §10.1. */
 export const commands: Record<string, Command> = {
   bootstrap: {
     usage: 'bootstrap',
@@ -184,10 +178,7 @@ const defaultIo: CliIo = {
   err: (text) => process.stderr.write(text),
 };
 
-/**
- * Reference date of the run: `--today`, else the configured `dates.today`, else the current date
- * in Europe/Rome. The only place where the build reads the clock (§12 Determinism).
- */
+/** The only place the build reads the clock (§12). */
 export function resolveToday(flag: string | undefined, config: Config, clock: () => IsoDate = currentDate): IsoDate {
   const today = flag ?? config.dates.today ?? clock();
   const invalid = `--today must be a YYYY-MM-DD date, got '${today}'`;
@@ -198,7 +189,7 @@ export function resolveToday(flag: string | undefined, config: Config, clock: ()
   return today;
 }
 
-/** The real runtime: `fetch` transport, system clocks. The only place they are chosen. */
+/** The only place the transport and the clocks are chosen. */
 export const defaultRuntime: Runtime = {
   now: () => performance.now(),
   wallClock: () => new Date().toISOString(),

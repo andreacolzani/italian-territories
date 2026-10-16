@@ -31,7 +31,6 @@ const ANOMALIES: EmitOptions['anomalies'] = [
   { level: 'warning', code: 'inferred-breakpoint', message: 'inferred', context: { date: '1900-01-01' } },
 ];
 
-/** The release of a directory: `dist/` and `reports/` inside it. */
 function dirs(dir: string): ReleaseDirs {
   return { dist: join(dir, 'dist'), reports: join(dir, 'reports') };
 }
@@ -49,7 +48,6 @@ function options(dir: string, over: Partial<EmitOptions> = {}): EmitOptions {
   };
 }
 
-/** Every file under `dir`, by path relative to it (`dist/…`, `reports/…`). */
 async function filesOf(dir: string): Promise<Record<string, string>> {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []);
   const files = entries.filter((e) => e.isFile()).map((e) => join(e.parentPath, e.name));

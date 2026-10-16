@@ -27,7 +27,6 @@ function documentedFields(text: string): Map<string, DocumentedField[]> {
   return fields;
 }
 
-/** Every property of every object definition of the published JSON Schemas, with its enum values. */
 function publishedFields(): Map<string, string[]> {
   const fields = new Map<string, string[]>();
   for (const schema of Object.values(generateJsonSchemas())) {

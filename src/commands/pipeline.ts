@@ -1,13 +1,7 @@
 /**
- * The data commands (§10.1–§10.2): `bootstrap`, `update`, `rebuild [--refetch]` and
- * `audit`. Every run executes the whole pipeline: sources (§6.1–§6.3) → calendar (d) → audit
- * (update only) → snapshots and completeness (e) → build → invariants → emit. There is no shortcut
- * for "nothing changed": a new generator, an override or the registry may change the output, so the
- * emitter decides (`unchanged` → `dist/` and `reports/` not touched, nothing to commit).
- *
- * Effects by exit code: 0 and 2 write `dist/`, `reports/` and `registry/`; 1 and 3 write none of
- * them. The store and `calendar.json` are always written (they cache the sources), and so is the
- * run summary.
+ * §10.1–§10.2. There is no shortcut for "nothing changed": a new generator, an override or the
+ * registry may change the output, so the emitter decides. Exits 1 and 3 write neither `dist/`,
+ * `reports/` nor `registry/`; the store and the run summary are always written.
  */
 import {
   anprContributions,
@@ -35,7 +29,6 @@ import { timed, type RunContext } from './context.ts';
 import { EXIT_CODES, exitCodeOf, SOURCE_FAILURE_PREFIXES, type ExitCode } from './exit-codes.ts';
 import { changeCounts } from './summary.ts';
 
-/** `bootstrap`, `update`, `rebuild` and `rebuild --refetch`. */
 export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitCode> {
   if (isOffline(mode) !== ctx.offline) {
     throw new Error(`mode ${mode} needs ${isOffline(mode) ? 'an offline' : 'an online'} run context`);
@@ -195,7 +188,7 @@ export async function runPipeline(ctx: RunContext, mode: RunMode): Promise<ExitC
   return exitCodeOf(anomalies.list(), reasons.length > 0);
 }
 
-/** `audit`: fresh samples against the store; never publishes, exit 2 on discrepancies. */
+/** Never publishes; exit 2 on discrepancies. */
 export async function runAuditCommand(ctx: RunContext, samples: number): Promise<ExitCode> {
   const calendar = await loadCalendar(ctx.store.dir);
   if (calendar === undefined)
@@ -255,12 +248,11 @@ function fail(ctx: RunContext, message: string): ExitCode {
   return EXIT_CODES.blocking;
 }
 
-/** Where the release lives (§9): the published files and the internal reports. */
 function releaseDirs(ctx: RunContext): ReleaseDirs {
   return { dist: ctx.config.paths.dist, reports: ctx.config.paths.releaseReports };
 }
 
-/** `generated_at`: the wall clock, to the second. */
+/** To the second. */
 function generatedAt(ctx: RunContext): string {
   return ctx.runtime.wallClock().replace(/\.\d+Z$/, 'Z');
 }

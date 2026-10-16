@@ -1,7 +1,3 @@
-/**
- * Version builder (§4.2, §6.9) on synthetic intervals: maximal versions, parents as
- * entity ids, pre-1948 abbreviations, bilingual names, undetermined fields, and the I1–I3 properties.
- */
 import { describe, expect, it } from 'vitest';
 import { AnomalyCollector } from '../../src/anomalies.ts';
 import {
@@ -70,7 +66,6 @@ function entity<L extends Level>(n: number, intervals: SnapshotInterval<L>[]): I
   return { id: E(n), istatOriginId: n * 10, intervals };
 }
 
-/** A municipality index of the given intervals. */
 function municipalityIndex(intervals: SnapshotInterval<'municipality'>[]): IntervalIndex<'municipality'> {
   const byCode = new Map<string, SnapshotInterval<'municipality'>[]>();
   for (const i of intervals) byCode.set(i.code, [...(byCode.get(i.code) ?? []), i]);

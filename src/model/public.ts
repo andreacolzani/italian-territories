@@ -1,12 +1,4 @@
-/**
- * Public data contract (§4, §9): zod models of the published files, `regions.json`,
- * `provinces.json` and `municipalities.json` (D39). Nothing else is published: variations,
- * anomalies, changes and meta are internal reports (`reports.ts`).
- *
- * Objects are strict (unknown keys rejected) and their keys are declared in the published order.
- * These schemas check the shape of single records; cross-record rules (sorting, overlaps,
- * references, derived fields) are the invariants of §8 and live in `src/invariants/`.
- */
+/** Per-record checks only: cross-record rules are the invariants (§8). */
 import { z } from 'zod';
 import { compareDates, isIsoDate } from '../dates/index.ts';
 import {
@@ -20,10 +12,6 @@ import {
   UTS_TYPES,
 } from './common.ts';
 
-// ---------------------------------------------------------------------------------------------
-// Primitives
-// ---------------------------------------------------------------------------------------------
-
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD')
@@ -35,7 +23,7 @@ export const entityIdSchema = z.string().regex(ENTITY_ID_PATTERN).meta({
     'Stable entity id: reg-, prv- or mun- and 6 Crockford base32 characters; unique in the dataset, never reused.',
 });
 
-/** Unicode NFC, trimmed, non-empty; ISTAT casing preserved (§4.2). */
+/** ISTAT casing preserved (§4.2). */
 const nameSchema = z
   .string()
   .min(1)
@@ -47,10 +35,6 @@ const istatCodeSchema = (level: keyof typeof ISTAT_CODE_PATTERNS) =>
     .string()
     .regex(ISTAT_CODE_PATTERNS[level])
     .meta({ description: 'ISTAT code valid during this version, zero-padded.' });
-
-// ---------------------------------------------------------------------------------------------
-// Entities and versions (§4.2)
-// ---------------------------------------------------------------------------------------------
 
 export const entityLinkSchema = z
   .strictObject({
@@ -80,7 +64,7 @@ const namesShape = {
   foreign_name: nameSchema.nullable(),
 };
 
-/** `valid_from <= valid_until` (§4.1). Zero-length versions are unrepresentable with an inclusive end. */
+/** Zero-length versions are unrepresentable with an inclusive end (§4.1). */
 function withOrderedInterval<T extends z.ZodType<{ valid_from: string; valid_until: string | null }>>(schema: T): T {
   return schema.refine((v) => v.valid_until === null || compareDates(v.valid_from, v.valid_until) <= 0, {
     message: 'valid_until must not precede valid_from',
@@ -136,7 +120,6 @@ const currentSuccessorsSchema = z
   .refine(isStrictlyAscending, 'must be sorted without duplicates')
   .meta({ description: 'Currently active municipalities this municipality resolves to (municipalities only).' });
 
-/** The fields every entity has (§4.2). */
 function entityShape(prefix: string) {
   return {
     id: prefixed(prefix, 'Stable entity id, unique in the dataset, never reused.'),
@@ -167,10 +150,6 @@ export const municipalitySchema = z
   })
   .meta({ id: 'Municipality' });
 
-// ---------------------------------------------------------------------------------------------
-// Files (§9)
-// ---------------------------------------------------------------------------------------------
-
 export const regionsFileSchema = z.array(regionSchema).meta({ title: 'Regions' });
 export const provincesFileSchema = z.array(provinceSchema).meta({ title: 'Provinces' });
 export const municipalitiesFileSchema = z.array(municipalitySchema).meta({ title: 'Municipalities' });
@@ -182,8 +161,6 @@ export type MunicipalityVersion = z.output<typeof municipalityVersionSchema>;
 export type Region = z.output<typeof regionSchema>;
 export type Province = z.output<typeof provinceSchema>;
 export type Municipality = z.output<typeof municipalitySchema>;
-
-// ---------------------------------------------------------------------------------------------
 
 function isStrictlyAscending(values: readonly string[]): boolean {
   return values.every((v, i) => i === 0 || (values[i - 1] ?? v) < v);

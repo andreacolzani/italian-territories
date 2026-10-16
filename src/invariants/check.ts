@@ -1,14 +1,6 @@
 /**
- * The overall invariant check (§8.1): runs I1–I15 on an {@link InvariantWorld}, adds every anomaly to
- * the collector and reports the outcome of each invariant.
- *
- * An invariant whose data is missing from the world (I2: `existence`; I7: `historicalCodes`; I12:
- * `snapshots`, `historicalCodes` and `overrides`; I13: `counts`; I14: `accounts` and
- * `variationIdOf`) is `skipped` with the reason, never `passed`: `validate` on `dist/` (§10.1) has
- * no unpublished data, and must not claim what it did not check.
- *
- * Besides the violations, the check adds the non-blocking anomalies of I7 (`info` for 8xx prefixes
- * of another UTS) and the D30 `warning` for active municipalities with an 8xx code.
+ * A missing input makes an invariant `skipped`, never `passed`: `validate` on `dist/` must not claim
+ * what it did not check (§10.1).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import type { Anomaly } from '../model/internal.ts';
@@ -30,28 +22,19 @@ export type InvariantStatus = 'passed' | 'failed' | 'skipped';
 export interface InvariantResult {
   id: InvariantId;
   status: InvariantStatus;
-  /** Number of violations (`blocking` anomalies of the invariant). */
   violations: number;
-  /** Why the invariant was not checked, when `skipped`. */
   reason?: string;
-  /** I12 only, when something was left out of the comparison: how much. */
   uncompared?: I12Uncompared;
-  /** Time the check took, when the caller passed a clock (`now`); never for skipped ones. */
   durationMs?: number;
 }
 
 export interface CheckInvariantsOptions {
-  /**
-   * Monotonic milliseconds, read only to time each check (run summary, §10.4). The invariants
-   * never read the clock themselves (§12).
-   */
+  /** Monotonic milliseconds; the invariants never read the clock themselves (§12). */
   now?: () => number;
 }
 
 export interface InvariantReport {
-  /** One entry per invariant, I1 to I15. */
   results: InvariantResult[];
-  /** Every anomaly the check produced: the violations and the non-blocking ones. */
   anomalies: Anomaly[];
 }
 
@@ -137,7 +120,6 @@ export async function checkInvariants(
   return { results, anomalies: all };
 }
 
-/** Throws {@link InvariantViolation} if any invariant of `report` failed. */
 export function assertInvariants(report: InvariantReport): void {
   const failed = report.results.filter((r) => r.status === 'failed');
   if (failed.length > 0)

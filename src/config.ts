@@ -9,17 +9,13 @@ const pathsSchema = z
   .object({
     /** Base directory; relative paths below are resolved against it. */
     root: z.string().default('.'),
-    /** HTTP response cache (§6.1). */
     httpCache: z.string().default('.cache/http'),
-    /** Content-addressed snapshot store and event caches (§6.3). */
     store: z.string().default('.cache/store'),
     /** Build reports that are neither data nor sources (e.g. the event code summary, §6.8). */
     reports: z.string().default('.cache/reports'),
-    /** Summary of the last run, for the workflows (§10.4). */
     runSummary: z.string().default('.cache/last-run.json'),
     registry: z.string().default('registry'),
     overrides: z.string().default('overrides'),
-    /** Published data files and JSON Schemas (§9). */
     dist: z.string().default('dist'),
     /** Internal reports of the release: variations, anomalies, changes, meta (§9, D39). */
     releaseReports: z.string().default('reports'),
@@ -115,10 +111,7 @@ const configSchema = z.object({
 export type Config = z.output<typeof configSchema>;
 export type ConfigInput = z.input<typeof configSchema>;
 
-/**
- * Builds a validated configuration from partial overrides. Relative paths are resolved
- * against `paths.root`, which is itself resolved against the process working directory.
- */
+/** `paths.root` is resolved against the working directory, the other paths against it. */
 export function resolveConfig(input: ConfigInput = {}): Config {
   const config = configSchema.parse(input);
   const root = resolve(config.paths.root);

@@ -16,10 +16,6 @@ export type Resolution =
   | { kind: 'automatic'; id: string }
   | { kind: 'supervision'; reason: 'former-italian' | 'several-current-successors' | 'former-italian-successor' };
 
-/**
- * `current` for an active entity; `automatic` only with exactly one current successor and no
- * former Italian successor, direct or indirect; `supervision` otherwise.
- */
 export function resolve(entities: readonly PublicEntity[], id: string): Resolution {
   const byId = new Map(entities.map((e) => [e.id, e]));
   const entity = byId.get(id);

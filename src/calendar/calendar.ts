@@ -1,14 +1,4 @@
-/**
- * Breakpoint calendar (§6.4): the union of
- * - event dates of the public lists and of the internal event reports (r4–r6);
- * - ANPR `DATAISTITUZIONE` and `DATACESSAZIONE + 1` (hints only);
- * - the regime boundaries `1861-03-17`, `1927-01-12`, `1948-01-01`;
- * - today.
- * Dates outside `[start, today]` are discarded. One calendar serves all three levels. Each date
- * keeps the sources that contributed it (`calendar.json` in the store).
- *
- * The builder never reads the clock: `today` is passed in (§12 Determinism).
- */
+/** §6.4. One calendar serves all three levels; ANPR dates are only hints. */
 import { join } from 'node:path';
 import { z } from 'zod';
 import { compareDates, isAfter, isBetweenInclusive, UNIFICATION_DATE, type IsoDate } from '../dates/index.ts';
@@ -23,10 +13,8 @@ import {
 } from '../sources/situas-public/index.ts';
 import { readTextIfExists, toJsonDocument, writeFileAtomic } from '../store/fs.ts';
 
-/** First days of the three snapshot regimes (§2 Regime). */
 export const REGIME_BOUNDARIES: readonly IsoDate[] = [UNIFICATION_DATE, REGIME_1927_START, REGIME_1948_START];
 
-/** Internal reports listing the events of one record (§3.3). */
 export type InternalEventReport = 4 | 5 | 6;
 
 const EVENT_LIST_SOURCES = (Object.keys(EVENT_LISTS).map(Number) as EventListPfun[]).map(
@@ -38,11 +26,6 @@ const INTERNAL_EVENT_SOURCES = [
   INTERNAL_REPORTS[6].endpoint,
 ];
 
-/**
- * Provenance of a calendar date: an event list or internal event report (by endpoint id), an
- * ANPR boundary, a regime boundary, today, or a breakpoint found by completeness bisection
- * (`inferred`, §6.5).
- */
 const CALENDAR_SOURCES = [
   ...EVENT_LIST_SOURCES,
   ...INTERNAL_EVENT_SOURCES,
@@ -62,14 +45,11 @@ export interface CalendarContribution {
 export interface Calendar {
   start: IsoDate;
   today: IsoDate;
-  /** Ascending dates, each with its sources (sorted, unique). */
   dates: Map<IsoDate, CalendarSource[]>;
 }
 
 export interface CalendarOptions {
-  /** Lower bound of the dataset (`dates.start`). */
   start: IsoDate;
-  /** Reference date (`dates.today`, resolved at the CLI boundary). */
   today: IsoDate;
   contributions: Iterable<CalendarContribution>;
 }
@@ -98,15 +78,12 @@ export function buildCalendar(options: CalendarOptions): Calendar {
   return { start, today, dates };
 }
 
-/** Sources that are published events (public lists and internal event reports). */
 const EVENT_SOURCES: ReadonlySet<CalendarSource> = new Set([...EVENT_LIST_SOURCES, ...INTERNAL_EVENT_SOURCES]);
 
-/** Ascending calendar dates. */
 export function calendarDates(calendar: Calendar): IsoDate[] {
   return [...calendar.dates.keys()];
 }
 
-/** A copy of `calendar` with `contributions` added (same bounds). */
 export function extendCalendar(calendar: Calendar, contributions: Iterable<CalendarContribution>): Calendar {
   const existing = [...calendar.dates].flatMap(([date, sources]) =>
     sources.map((source) => ({ source, dates: [date] })),
@@ -118,10 +95,6 @@ export function extendCalendar(calendar: Calendar, contributions: Iterable<Calen
   });
 }
 
-/**
- * A copy of `calendar` without `source` on `dates`; a date left without sources leaves the
- * calendar (e.g. an inferred breakpoint a refetch no longer confirms).
- */
 export function removeCalendarSource(calendar: Calendar, source: CalendarSource, dates: Iterable<IsoDate>): Calendar {
   const targets = new Set(dates);
   const kept = new Map<IsoDate, CalendarSource[]>();
@@ -143,17 +116,13 @@ export function internalEventsContribution(
   return { source: INTERNAL_REPORTS[report].endpoint, dates: rows.map((r) => r.date) };
 }
 
-/** `DATAISTITUZIONE` and `DATACESSAZIONE + 1` (the adapter's half-open `validTo`), as hints. */
+/** `anpr:end` is `DATACESSAZIONE + 1`: the adapter's `validTo` is half-open. */
 export function anprContributions(rows: readonly AnprRecord[]): CalendarContribution[] {
   return [
     { source: 'anpr:start', dates: rows.map((r) => r.validFrom) },
     { source: 'anpr:end', dates: rows.flatMap((r) => (r.validTo === null ? [] : [r.validTo])) },
   ];
 }
-
-// ---------------------------------------------------------------------------------------------
-// calendar.json
-// ---------------------------------------------------------------------------------------------
 
 const CALENDAR_FILE = 'calendar.json';
 
@@ -183,7 +152,6 @@ export async function saveCalendar(storeDir: string, calendar: Calendar): Promis
   await writeFileAtomic(calendarPath(storeDir), serializeCalendar(calendar));
 }
 
-/** The stored calendar, or `undefined` if none was saved. */
 export async function loadCalendar(storeDir: string): Promise<Calendar | undefined> {
   const text = await readTextIfExists(calendarPath(storeDir));
   return text === undefined ? undefined : parseCalendar(text);

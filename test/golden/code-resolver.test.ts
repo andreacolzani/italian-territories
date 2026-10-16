@@ -90,7 +90,6 @@ const resolver = new CodeResolver({ municipality: world.municipalities, province
   ...internalAliases(utsGraph, (e) => ({ ...e, recordId: e.utsId }), 'r5:uts-events'),
 ]);
 
-/** Side of the subject and of the related territory of an event (§3.5 item 6). */
 function sides(event: string): { subject: ResolutionSide; related: ResolutionSide } {
   return ['ES', 'ESCT', 'AS'].includes(event)
     ? { subject: 'predecessor', related: 'successor' }

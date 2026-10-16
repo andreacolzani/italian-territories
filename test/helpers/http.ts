@@ -1,4 +1,3 @@
-/** Test doubles for the HTTP client: virtual clock, settings, temporary cache directories. */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,12 +10,11 @@ import type { HttpResponse } from '../../src/http/transport.ts';
 
 export interface FakeClock {
   clock: Clock;
-  /** Every delay passed to `sleep`, in order. */
   sleeps: number[];
   advance: (ms: number) => void;
 }
 
-/** Virtual time: `sleep` advances `now` instantly. Starts on 2026-10-01 at noon in Rome. */
+/** `sleep` advances `now` instantly; it starts on 2026-10-01 at noon in Rome. */
 export function fakeClock(start = Date.UTC(2026, 9, 1, 10)): FakeClock {
   let now = start;
   const sleeps: number[] = [];

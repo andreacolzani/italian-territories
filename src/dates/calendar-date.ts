@@ -1,12 +1,5 @@
-/**
- * Pure calendar-date arithmetic on ISO `YYYY-MM-DD` strings (§4.1).
- *
- * Dates are converted to a day number (days since 1970-01-01 in the proleptic Gregorian calendar)
- * with integer arithmetic only, so no `Date` object and no timezone is ever involved.
- * Supported years: 0001–9999 (the ISO string always has four year digits).
- */
+/** Integer day arithmetic on ISO strings (§4.1): no `Date`, so no timezone. */
 
-/** ISO calendar date `YYYY-MM-DD`. */
 export type IsoDate = string;
 
 export interface CalendarDate {
@@ -15,7 +8,6 @@ export interface CalendarDate {
   day: number;
 }
 
-/** Unification of Italy: lower bound of the dataset (§1.2). */
 export const UNIFICATION_DATE: IsoDate = '1861-03-17';
 
 const MIN_YEAR = 1;
@@ -23,7 +15,6 @@ const MAX_YEAR = 9999;
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ITALIAN_DATE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-/** SITUAS public event lists: `YYYY-MM-DDT00:00:00Z` (optionally with zero milliseconds). */
 const UTC_MIDNIGHT = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.0{1,3})?Z$/;
 
 export class InvalidDateError extends Error {
@@ -72,12 +63,10 @@ function matchIsoDate(value: string): CalendarDate | null {
   return isValidCalendarDate(date) ? date : null;
 }
 
-/** True iff `value` is a well-formed, existing calendar date (e.g. rejects `1900-02-29`). */
 export function isIsoDate(value: unknown): value is IsoDate {
   return typeof value === 'string' && matchIsoDate(value) !== null;
 }
 
-/** Throws unless `value` is a valid ISO date; returns it narrowed. */
 export function assertIsoDate(value: unknown): IsoDate {
   if (!isIsoDate(value)) throw new InvalidDateError(value, 'YYYY-MM-DD');
   return value;
@@ -95,10 +84,7 @@ export function formatIsoDate(date: CalendarDate): IsoDate {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/**
- * Days since 1970-01-01 (negative before). Algorithm "days_from_civil" by Howard Hinnant,
- * exact for the whole proleptic Gregorian calendar.
- */
+/** Days since 1970-01-01, Howard Hinnant's "days_from_civil". */
 export function toDayNumber(date: IsoDate): number {
   const { year, month, day } = parseIsoDate(date);
   const y = month <= 2 ? year - 1 : year;
@@ -109,7 +95,7 @@ export function toDayNumber(date: IsoDate): number {
   return era * 146097 + dayOfEra - 719468;
 }
 
-/** Inverse of {@link toDayNumber} ("civil_from_days"). */
+/** Hinnant's "civil_from_days". */
 export function fromDayNumber(dayNumber: number): IsoDate {
   if (!Number.isSafeInteger(dayNumber)) throw new InvalidDateError(dayNumber, 'an integer day number');
   const z = dayNumber + 719468;
@@ -143,15 +129,11 @@ export function previousDay(date: IsoDate): IsoDate {
   return addDays(date, -1);
 }
 
-/** Signed number of days from `from` to `to` (`to − from`). */
 export function daysBetween(from: IsoDate, to: IsoDate): number {
   return toDayNumber(to) - toDayNumber(from);
 }
 
-/**
- * Three-way comparison usable with `Array.prototype.sort`. Both operands are validated,
- * so malformed strings never compare "successfully" by accident.
- */
+/** Validates both operands, so malformed strings never compare by accident. */
 export function compareDates(a: IsoDate, b: IsoDate): -1 | 0 | 1 {
   parseIsoDate(a);
   parseIsoDate(b);
@@ -175,17 +157,14 @@ export function maxDate(first: IsoDate, ...rest: IsoDate[]): IsoDate {
   return rest.reduce((max, d) => (isAfter(d, max) ? d : max), assertIsoDate(first));
 }
 
-/** True iff `from <= date <= to` (inclusive on both sides). */
 export function isBetweenInclusive(date: IsoDate, from: IsoDate, to: IsoDate): boolean {
   return compareDates(from, date) <= 0 && compareDates(date, to) <= 0;
 }
 
-/** True iff `date` lies within the dataset period `[1861-03-17, today]` (§6.4). */
 export function isInDatasetRange(date: IsoDate, today: IsoDate): boolean {
   return isBetweenInclusive(date, UNIFICATION_DATE, today);
 }
 
-/** `DD/MM/YYYY` (SITUAS internal API responses, public API parameters) → ISO. */
 export function fromItalianDate(value: string): IsoDate {
   const match = ITALIAN_DATE.exec(value);
   if (!match) throw new InvalidDateError(value, 'DD/MM/YYYY');
@@ -194,26 +173,19 @@ export function fromItalianDate(value: string): IsoDate {
   return formatIsoDate(date);
 }
 
-/** ISO → `DD/MM/YYYY` (SITUAS public API `pdata`, `pdatada`, `pdataa` parameters). */
 export function toItalianDate(date: IsoDate): string {
   const { year, month, day } = parseIsoDate(date);
   return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${String(year).padStart(4, '0')}`;
 }
 
-/**
- * `YYYY-MM-DDT00:00:00Z` (SITUAS public event lists, `DATA_INIZIO_AMMINISTRATIVA`) → ISO.
- * Any time other than midnight UTC is rejected: it would mean the source changed semantics.
- */
+/** Any time other than midnight UTC would mean the source changed semantics. */
 export function fromUtcMidnightTimestamp(value: string): IsoDate {
   const match = UTC_MIDNIGHT.exec(value);
   if (!match?.[1] || !isIsoDate(match[1])) throw new InvalidDateError(value, 'YYYY-MM-DDT00:00:00Z');
   return match[1];
 }
 
-/**
- * Current calendar date in Italy. The only place where a `Date` is read; everything else is
- * pure arithmetic on ISO strings.
- */
+/** The only place a `Date` is read (`test/unit/clock-usage.test.ts`). */
 export function currentDate(now: Date = new Date()): IsoDate {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Rome',

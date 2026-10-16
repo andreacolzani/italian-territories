@@ -1,55 +1,33 @@
-/**
- * Where the orchestrator gets snapshots from (§6.5). The real provider reads the store first:
- * a manifest of the current projection version is used as is, without network, unless the
- * request must be refreshed (today's snapshots, `audit`, `rebuild --refetch`). Otherwise the
- * snapshot is fetched through the SITUAS adapter and stored.
- *
- * Only the manifest travels back: equality is projection equality, i.e. `content_hash` (§6.3).
- */
+/** Only the manifest travels back: snapshot equality is `content_hash` equality (§6.3). */
 import type { IsoDate } from '../dates/index.ts';
 import type { CachePolicy } from '../http/index.ts';
 import type { Level } from '../model/common.ts';
 import type { SituasPublicSource } from '../sources/situas-public/index.ts';
 import { NotInStoreError, type AdapterStats, type PutOutcome, type Store } from '../store/index.ts';
 
-/** `adapter_stats` keys of snapshot manifests (§3.5 item 16). */
 export const HISTORICAL_CODE_FALLBACKS = 'historical_code_fallbacks';
 export const HISTORICAL_CODE_FALLBACK_UTS_CODES = 'historical_code_fallback_uts_codes';
 
 export interface SnapshotInfo {
   level: Level;
   date: IsoDate;
-  /** Content hash of the projection: equal hashes mean equal snapshots. */
   contentHash: string;
   adapterStats: AdapterStats;
-  /** `store`: the stored manifest was used; `fetched`: fetched (network or HTTP cache) and stored. */
+  /** `fetched` includes the HTTP cache. */
   origin: 'store' | 'fetched';
-  /** Outcome of the store put, `null` when the stored manifest was used. */
   outcome: PutOutcome | null;
 }
 
 export interface SnapshotProvider {
-  /** Throws the HTTP client errors of the fetch (§6.1); the orchestrator classifies them. */
   snapshot: (level: Level, date: IsoDate) => Promise<SnapshotInfo>;
 }
 
 export interface StoreSnapshotProviderOptions {
   store: Store;
   source: SituasPublicSource;
-  /**
-   * Requests that skip the stored manifest and the HTTP cache (today, `audit` samples,
-   * `rebuild --refetch`).
-   */
   mustRefresh: (level: Level, date: IsoDate) => boolean;
-  /**
-   * HTTP cache policy of those requests: `refresh` (default), or `{ fetchedSince: today }` in
-   * `rebuild --refetch`, so an interrupted refetch resumes from the responses of the same day.
-   */
+  /** `{ fetchedSince: today }` in `rebuild --refetch`, so an interrupted refetch resumes the same day. */
   refreshPolicy?: CachePolicy;
-  /**
-   * Offline run (`rebuild` without `--refetch`): never fetches; a snapshot missing from the store
-   * throws `NotInStoreError` (an unavailable snapshot for the orchestrator).
-   */
   offline?: boolean;
 }
 

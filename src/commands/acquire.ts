@@ -1,13 +1,4 @@
-/**
- * Source acquisition of the data commands (§10.1–§10.2): public event lists, internal
- * crawl, ANPR and counts, each stored (§6.3) and read back from the store, so an offline `rebuild`
- * sees exactly what an online run saw.
- *
- * Modes: `bootstrap` and `rebuild-refetch` fetch the full event-list range, `update` the range from
- * the previous run date minus `update.lookbackDays`; `rebuild` (offline) fetches nothing. Fetch
- * failures become blocking anomalies by cause (`event-list-*`, `count-*`, `internal-list-*`);
- * errors that are not source failures propagate.
- */
+/** Every source is stored and read back, so an offline `rebuild` sees exactly what an online run saw. */
 import { failureCause } from '../completeness/index.ts';
 import { ANPR_ANOMALIES, loadAnpr, reportDroppedRows } from '../crosscheck/index.ts';
 import { compareDates, maxDate, subtractDays, type IsoDate } from '../dates/index.ts';
@@ -29,16 +20,12 @@ export function isOffline(mode: RunMode): boolean {
   return mode === 'rebuild';
 }
 
-/**
- * HTTP cache policy of the mandatory refreshes (§6.1): `rebuild --refetch` accepts what was
- * downloaded from `today` on, so an interrupted refetch run again the same day resumes where it
- * stopped; every other mode always goes to the network.
- */
+/** `fetchedSince: today` in `rebuild --refetch`, so a refetch interrupted and run again the same day resumes. */
 export function refreshPolicy(mode: RunMode, today: IsoDate): CachePolicy {
   return mode === 'rebuild-refetch' ? { fetchedSince: today } : 'refresh';
 }
 
-/** `adapter_stats` key of the stored ANPR manifest: the issues of the dropped rows (canonical JSON). */
+/** The issues of the dropped rows, as canonical JSON. */
 const ANPR_ROW_ISSUES = 'row_issues';
 
 const EVENT_LIST_PFUNS = (Object.keys(EVENT_LISTS).map(Number) as EventListPfun[]).sort((a, b) => a - b);
@@ -47,13 +34,11 @@ export type EventListsByLevel = { [L in Level]: LevelEventLists<L> };
 
 export interface EventListsResult {
   lists: EventListsByLevel;
-  /** Codes (subject and related) of the rows a fetch added or removed, per level (update). */
   touchedCodes: Record<Level, Set<string>>;
-  /** Earliest date of the rows a fetch added or removed (update), `null` when none changed. */
+  /** `null` when none changed. */
   earliestChange: IsoDate | null;
 }
 
-/** Stage 1: fetch and store the public event lists, then read back what the store knows. */
 async function acquireEventLists(
   ctx: RunContext,
   mode: RunMode,
@@ -120,7 +105,6 @@ async function acquireEventLists(
   return { lists: lists as unknown as EventListsByLevel, touchedCodes, earliestChange };
 }
 
-/** Stage 2: the internal crawl, with the mandatory refreshes of the mode (§6.1, §6.8). */
 async function acquireInternal(
   ctx: RunContext,
   mode: RunMode,
@@ -183,10 +167,7 @@ async function acquireInternal(
   return crawl;
 }
 
-/**
- * Stage 3: the ANPR archive, fetched (except offline) and stored; the rows come from the store.
- * `null`: the cross-check is skipped (already reported with `anpr-unavailable`).
- */
+/** `null`: skip the cross-check (already reported). */
 async function acquireAnpr(ctx: RunContext, mode: RunMode): Promise<AnprRecord[] | null> {
   const { store, anomalies } = ctx;
   if (!isOffline(mode)) {
@@ -222,10 +203,7 @@ async function storedAnprRows(ctx: RunContext): Promise<AnprRecord[]> {
   return (await ctx.store.getAnpr())?.rows ?? [];
 }
 
-/**
- * Stage 7 inputs: the SITUAS counts of today's snapshot requests (I13), fetched (except offline)
- * and stored. `undefined` when a level has no count (already reported, blocking).
- */
+/** `undefined` when a level has no count (already reported). */
 async function acquireCounts(ctx: RunContext, mode: RunMode): Promise<Record<Level, number> | undefined> {
   const { store, today } = ctx;
   const counts: Partial<Record<Level, number>> = {};
@@ -260,7 +238,7 @@ async function acquireCounts(ctx: RunContext, mode: RunMode): Promise<Record<Lev
   return LEVELS.every((l) => counts[l] !== undefined) ? (counts as Record<Level, number>) : undefined;
 }
 
-/** A source failure as a blocking anomaly by cause; anything else is a bug and is rethrown. */
+/** Anything but a source failure is a bug and is rethrown. */
 function reportSourceFailure(
   ctx: RunContext,
   prefix: SourceFailurePrefix,
@@ -280,7 +258,6 @@ function reportSourceFailure(
   ctx.logger.warn('source failure', { what, cause, error: message });
 }
 
-/** Runs the four acquisitions in their order, timed. */
 export async function acquireSources(ctx: RunContext, mode: RunMode, previousToday: IsoDate | null) {
   const eventLists = await timed(ctx, 'event-lists', (progress) =>
     acquireEventLists(ctx, mode, previousToday, progress),

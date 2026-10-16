@@ -1,26 +1,7 @@
 /**
- * Snapshot orchestration and completeness verification (§6.5).
- *
- * Every `(level, date)` of the calendar is fetched in parallel. Then, for each level and each
- * pair of consecutive calendar dates `d_i < d_{i+1}`, the completeness invariant
- * `S(d_i) == S(d_{i+1} − 1)` is checked (projection equality, i.e. equal `content_hash`). When it
- * fails, `[d_i + 1, d_{i+1} − 1]` is binary-searched for the first date whose snapshot differs
- * from `S(d_i)`. That date is an `inferred` breakpoint: it is added to the **global** calendar,
- * so every level gets a snapshot on it, and the sub-intervals it creates are verified in the
- * next round, which finds further changes hidden in the same interval. Rounds repeat until no
- * interval of the calendar hides a change. Intervals never cross regimes, because the regime
- * boundaries are calendar dates (asserted).
- *
- * Inferred breakpoints carried over from earlier runs are checked first: one whose snapshots now
- * equal, at every level, those of the previous calendar date is no longer confirmed and leaves
- * the calendar (`info`). Every inferred breakpoint left in the final calendar is reported as a
- * `warning`, once per level that changes on it.
- *
- * Failures: a snapshot that cannot be obtained becomes a `blocking` anomaly whose code tells the
- * cause (`snapshot-unavailable`, `snapshot-request-rejected`, `snapshot-schema-violation`); the
- * intervals that need it become `completeness-unverified`. The run goes on, so one run collects
- * every problem, but its result is `blocked`: the pipeline must stop before identity resolution.
- * Any other error is a bug and propagates.
+ * §6.5. An inferred breakpoint goes into the global calendar, so every level gets a snapshot on it.
+ * Intervals never cross regimes because the regime boundaries are calendar dates. A failed snapshot
+ * does not stop the run, so one run collects every problem; the result is then `blocked`.
  */
 import { AnomalyCollector } from '../anomalies.ts';
 import { calendarDates, extendCalendar, removeCalendarSource, type Calendar } from '../calendar/index.ts';
@@ -44,24 +25,13 @@ import {
   type SnapshotProvider,
 } from './snapshot-provider.ts';
 
-/** Stable anomaly codes of this stage (§8.2). */
 export const SNAPSHOT_ANOMALIES = {
-  /**
-   * Source unavailable (exit code 3): open circuit, or retries exhausted on timeouts, connection
-   * errors, 5xx or 429.
-   */
   unavailable: 'snapshot-unavailable',
-  /** Non-retryable HTTP status (4xx other than 429): the request itself is refused (exit code 1). */
   rejected: 'snapshot-request-rejected',
-  /** Permanent validation error, or the endpoint already disabled by one (exit code 1). */
   schemaViolation: 'snapshot-schema-violation',
-  /** An interval whose completeness could not be checked because a snapshot is missing. */
   unverified: 'completeness-unverified',
-  /** A calendar date known only by bisection, one per level that changes on it. */
   inferred: 'inferred-breakpoint',
-  /** An inferred date of an earlier run whose snapshots no longer differ from the previous date. */
   inferredRemoved: 'inferred-breakpoint-removed',
-  /** `COD_PROV_STORICO` fallbacks (§3.5 item 16), one per level. */
   historicalCodeFallback: 'historical-code-fallback',
 } as const;
 
@@ -81,17 +51,16 @@ export interface SnapshotFailure {
 }
 
 export interface InferredBreakpoint {
-  /** Level whose snapshots revealed the change. */
   level: Level;
   date: IsoDate;
-  /** Consecutive calendar dates `[from, to)` that hid it. */
+  /** Calendar dates `[from, to)` that hid it. */
   from: IsoDate;
   to: IsoDate;
 }
 
 export interface RemovedBreakpoint {
   date: IsoDate;
-  /** The previous calendar date, whose snapshots equal those of `date` at every level. */
+  /** The previous calendar date. */
   from: IsoDate;
 }
 
@@ -99,29 +68,19 @@ export interface SnapshotRunOptions {
   calendar: Calendar;
   provider: SnapshotProvider;
   anomalies: AnomalyCollector;
-  /**
-   * Snapshot requests in progress at once. The HTTP client paces the network; this bound keeps
-   * decoded responses (municipality snapshots are large) out of memory.
-   */
+  /** The HTTP client paces the network; this bound keeps decoded snapshots out of memory. */
   concurrency: number;
   levels?: readonly Level[];
   logger?: Logger;
-  /** Counts every snapshot request (progress lines, §10.4). */
   progress?: StageProgress;
 }
 
 export interface SnapshotRunResult {
-  /** The input calendar without unconfirmed inferred dates, plus the new ones (source `inferred`). */
   calendar: Calendar;
-  /** Every snapshot obtained (calendar dates and bisection probes), by level and ascending date. */
   snapshots: Map<Level, Map<IsoDate, SnapshotInfo>>;
-  /** Breakpoints found by this run's bisection, sorted by date, then level. */
   inferred: InferredBreakpoint[];
-  /** Inferred dates of earlier runs no longer confirmed, ascending. */
   removed: RemovedBreakpoint[];
-  /** Sorted by level, then date. */
   failures: SnapshotFailure[];
-  /** Some snapshot could not be obtained: the pipeline stops before identity resolution. */
   blocked: boolean;
 }
 
@@ -216,11 +175,7 @@ export async function runSnapshots(options: SnapshotRunOptions): Promise<Snapsho
   return result;
 }
 
-/**
- * Drops the `inferred` source from the dates whose snapshots equal, at every level, those of the
- * previous date left in the calendar. A date with a missing snapshot is kept (the failure is
- * reported anyway); a date with other sources (e.g. an ANPR hint) stays without `inferred`.
- */
+/** A date with a missing snapshot keeps `inferred`: the failure is reported anyway. */
 async function pruneInferred(
   calendar: Calendar,
   levels: readonly Level[],
@@ -243,7 +198,6 @@ async function pruneInferred(
   return { calendar: removeCalendarSource(calendar, 'inferred', dates), removed };
 }
 
-/** One `warning` per inferred date of the final calendar and per level that changes on it. */
 async function reportInferred(
   calendar: Calendar,
   levels: readonly Level[],
@@ -267,7 +221,6 @@ async function reportInferred(
   }
 }
 
-/** Memoised snapshot requests of one run, with bounded concurrency. */
 class SnapshotRun {
   readonly #provider: SnapshotProvider;
   readonly #limit: number;
@@ -285,7 +238,6 @@ class SnapshotRun {
     this.#limit = limit;
   }
 
-  /** The snapshot, or `undefined` if it could not be obtained (the failure is recorded once). */
   get(level: Level, date: IsoDate): Promise<SnapshotInfo | undefined> {
     const key = `${level}|${date}`;
     let request = this.#requests.get(key);
@@ -310,7 +262,6 @@ class SnapshotRun {
     return request;
   }
 
-  /** Checks `S(from) == S(to − 1)`; on failure, binary-searches the first differing date. */
   async verify(level: Level, from: IsoDate, to: IsoDate): Promise<Verification> {
     const last = previousDay(to);
     if (last === from) return { kind: 'complete' };
@@ -336,7 +287,6 @@ class SnapshotRun {
     return { kind: 'inferred', date: fromDayNumber(hi) };
   }
 
-  /** Whether `S(a) == S(b)`; `undefined` when either snapshot could not be obtained. */
   async same(level: Level, a: IsoDate, b: IsoDate): Promise<boolean | undefined> {
     const [x, y] = await Promise.all([this.get(level, a), this.get(level, b)]);
     return x === undefined || y === undefined ? undefined : x.contentHash === y.contentHash;
@@ -366,10 +316,7 @@ class SnapshotRun {
   }
 }
 
-/**
- * Cause of a failed snapshot request, or `undefined` for errors that are not source failures
- * (bugs, store corruption), which must propagate.
- */
+/** `undefined` for bugs and store corruption, which must propagate. */
 export function failureCause(error: unknown): SnapshotFailureCause | undefined {
   if (error instanceof ResponseValidationError || error instanceof EndpointDisabledError) return 'schema-violation';
   // A 4xx other than 429 is not retried: the server refuses the request, it is not unavailable.
@@ -380,10 +327,7 @@ export function failureCause(error: unknown): SnapshotFailureCause | undefined {
   return undefined;
 }
 
-/**
- * One `info` anomaly per level summarising the `COD_PROV_STORICO` fallbacks (§3.5 item 16), from
- * the manifests' `adapter_stats`, so an offline rebuild reports the same.
- */
+/** From the manifests' `adapter_stats`, so an offline rebuild reports the same (§3.5 item 16). */
 function reportHistoricalCodeFallbacks(
   snapshots: Map<Level, Map<IsoDate, SnapshotInfo>>,
   anomalies: AnomalyCollector,

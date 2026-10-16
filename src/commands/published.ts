@@ -1,8 +1,3 @@
-/**
- * Commands on releases (§10.1): `validate` runs the invariants on a release (`dist/` and
- * `reports/variations.json`), `diff` computes `changes.json` between two releases. Neither reads a
- * source.
- */
 import { join } from 'node:path';
 import type { IsoDate } from '../dates/index.ts';
 import {
@@ -23,12 +18,7 @@ export interface PublishedIo {
   err: (text: string) => void;
 }
 
-/**
- * `validate`: the release (public files and variation report) read back into the internal model
- * and checked with every invariant. I2, I7, I12, I13 and I14 need data a release does not hold
- * (snapshot existence, historical UTS codes, snapshots, counts, event accounts) and are reported as
- * `skipped`, never as passed.
- */
+/** I2, I7, I12, I13 and I14 need data a release does not hold: `skipped`, never passed. */
 export async function runValidate(
   dirs: ReleaseDirs,
   start: IsoDate,
@@ -59,15 +49,10 @@ export async function runValidate(
   return { exitCode: failed ? EXIT_CODES.blocking : EXIT_CODES.success, report };
 }
 
-/** The release of a directory holding `dist/` and `reports/` (e.g. a checkout). */
 function releaseIn(dir: string): ReleaseDirs {
   return { dist: join(dir, 'dist'), reports: join(dir, 'reports') };
 }
 
-/**
- * `diff <from> <to>`: `changes.json` from the release in `from` to the one in `to`, each a
- * directory holding `dist/` and `reports/`.
- */
 export async function runDiff(from: string, to: string, out: string | undefined, io: PublishedIo): Promise<ExitCode> {
   const [previous, current] = await Promise.all([
     loadPublishedDataset(releaseIn(from)),

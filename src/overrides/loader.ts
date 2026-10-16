@@ -1,12 +1,6 @@
 /**
- * Override loader (§6.10): every `*.json` file of the overrides directory (other files, such as
- * `.gitkeep`, are ignored), validated with the zod schema and converted to the internal model
- * (camelCase, half-open target interval).
- *
- * The overrides are curated repository content, so a problem with them is a defect of the
- * repository, not of the data: an unreadable or invalid file, a key used twice, or two overrides of
- * the same field and code over overlapping periods throw `OverrideFileError` instead of becoming
- * anomalies.
+ * Overrides are curated repository content: a problem with them is a defect of the repository, not
+ * of the data, so it throws instead of becoming an anomaly.
  */
 import { join } from 'node:path';
 import { compareDates, overlaps, toExclusiveEnd, type HalfOpenInterval } from '../dates/index.ts';
@@ -15,11 +9,10 @@ import { overrideFileSchema, type OverrideEntry, type OverrideField } from './sc
 
 export interface Override {
   key: string;
-  /** File name inside the overrides directory. */
   file: string;
   level: OverrideEntry['target']['level'];
   istatCode: string;
-  /** The target period, half-open. */
+  /** Half-open. */
   target: HalfOpenInterval;
   field: OverrideField;
   value: string;
@@ -38,7 +31,6 @@ export class OverrideFileError extends Error {
   }
 }
 
-/** The overrides of `dir`, sorted by key (none if the directory does not exist). */
 export async function loadOverrides(dir: string): Promise<Override[]> {
   const files = (await listFiles(dir)).filter((name) => name.endsWith('.json')).sort();
   const overrides: Override[] = [];
@@ -50,7 +42,6 @@ export async function loadOverrides(dir: string): Promise<Override[]> {
   return checkConsistency(overrides).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
-/** The overrides of one file's text. */
 export function parseOverrideFile(file: string, text: string): Override[] {
   let json: unknown;
   try {

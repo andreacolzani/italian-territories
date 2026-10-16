@@ -1,16 +1,11 @@
 /**
- * Summary of the `(level, event code)` pairs observed in the internal event histories,
- * the input against which the variation builder (§4.3) checks that every pair has an explicit rule (D27).
- *
- * It is computed by every build from the crawled data and written to
- * `<paths.reports>/event-codes.json`: it describes the build, not the sources, so it never goes
- * into the store.
+ * Checked against the event rules (§4.3, D27). It describes the build, not the sources, so it is
+ * written to `<paths.reports>`, never into the store.
  */
 import { join } from 'node:path';
 import { ISTAT_EVENT_CODES, LEVELS, type IstatEventCode, type Level } from '../model/common.ts';
 import { toJsonDocument, writeFileAtomic } from '../store/index.ts';
 
-/** Distinct events per level and code; levels and codes in vocabulary order, absent when zero. */
 export type EventCodeSummary = Partial<Record<Level, Partial<Record<IstatEventCode, number>>>>;
 
 const EVENT_CODES_FILE = 'event-codes.json';

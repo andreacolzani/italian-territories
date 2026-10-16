@@ -12,7 +12,6 @@ import { loadPublishedDataset } from '../../src/emit/index.ts';
 const ROOT = join(import.meta.dirname, '..', '..');
 const dataset = await loadPublishedDataset({ dist: join(ROOT, 'dist'), reports: join(ROOT, 'reports') });
 
-/** Suppressed municipalities absent from ANPR, fixed by the first full run (§11.3 golden-14). */
 const MISSING_SUPPRESSED = 491;
 
 describe('golden-14: suppressed municipalities absent from ANPR', () => {

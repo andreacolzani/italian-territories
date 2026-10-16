@@ -1,4 +1,3 @@
-/** The commands of §10.1: orchestration of the pipeline, audit, validate and diff. */
 import type { Config } from '../config.ts';
 import type { IsoDate } from '../dates/index.ts';
 import type { Logger } from '../logger.ts';
@@ -15,30 +14,16 @@ export { runAuditCommand, runPipeline } from './pipeline.ts';
 export { runDiff, runValidate } from './published.ts';
 export { runSummarySchema, type RunSummary } from './summary.ts';
 
-/** Blocking anomalies written to the log at the end of a run (all of them are counted in the summary). */
 const MAX_LOGGED_BLOCKING = 50;
 
-/**
- * Runs a data command and always writes the run summary (`paths.runSummary`):
- * - when the command returns, with its exit code;
- * - when it throws: the error is recorded and logged, the exit code is 1;
- * - on SIGINT / SIGTERM: outcome `interrupted`, then the process exits with 130 / 143;
- * - on an uncaught exception or unhandled rejection anywhere in the process: outcome `error`, then
- *   the process exits with 1.
- * The handlers (`runtime.process`) are removed when the command ends.
- *
- * A pipeline command (`completeUpdate`) that returns 0 or 2 records its `today` as the last
- * complete update in the store (§10.4).
- */
+/** The summary is written however the run ends, signals and fatal errors included (§10.4). */
 export async function runDataCommand(options: {
   command: string;
   config: Config;
   today: IsoDate;
   logger: Logger;
   runtime: Runtime;
-  /** `rebuild` without `--refetch` (see `createRunContext`). */
   offline?: boolean;
-  /** A pipeline command: exit 0 or 2 records the last complete update (default `false`). */
   completeUpdate?: boolean;
   run: (ctx: RunContext) => Promise<ExitCode>;
 }): Promise<ExitCode> {
@@ -84,7 +69,6 @@ export async function runDataCommand(options: {
   return exitCode;
 }
 
-/** Writes the run summary and logs the end of the run (once per run). */
 async function finish(
   ctx: RunContext,
   options: {

@@ -1,12 +1,4 @@
-/**
- * Internal reports of a release (§9, D39): zod models of `reports/variations.json`,
- * `reports/anomalies.json`, `reports/changes.json` and `reports/meta.json`. They are produced by
- * every data release, committed with the data and reviewed in PRs, but not published: no JSON
- * Schema, not in the npm package.
- *
- * Objects are strict and their keys declared in the written order. Versions have no id (D40): a
- * participant references them by `valid_from`, `changes.json` by `(entity_id, valid_from)`.
- */
+/** Committed and reviewed with the data, never published: no JSON Schema, not in the npm package (D39). */
 import { z } from 'zod';
 import {
   ABROAD_EVENT_CODES,
@@ -23,10 +15,6 @@ import { entityIdSchema, isoDateSchema } from './public.ts';
 const levelSchema = z.enum(LEVELS);
 const istatEventCodeSchema = z.enum(ISTAT_EVENT_CODES);
 const variationIdSchema = z.int().positive();
-
-// ---------------------------------------------------------------------------------------------
-// Variations (§4.3)
-// ---------------------------------------------------------------------------------------------
 
 export const participantSchema = z
   .strictObject({
@@ -86,10 +74,6 @@ export const variationSchema = z
     path: ['istat_act_id'],
   });
 
-// ---------------------------------------------------------------------------------------------
-// Anomalies (§8.2)
-// ---------------------------------------------------------------------------------------------
-
 export const anomalySchema = z.strictObject({
   level: z.enum(ANOMALY_LEVELS),
   code: z.string().regex(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/),
@@ -100,11 +84,6 @@ export const anomalySchema = z.strictObject({
 /** Anomalies of a release are non-blocking by construction: a blocking run never publishes (§8.2). */
 const releaseAnomalySchema = anomalySchema.extend({ level: z.enum(ANOMALY_LEVELS).exclude(['blocking']) });
 
-// ---------------------------------------------------------------------------------------------
-// Meta (§9)
-// ---------------------------------------------------------------------------------------------
-
-/** Request families of §6.1, the sources summarised by `meta.json`. */
 const SOURCE_FAMILIES = ['situas-public-snapshots', 'situas-public-reports', 'situas-internal', 'anpr'] as const;
 export type SourceFamily = (typeof SOURCE_FAMILIES)[number];
 
@@ -112,10 +91,10 @@ const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 
 const DATA_VERSION_PATTERN = /^\d{4}\.\d{2}\.\d{2}$/;
 
-/** Date of the build (its "today") as `YYYY.MM.DD`. */
+/** The build's "today" as `YYYY.MM.DD`. */
 const dataVersionSchema = z.string().regex(DATA_VERSION_PATTERN);
 
-/** Wall-clock time of the build (UTC). */
+/** Wall-clock, UTC. */
 const generatedAtSchema = z.iso.datetime();
 
 export const sourceSummarySchema = z.strictObject({
@@ -123,7 +102,6 @@ export const sourceSummarySchema = z.strictObject({
   fetched_at: isoDateSchema,
   /** SHA-256 of the canonical JSON of the sorted [response key, content hash] pairs. */
   content_hash: sha256Schema,
-  /** Number of stored responses. */
   manifests: z.int().positive(),
 });
 
@@ -134,11 +112,11 @@ const levelCountsSchema = z.strictObject({
 });
 
 export const metaSchema = z.strictObject({
-  /** Semantic version of the published data contract; its major is the npm major. */
+  /** Its major is the npm package major. */
   schema_version: z.string().regex(/^\d+\.\d+\.\d+$/),
   data_version: dataVersionSchema,
   generated_at: generatedAtSchema,
-  /** Per request family (§6.1); null when the build used none of its responses. */
+  /** Null when the build used none of its responses. */
   sources: z.strictObject(
     Object.fromEntries(SOURCE_FAMILIES.map((f) => [f, sourceSummarySchema.nullable()])) as Record<
       SourceFamily,
@@ -154,17 +132,12 @@ export const metaSchema = z.strictObject({
   anomalies: z.strictObject({ warning: z.int().nonnegative(), info: z.int().nonnegative() }),
 });
 
-// ---------------------------------------------------------------------------------------------
-// Changes (§9)
-// ---------------------------------------------------------------------------------------------
-
 /** True when the item changes the published state of a day before the previous data_version. */
 const retroactiveSchema = z.boolean();
 
 /** First day whose published state changes. */
 const affectedFromSchema = isoDateSchema;
 
-/** The key of the items of a change set: an entity id, a version, a variation id. */
 const entityKeyShape = { id: entityIdSchema };
 const versionKeyShape = { entity_id: entityIdSchema, valid_from: isoDateSchema };
 const variationKeyShape = { id: variationIdSchema };
@@ -194,20 +167,14 @@ const levelChangesSchema = z.strictObject({ entities: entityChangeSetSchema, ver
 const releaseSchema = z.strictObject({ data_version: dataVersionSchema, generated_at: generatedAtSchema });
 
 export const changesSchema = z.strictObject({
-  /** The previous release; null for the first one. */
   from: releaseSchema.nullable(),
   to: releaseSchema,
-  /** True when any item is retroactive. */
   retroactive: z.boolean(),
   regions: levelChangesSchema,
   provinces: levelChangesSchema,
   municipalities: levelChangesSchema,
   variations: variationChangeSetSchema,
 });
-
-// ---------------------------------------------------------------------------------------------
-// Files (§9)
-// ---------------------------------------------------------------------------------------------
 
 export const variationsFileSchema = z.array(variationSchema);
 export const anomaliesFileSchema = z.array(releaseAnomalySchema);

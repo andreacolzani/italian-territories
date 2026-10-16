@@ -1,23 +1,7 @@
 /**
- * Snapshot store (§6.3): normalised, projected rows stored once by hash, plus one manifest per
- * stored response.
- *
- * Layout under the store directory:
- * - `rows/<level>.ndjson`, `snapshots/<level>/<date>.json`;
- * - `events/rows/pfun-<id>.ndjson`, `events/lists/pfun-<id>/<from>_<to>.json`;
- * - `internal/rows/r<n>.ndjson`, `internal/reports/r<n>/<key>.json`, where `key` is the SHA-256
- *   of the unencoded, normalised report URL;
- * - `counts/rows.ndjson`, `counts/pfun-<id>/<date>.json` (snapshot counts, I13);
- * - `anpr/rows.ndjson`, `anpr/manifest.json` (the ANPR archive without CSV lines, §6.11).
- *
- * Every manifest carries the `projection_version` of its kind (`projection-versions.ts`): a
- * manifest with another version is never returned and never compared with new content.
- *
- * A put whose content equals the stored one writes nothing (`fetched_at` stays the date of the
- * first fetch of that content); a different content appends the replaced one to `history`.
- * Event lists also report what changed **semantically**: the rows of the new list are compared
- * with every row the store knows in the same date range, whichever list they came from (§10.2:
- * consecutive updates fetch overlapping ranges with different `from`).
+ * §6.3. Equal content writes nothing, so `fetched_at` stays the date of the first fetch. Event lists
+ * are compared with every row the store knows in the range, whatever list it came from, because
+ * consecutive updates fetch overlapping ranges with different `from` (§10.2).
  */
 import { join } from 'node:path';
 import type { z } from 'zod';
@@ -66,10 +50,8 @@ import {
 import { PROJECTION_VERSIONS, type ProjectionVersions } from './projection-versions.ts';
 import { RowLog, type Hashed } from './row-log.ts';
 
-/** Rows of an event list `pfun`. */
 export type EventRowOf<P extends EventListPfun> = EventRowByLevel[(typeof EVENT_LISTS)[P]['level']];
 
-/** Rows of an internal report. */
 export interface InternalRowByReport {
   1: RegionListRecord;
   2: UtsListRecord;
@@ -82,24 +64,17 @@ export interface InternalRowByReport {
   9: MunicipalityEventDetail;
 }
 
-/** The stored row of a count response. */
 export interface CountRow {
   count: number;
 }
 
-/** One normalised response to store. */
 export interface StoreInput<R> {
-  /** `fetched_at` of the response (from the HTTP client). */
   fetchedAt: IsoDate;
   rows: readonly R[];
   adapterStats?: AdapterStats;
 }
 
-/**
- * `created`: no manifest of the current projection version existed; `reprojected`: one of another
- * version was replaced; `unchanged`: same content, nothing written (or only `adapter_stats`
- * updated); `changed`: different content, the previous one moved to `history`.
- */
+/** `reprojected`: a manifest of another projection version was replaced; `unchanged` may update `adapter_stats`. */
 export type PutOutcome = 'created' | 'reprojected' | 'unchanged' | 'changed';
 
 export interface PutResult<M extends Manifest> {
@@ -107,7 +82,6 @@ export interface PutResult<M extends Manifest> {
   manifest: M;
 }
 
-/** Rows of an event list that differ from what the store knew in the same range. */
 export interface EventListPutResult<P extends EventListPfun> extends PutResult<EventListManifest> {
   added: EventRowOf<P>[];
   removed: EventRowOf<P>[];
@@ -115,7 +89,6 @@ export interface EventListPutResult<P extends EventListPfun> extends PutResult<E
 
 export interface Stored<M extends Manifest, R> {
   manifest: M;
-  /** Rows in `row_hashes` order. */
   rows: R[];
 }
 
@@ -135,17 +108,12 @@ export class Store {
   readonly #versions: ProjectionVersions;
   readonly #logs = new Map<string, RowLog<unknown>>();
   readonly #locks = new Map<string, Promise<unknown>>();
-  /** Event list manifests per `pfun`, by file name (every projection version). */
   readonly #eventManifests = new Map<EventListPfun, Map<string, EventListManifest>>();
 
   constructor(dir: string, options: StoreOptions = {}) {
     this.dir = dir;
     this.#versions = options.projectionVersions ?? PROJECTION_VERSIONS;
   }
-
-  // -------------------------------------------------------------------------------------------
-  // Snapshots
-  // -------------------------------------------------------------------------------------------
 
   putSnapshot<L extends Level>(
     level: L,
@@ -176,7 +144,6 @@ export class Store {
     return { manifest, rows: await this.#snapshotLog(level).rows(manifest.row_hashes) };
   }
 
-  /** Like {@link getSnapshot}, keeping each row's hash next to it (equal rows, equal hashes). */
   async getSnapshotEntries<L extends Level>(
     level: L,
     date: IsoDate,
@@ -186,22 +153,16 @@ export class Store {
     return { manifest, rows: await this.#snapshotLog(level).entries(manifest.row_hashes) };
   }
 
-  /** The snapshot manifest of the current projection version, without reading its rows. */
   async getSnapshotManifest(level: Level, date: IsoDate): Promise<SnapshotManifest | undefined> {
     const manifest = await this.#readManifest(this.#snapshotPath(level, date), snapshotManifestSchema);
     return manifest?.projection_version === this.#versions.snapshot[level] ? manifest : undefined;
   }
 
-  /** Dates with a stored snapshot manifest, ascending (`getSnapshot` still checks the version). */
+  /** Every projection version: `getSnapshot` checks it. */
   async snapshotDates(level: Level): Promise<IsoDate[]> {
     return manifestNames(await listFiles(join(this.dir, 'snapshots', level))).sort(compareDates);
   }
 
-  // -------------------------------------------------------------------------------------------
-  // Event lists
-  // -------------------------------------------------------------------------------------------
-
-  /** Stores the rows of event list `pfun` over `[from, to]` and reports the semantic difference. */
   putEventList<P extends EventListPfun>(
     pfun: P,
     from: IsoDate,
@@ -237,24 +198,15 @@ export class Store {
     return { manifest, rows: await this.#eventLog(pfun).rows(manifest.row_hashes) };
   }
 
-  /** Manifests of event list `pfun` with the current projection version, by `from`, then `to`. */
   async eventLists(pfun: EventListPfun): Promise<EventListManifest[]> {
     return [...(await this.#eventManifestsOf(pfun)).values()]
       .filter((m) => m.projection_version === this.#versions.events[pfun])
       .sort((a, b) => compareDates(a.from, b.from) || compareDates(a.to, b.to));
   }
 
-  /**
-   * What the store knows of event list `pfun` on `[from, to]`: for every date, the rows of the
-   * most recently fetched list covering it. Dates no list covers have no rows.
-   */
   eventRows<P extends EventListPfun>(pfun: P, from: IsoDate, to: IsoDate): Promise<EventRowOf<P>[]> {
     return this.#lock(`events:${pfun}`, async () => (await this.#effectiveEventRows(pfun, from, to)).map((r) => r.row));
   }
-
-  // -------------------------------------------------------------------------------------------
-  // Internal reports
-  // -------------------------------------------------------------------------------------------
 
   putInternalReport<N extends InternalReportNumber>(
     report: N,
@@ -293,7 +245,6 @@ export class Store {
     return { manifest, rows: await this.#internalLog(report).rows(manifest.row_hashes) };
   }
 
-  /** Manifests of report `report` with the current projection version, by `key`. */
   async internalReports(report: InternalReportNumber): Promise<InternalReportManifest[]> {
     const dir = join(this.dir, 'internal', 'reports', `r${report}`);
     const manifests: InternalReportManifest[] = [];
@@ -304,11 +255,6 @@ export class Store {
     return manifests;
   }
 
-  // -------------------------------------------------------------------------------------------
-  // Counts and ANPR
-  // -------------------------------------------------------------------------------------------
-
-  /** Stores the count of the snapshot request of `pfun` on `date` (one row). */
   putCount(pfun: SnapshotPfun, date: IsoDate, input: StoreInput<CountRow>): Promise<PutResult<CountManifest>> {
     const path = this.#countPath(pfun, date);
     return this.#lock(path, async () => {
@@ -327,7 +273,6 @@ export class Store {
     return { manifest, rows: await this.#log<CountRow>(join('counts', 'rows.ndjson')).rows(manifest.row_hashes) };
   }
 
-  /** Count manifests of the current projection version, by `pfun`, then date. */
   async countManifests(): Promise<CountManifest[]> {
     const manifests: CountManifest[] = [];
     const root = join(this.dir, 'counts');
@@ -340,7 +285,6 @@ export class Store {
     return manifests.sort((a, b) => a.pfun - b.pfun || compareDates(a.date, b.date));
   }
 
-  /** Stores the ANPR archive (one manifest: the latest content, earlier ones in `history`). */
   putAnpr(input: StoreInput<AnprRecord>): Promise<PutResult<AnprManifest>> {
     const path = join(this.dir, 'anpr', `manifest${MANIFEST_SUFFIX}`);
     return this.#lock(path, async () => {
@@ -357,8 +301,6 @@ export class Store {
     if (manifest?.projection_version !== this.#versions.anpr) return undefined;
     return { manifest, rows: await this.#anprLog().rows(manifest.row_hashes) };
   }
-
-  // -------------------------------------------------------------------------------------------
 
   async #putManifest<M extends Manifest>(
     path: string,
@@ -482,7 +424,6 @@ export class Store {
     return log as RowLog<R>;
   }
 
-  /** Runs `task` after every earlier task with the same key. */
   #lock<T>(key: string, task: () => Promise<T>): Promise<T> {
     const previous = this.#locks.get(key) ?? Promise.resolve();
     const run = previous.then(task, task);
@@ -495,7 +436,6 @@ export class Store {
   }
 }
 
-/** File name of an internal report manifest: SHA-256 of the unencoded, normalised report URL. */
 export function internalReportKey(report: InternalReportNumber, reportUrl: string): string {
   const prefix = `${INTERNAL_REPORTS[report].report}?`;
   if (!reportUrl.startsWith(prefix)) throw new RangeError(`'${reportUrl}' is not a URL of report r${report}`);
@@ -506,7 +446,6 @@ function manifestNames(files: string[]): string[] {
   return files.filter((n) => n.endsWith(MANIFEST_SUFFIX)).map((n) => n.slice(0, -MANIFEST_SUFFIX.length));
 }
 
-/** Items of `a` not matched one-to-one by an item of `b` with the same hash, in `a` order. */
 function multisetMinus<R>(a: readonly Hashed<R>[], b: readonly { hash: string }[]): R[] {
   const counts = new Map<string, number>();
   for (const { hash } of b) counts.set(hash, (counts.get(hash) ?? 0) + 1);

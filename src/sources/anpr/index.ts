@@ -1,11 +1,7 @@
 /**
- * ANPR adapter (§3.4, §6.11): the municipality archive CSV, cross-check only (D2). Dates are
- * converted to the internal half-open convention here (D22): `validFrom = DATAISTITUZIONE`,
- * `validTo = DATACESSAZIONE + 1 day`, or `null` when `DATACESSAZIONE = 9999-12-31`.
- *
- * ANPR is a non-blocking source: malformed rows are dropped and returned as issues (`info`);
- * a structurally broken file (unparseable CSV, missing columns) raises `AnprFormatError`, which
- * is neither retried nor cached and never becomes a `ResponseValidationError`.
+ * Dates become half-open here (D22): `validTo = DATACESSAZIONE + 1`, `null` for `9999-12-31`. A
+ * structurally broken file raises `AnprFormatError`, which is neither retried nor cached: ANPR is
+ * non-blocking, so it never becomes a `ResponseValidationError`.
  */
 import { CsvError, parse } from 'csv-parse/sync';
 import { isIsoDate, nextDay, compareDates, type IsoDate } from '../../dates/index.ts';
@@ -22,7 +18,6 @@ import {
 import { CADASTRAL_CODE_PATTERN, ISTAT_CODE_PATTERNS } from '../../model/common.ts';
 import { cleanText } from '../normalise.ts';
 
-/** Columns read from the CSV (§3.4); any other column is ignored. */
 const ANPR_COLUMNS = [
   'DATAISTITUZIONE',
   'DATACESSAZIONE',
@@ -38,14 +33,13 @@ const ANPR_COLUMNS = [
 
 type AnprColumn = (typeof ANPR_COLUMNS)[number];
 
-/** `DATACESSAZIONE` of rows still valid. */
 const OPEN_END = '9999-12-31';
 
 export interface AnprRow {
-  /** 1-based line of the record in the CSV (header is line 1). */
+  /** 1-based; the header is line 1. */
   line: number;
   validFrom: IsoDate;
-  /** Half-open end; `null` if still valid. */
+  /** Half-open. */
   validTo: IsoDate | null;
   istatCode: string;
   /** `null` for `ND`. */
@@ -61,13 +55,9 @@ export interface AnprRow {
   status: 'A' | 'C';
 }
 
-/**
- * An ANPR row as stored (§6.3) and cross-checked: without the CSV `line`, which would change the
- * hash of every following row at each insertion in the file.
- */
+/** Without `line`, which would change the hash of every following row at each insertion in the file. */
 export type AnprRecord = Omit<AnprRow, 'line'>;
 
-/** The stored row of an adapter row (any extra field, such as `line`, is left out). */
 export function anprRecord(row: AnprRecord): AnprRecord {
   return {
     validFrom: row.validFrom,
@@ -83,10 +73,7 @@ export function anprRecord(row: AnprRecord): AnprRecord {
   };
 }
 
-/**
- * Stable order of ANPR records, independent of the file: cadastral code (rows without one last),
- * ISTAT code, `validFrom`, then the canonical JSON of the record.
- */
+/** Independent of the order of the file. */
 export function compareAnprRecords(a: AnprRecord, b: AnprRecord): number {
   const cadastral = (r: AnprRecord) => (r.cadastralCode === null ? 1 : 0);
   return (
@@ -113,7 +100,6 @@ export interface AnprData {
   issues: AnprIssue[];
 }
 
-/** The CSV cannot be used at all: the cross-check is skipped for the run (§6.11). */
 export class AnprFormatError extends Error {
   override name = 'AnprFormatError';
 }
@@ -159,7 +145,6 @@ function rowOf(line: number, record: Record<AnprColumn, string>): AnprRow | stri
   };
 }
 
-/** Parses the archive CSV. Throws `AnprFormatError` only for structural problems. */
 export function parseAnprCsv(text: string): AnprData {
   let records: string[][];
   try {
@@ -195,7 +180,6 @@ export function parseAnprCsv(text: string): AnprData {
 
 const decodeText = textDecoder({ contentTypes: CONTENT_TYPES.anpr, nonEmpty: true });
 
-/** Endpoint `anpr:archivio-comuni`. */
 export const ANPR_ENDPOINT: Endpoint<AnprData> = {
   id: 'anpr:archivio-comuni',
   family: 'anpr',
@@ -216,7 +200,6 @@ export class AnprSource {
     this.#csvUrl = csvUrl;
   }
 
-  /** Rows with half-open dates and the row-level issues (§6.11). */
   fetchAnpr(options?: RequestOptions): Promise<ClientResult<AnprData>> {
     return this.#client.request(ANPR_ENDPOINT, anprRequest(this.#csvUrl), options);
   }

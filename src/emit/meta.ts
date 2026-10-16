@@ -1,13 +1,4 @@
-/**
- * `reports/meta.json` (§9, internal): versions, generation time, a summary per source family (§6.1), counts per
- * level and anomaly counts.
- *
- * A source family is summarised from the store manifests of the current projection version (§6.3)
- * it holds: `fetched_at` is the latest fetch date, `content_hash` the SHA-256 of the canonical JSON
- * of the sorted `[manifest key, content_hash]` pairs, `manifests` their number; a family without
- * manifests is null. `situas-public-reports` covers the stored event lists and counts; `anpr` the
- * stored ANPR archive (one manifest).
- */
+/** Counts belong to the `situas-public-reports` family (§6.1). */
 import { type IsoDate, maxDate } from '../dates/index.ts';
 import { canonicalJson, sha256 } from '../http/index.ts';
 import { LEVELS } from '../model/common.ts';
@@ -18,7 +9,7 @@ import type { Store } from '../store/index.ts';
 import { toDataVersion } from './changes.ts';
 import type { PublicData } from './public.ts';
 
-/** Semantic version of the published data contract (§9); its major is the npm package major. */
+/** Its major is the npm package major (§9). */
 export const SCHEMA_VERSION = '1.0.0';
 
 export type SourceSummaries = Record<SourceFamily, SourceSummary | null>;
@@ -40,7 +31,6 @@ export function summariseManifests(manifests: readonly ManifestRef[]): SourceSum
   };
 }
 
-/** The summaries of the store's source families. */
 export async function sourceSummaries(store: Store): Promise<SourceSummaries> {
   const snapshots: ManifestRef[] = [];
   for (const level of LEVELS) {

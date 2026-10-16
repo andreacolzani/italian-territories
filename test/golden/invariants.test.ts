@@ -59,7 +59,6 @@ function knownUtsCodes(): NonNullable<typeof known> {
   return known;
 }
 
-/** The snapshots of `dates` as the sets I12 compares with, the rows of each level reduced by `keep`. */
 async function snapshotSets(
   dates: readonly IsoDate[],
   keep: Partial<Record<Level, readonly string[]>> = {},
@@ -83,7 +82,6 @@ async function snapshotSets(
 
 const overrides = await loadOverrides(OVERRIDES_DIR);
 
-/** The invariant world of a built one: derived fields, existence, accounts, applied overrides. */
 async function worldOf(
   built: BuiltVariations,
   options: { start: IsoDate; today: IsoDate; snapshots?: SnapshotSet[]; counts?: InvariantWorld['counts'] },

@@ -1,9 +1,6 @@
 /**
- * Minimal NDJSON logger (§12 Logging): one JSON object per line, written to stderr by the CLI.
- * Levels `debug|info|warn|error`; `debug` lines are written only with `--verbose`.
- *
- * Log lines carry a wall-clock `time`: they describe the run, never the data, so reading the
- * clock here does not affect determinism.
+ * Log lines carry a wall-clock `time`: they describe the run, never the data, so reading the clock
+ * here does not affect determinism (§12).
  */
 import type { HttpClientEvent, HttpRequest } from './http/index.ts';
 
@@ -24,7 +21,6 @@ export interface Logger {
 export interface LoggerOptions {
   /** Receives one line, newline included. */
   write: (line: string) => void;
-  /** Enables `debug`. */
   verbose?: boolean;
   /** Milliseconds since the epoch. */
   now?: () => number;
@@ -44,7 +40,6 @@ export function createLogger(options: LoggerOptions): Logger {
   return { debug: log('debug'), info: log('info'), warn: log('warn'), error: log('error') };
 }
 
-/** A logger that drops everything. */
 export const silentLogger: Logger = {
   debug: () => undefined,
   info: () => undefined,
@@ -56,10 +51,7 @@ function errorReplacer(_key: string, value: unknown): unknown {
   return value instanceof Error ? { name: value.name, message: value.message } : value;
 }
 
-/**
- * `onEvent` handler of the HTTP client that logs its notifications. Log levels describe the run;
- * anomaly severity is decided elsewhere (§6.1).
- */
+/** Log levels describe the run; anomaly severity is decided elsewhere (§6.1). */
 export function logHttpEvents(logger: Logger): (event: HttpClientEvent) => void {
   return (event) => {
     switch (event.type) {
@@ -141,7 +133,7 @@ export function logHttpEvents(logger: Logger): (event: HttpClientEvent) => void 
   };
 }
 
-/** URL and, for internal reports, the body carrying the report URL (both unencoded). */
+/** Both unencoded. */
 function requestFields(request: HttpRequest): LogFields {
   return request.body === undefined ? { url: request.url } : { url: request.url, body: request.body };
 }

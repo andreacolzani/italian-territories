@@ -1,4 +1,3 @@
-/** Shared plumbing of the invariants (§8.1): ids, anomaly construction, small helpers. */
 import { compareDates, type HalfOpenInterval } from '../dates/index.ts';
 import type { Anomaly } from '../model/internal.ts';
 
@@ -21,12 +20,10 @@ export const INVARIANT_IDS = [
 ] as const;
 export type InvariantId = (typeof INVARIANT_IDS)[number];
 
-/** Stable anomaly code of an invariant: `invariant-i<n>`. */
 function invariantCode(id: InvariantId): string {
   return `invariant-${id.toLowerCase()}`;
 }
 
-/** A violation of invariant `id`: `blocking`, with `context.invariant`. */
 export function violation(id: InvariantId, message: string, context: Record<string, unknown>): Anomaly {
   return {
     level: 'blocking',
@@ -36,7 +33,6 @@ export function violation(id: InvariantId, message: string, context: Record<stri
   };
 }
 
-/** The part of `a` that is also in `b`, `null` when they do not overlap. */
 export function intersection(a: HalfOpenInterval, b: HalfOpenInterval): HalfOpenInterval | null {
   const validFrom = compareDates(a.validFrom, b.validFrom) >= 0 ? a.validFrom : b.validFrom;
   const validTo =

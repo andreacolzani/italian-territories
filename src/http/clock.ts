@@ -1,4 +1,4 @@
-/** Time source of the HTTP client, injectable so tests run on virtual time. */
+/** Injectable so tests run on virtual time. */
 export interface Clock {
   /** Milliseconds since the epoch. */
   now: () => number;

@@ -1,26 +1,10 @@
 /**
- * Circuit breaker per request family (§6.1, D38).
- *
- * - **Closed**: failed attempts (transport failures and transient validation errors) are counted;
- *   a success resets the count. The circuit opens when the consecutive failures reach `threshold`
- *   **and** have lasted at least `minFailureMs` (a blip of a few seconds never opens it), and come
- *   from more than one request: a single request failing alone (no other traffic, e.g. a URL that
- *   always fails) never opens it; at that point it gives up instead (`alone`) and the streak ends.
- *   A request out of attempts with no success of its family since its first failure (the family
- *   may be down, not just this request) waits for the family's verdict (`awaitVerdict`) instead
- *   of failing alone: a success of the family gives it another attempt, an opening holds it like
- *   the others, a lost family fails it. Meanwhile one of the waiting requests tries again every
- *   `cycleMs`, so the streak goes on towards a verdict.
- * - **Open**: requests are not sent; they wait. After a cooldown (`cooldownMs`, doubled at every
- *   reopening up to `maxCooldownMs`) one request is let through as a probe: its success closes the
- *   circuit, its failure reopens it. A success of a request already in flight closes it as well.
- * - **Lost**: once the open periods of the run add up to `maxOpenMs`, the family is given up for
- *   the rest of the run and every request fails immediately (the caller throws `CircuitOpenError`).
- *   The last probe is scheduled at that limit, so a family is lost only after a failed probe.
- *
- * Time comes from the injectable `Clock`; only the request that will probe (or try again for the
- * waiting ones) sleeps, the others wait for the next state change, so a virtual clock advances once
- * per cooldown or cycle.
+ * D38. A streak must last `minFailureMs` (a blip never opens the circuit) and involve more than one
+ * request (a URL that always fails gives up alone instead). A request out of attempts with no family
+ * success since its first failure waits for the family's verdict: the family may be down, not the
+ * request. The last probe is scheduled at `maxOpenMs`, so a family is lost only after a failed probe.
+ * Only the request that probes or retries sleeps, so a virtual clock advances once per cooldown or
+ * cycle.
  */
 import type { Clock } from './clock.ts';
 
@@ -32,13 +16,11 @@ export interface CircuitBreakerOptions {
   maxOpenMs: number;
 }
 
-/** What a request may do: send normally, send as the probe of an open circuit, or give up. */
 export type Admission = { kind: 'closed' } | { kind: 'probe' } | { kind: 'lost'; reason: string };
 
-/** The verdict a request out of attempts waited for: try again, wait for the open circuit, or give up. */
 export type Verdict = { kind: 'retry' } | { kind: 'open' } | { kind: 'lost'; reason: string };
 
-/** A state change, for the client's notifications; `alone`: the request must give up (not an event). */
+/** `alone` is not an event: the request must give up. */
 export type Transition =
   | { kind: 'alone' }
   | { kind: 'opened'; reason: string; retryInMs: number }
@@ -51,15 +33,13 @@ type FamilyState =
       kind: 'closed';
       failures: number;
       since: number;
-      /** Requests (tokens) with a failure in the current streak. */
       members: Set<unknown>;
-      /** A request out of attempts is waiting for its next try on behalf of the waiting ones. */
+      /** One request retries on behalf of the waiting ones. */
       driving: boolean;
     }
   | {
       kind: 'open';
       reason: string;
-      /** Start of this open period. */
       openedAt: number;
       cooldownMs: number;
       probeAt: number;
@@ -71,7 +51,6 @@ export class CircuitBreaker {
   readonly #options: CircuitBreakerOptions;
   readonly #clock: Clock;
   readonly #states = new Map<string, FamilyState>();
-  /** Open time of the periods already closed, by family. */
   readonly #openMs = new Map<string, number>();
   readonly #waiters = new Map<string, (() => void)[]>();
   readonly #successes = new Map<string, number>();
@@ -81,7 +60,6 @@ export class CircuitBreaker {
     this.#clock = clock;
   }
 
-  /** Open or lost: requests of the family are not being sent. */
   isOpen(family: string): boolean {
     return this.#state(family).kind !== 'closed';
   }
@@ -90,22 +68,16 @@ export class CircuitBreaker {
     return this.#state(family).kind === 'lost';
   }
 
-  /** Why the family was given up, `undefined` while it is not lost. */
   lostReason(family: string): string | undefined {
     const state = this.#state(family);
     return state.kind === 'lost' ? state.reason : undefined;
   }
 
-  /** Successful attempts of the family so far: a request compares it with its first failure. */
+  /** A request compares it with the count at its first failure. */
   successes(family: string): number {
     return this.#successes.get(family) ?? 0;
   }
 
-  /**
-   * Holds a request out of attempts until the family has a verdict: a success (`retry`), an
-   * opening (`open`: `admit` holds it from now on) or a lost family. One waiting request at a time
-   * gets `retry` after `cycleMs` without a verdict, to try again on behalf of the others.
-   */
   async awaitVerdict(family: string, cycleMs: number): Promise<Verdict> {
     for (;;) {
       const state = this.#state(family);
@@ -126,7 +98,6 @@ export class CircuitBreaker {
     }
   }
 
-  /** Waits until a request of the family may be sent (or the family is lost). */
   async admit(family: string): Promise<Admission> {
     for (;;) {
       const state = this.#state(family);
@@ -160,10 +131,7 @@ export class CircuitBreaker {
     return { kind: 'closed', openMs };
   }
 
-  /**
-   * `probe`: the attempt was the probe of an open circuit (its failure reopens it); `token`
-   * identifies the request, so a streak of a single request never opens the circuit.
-   */
+  /** `token` identifies the request, so a single request's streak never opens the circuit. */
   recordFailure(family: string, reason: string, probe = false, token?: unknown): Transition | null {
     const state = this.#state(family);
     const now = this.#clock.now();
@@ -204,10 +172,7 @@ export class CircuitBreaker {
     return { kind: 'reopened', reason: why, retryInMs: probeAt - now };
   }
 
-  /**
-   * The probe ended without a verdict (a permanent validation error, a non-retryable status, a
-   * bug: D26): the next waiting request probes at once.
-   */
+  /** A probe without a verdict (D26): the next waiting request probes at once. */
   abandonProbe(family: string): void {
     const state = this.#state(family);
     if (state.kind !== 'open' || !state.probing) return;

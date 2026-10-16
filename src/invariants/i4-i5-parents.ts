@@ -1,13 +1,4 @@
-/**
- * Invariants on the references of a version to its parents (§8.1):
- *
- * - **I4** every `provinceId`/`regionId` references an entity whose versions cover the **entire**
- *   interval of the referencing version. A null reference (left undetermined by the version builder,
- *   §6.9) is a violation too.
- * - **I5** the `regionId` of a municipality version equals the `regionId` of its province over the
- *   whole interval. Versions whose province or region is null, and the parts of the interval a
- *   province does not cover (I4's), are skipped.
- */
+/** §8.1. I5 skips null parents and the parts a province does not cover: they are I4's. */
 import { compareEnds, cover } from '../build/timeline.ts';
 import { compareDates, type HalfOpenInterval } from '../dates/index.ts';
 import type { EntityId } from '../model/common.ts';
@@ -17,7 +8,6 @@ import type { InvariantEntities } from './world.ts';
 
 type Referencing = HalfOpenInterval;
 
-/** The parts of `interval` not covered by the versions of `parent`. */
 function uncovered(interval: HalfOpenInterval, parent: Entity | undefined): HalfOpenInterval[] {
   if (parent === undefined) return [range(interval)];
   const versions = [...parent.versions].sort((a, b) => compareDates(a.validFrom, b.validFrom));

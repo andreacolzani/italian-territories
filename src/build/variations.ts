@@ -1,53 +1,9 @@
 /**
- * Variations, participants and links (§4.3), from the public event lists and the internal
- * event histories, over the versions built by the version builder (§6.9).
- *
- * 1. **Facts.** Every event row becomes a fact `(level, date, entity, event code)`:
- *    - internal events (r4/r5/r6) belong to the entity whose ISTAT origin id is the root of their
- *      identity component (§5.1); they carry the act id and the description, and for regions and
- *      UTS the associated territories of their details (r7/r8);
- *    - public rows identify their subject and related territory through the code resolver, on the
- *      sides of their event rule (`event-rules.ts`, §3.5 item 6);
- *    - a public row is matched to the internal event of the same `(date, entity, event code)`,
- *      which provides `istat_act_id` and `description`; unmatched rows keep both null. Without an
- *      exact match, an internal event of the same `(date, entity)` with an equivalent code of the
- *      closed table (`EVENT_CODE_EQUIVALENCES`, D48) is matched when it is the only one (one act,
- *      one code) and no row of another code took it, and the fact takes the public code (§3); the
- *      matches are one aggregated `info` (`event-code-mismatch`), an ambiguous equivalence is
- *      `blocking` (`event-code-equivalence-ambiguous`).
- * 2. **Grouping.** One variation per `(istat_act_id, date)`, across levels (`act:<act>:<date>`).
- *    Facts without act id are grouped per date and level into the connected components of the
- *    entities they mention (subject or related), keyed by the smallest subject entity id
- *    (`nk:<date>:<level>:<entity id>`); they never join a variation with an act id. A fact without
- *    act id whose links `(date, level, from, to)` all exist already in a fact with an act id is
- *    explained by that act's variation (D43): it forms no `nk:` variation, its rows are accounted
- *    to that variation, and the explained rows are one aggregated `info` (`link-explained-by-act`).
- * 3. **Effect**, per fact: a closing event needs the subject's version ending on `D`, an opening
- *    event the version starting on `D`, an attribute change both (a version boundary on `D`); a
- *    territorial event needs the subject to exist around `D`, and claims its version boundary on
- *    `D` only when no other event of the entity on `D` (in any act) explains it already: an
- *    attribute change carried by territorial events only (§4.3 `changed`). A
- *    fact without effect is dropped and logged (`info`; e.g. the same-day `AP` of a municipality
- *    suppressed on that day, golden-6), and its participation keeps `role: null` when nothing else
- *    of the entity has an effect in that variation.
- * 4. **Participants**: one per entity and variation, with the codes of its effective facts (sorted), the
- *    versions they claim (by `validFrom`, D40) and the role of §4.3; `abroad` when a counterpart is a
- *    foreign state.
- * 5. **Links**: the territory flows of effective facts between two entities of the same level,
- *    once per `(from, to)`. The kind follows from the effect (§4.3): `merged_into` when `from` no
- *    longer exists on `D`, otherwise `detached_into` when `to` did not exist on `D − 1`, otherwise
- *    `transferred_to`.
- * 6. **Uncovered version boundaries** (I9): a boundary between two contiguous versions whose parent
- *    (province or region) changes gets an `indirect` participant in the variation of `D` where an
- *    old or new parent participates (the first by natural key). Otherwise, a boundary already
- *    reported upstream (`identity-cadastral-continuity`, `name-change-without-event`,
- *    `inferred-breakpoint`) gets an `inferred` variation (`inferred:<date>:<level>:<entity id>`);
- *    any other uncovered boundary is `blocking` (`version-boundary-unexplained`).
- *
- * Events dated after `today` (public rows or internal events) are ignored: they enter the build on
- * the day they take effect (dropped as `future`, one aggregated `info`, `future-event-ignored`).
- *
- * Every event row is accounted for (I14): represented in a variation, or dropped with a reason.
+ * §4.3. Facts without act never join a variation with an act, but a fact whose links all exist in an
+ * act's variation is accounted to it (D43). A territorial event claims a version boundary only when
+ * no other event of the entity explains it. A fact without effect is dropped (the same-day `AP` of a
+ * municipality suppressed that day, golden-6). Events after `today` enter the build on the day they
+ * take effect (D49). Every event row is accounted for (I14).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { canonicalJson } from '../http/index.ts';
@@ -77,26 +33,21 @@ import type { EventRowByLevel } from '../sources/situas-public/index.ts';
 import { equivalentEventCodes, eventRule, reportMissingRule, type EventRule } from './event-rules.ts';
 import type { IdentifiedEntity } from './timeline.ts';
 
-/** An internal event as the variation builder needs it. */
 export interface InternalVariationEvent {
-  /** Root of the event's identity component: the ISTAT origin id of its entity (§5.1). */
   root: number;
   event: IstatEventCode;
   date: IsoDate;
-  /** Code of the subject at the time of the event. */
+  /** At the time of the event. */
   code: string;
   actId: number;
   description: string | null;
-  /** Associated territories (r7/r8); `null` when not available (municipalities, failed details). */
+  /** `null` for municipalities and failed details. */
   details: readonly { abroad: boolean; code: string | null }[] | null;
 }
 
 export interface VariationLevelInput<L extends Level> {
-  /** Entities with their registered versions. */
   entities: readonly EntityByLevel[L][];
-  /** Snapshot intervals of each entity. */
   identified: readonly IdentifiedEntity<L>[];
-  /** Resolver (with the same-day aliases) and transitions of the level. */
   identity: Pick<LevelIdentity<L>, 'resolver' | 'transitions'>;
   eventLists: LevelEventLists<L>;
   /** `null` when the level was not crawled. */
@@ -107,14 +58,11 @@ export interface BuildVariationsOptions {
   levels: { [L in Level]?: VariationLevelInput<L> };
   /** First calendar date: versions starting on it open no variation (`PV`, I9). */
   start: IsoDate;
-  /** Reference date of the run: events dated after it are ignored (dropped as `future`). */
   today: IsoDate;
-  /** Calendar dates whose only source is an inferred breakpoint. */
   inferredDates: ReadonlySet<IsoDate>;
   anomalies: AnomalyCollector;
 }
 
-/** A variation before its registry id (§5.3), with its natural key. */
 export interface VariationDraft extends Omit<Variation, 'id'> {
   key: string;
 }
@@ -129,52 +77,35 @@ export const DROP_REASONS = [
 ] as const;
 export type DropReason = (typeof DROP_REASONS)[number];
 
-/** What became of one event row (I14). */
 export interface EventAccount {
-  /** Endpoint id of the row (`events:pfun-<id>`, `r4:region-events`, …). */
   source: string;
   /** Position of the row in its public list, or in the internal events of its level. */
   index: number;
   level: Level;
   event: IstatEventCode;
   date: IsoDate;
-  /** Natural key of the variation representing the row; `null` when dropped. */
+  /** `null` when dropped. */
   variation: string | null;
   dropped: DropReason | null;
 }
 
 export interface VariationBuild {
-  /** Sorted by date, then natural key. */
   variations: VariationDraft[];
   accounts: EventAccount[];
 }
 
-/** Stable anomaly codes of the variation builder (§8.2). */
 const VARIATION_ANOMALIES = {
-  /** An internal event whose identity component is the root of no entity. */
   unknownEntity: 'variation-entity-unknown',
-  /** A public row matching internal events of several acts. */
   actAmbiguous: 'variation-act-ambiguous',
-  /** An event row without effect, dropped (§4.3). */
   withoutEffect: 'participation-without-effect',
-  /** A version boundary that no event, parent change or upstream warning explains (I9). */
   boundaryUnexplained: 'version-boundary-unexplained',
-  /** A participant inconsistent with the role table (§4.3). */
   participantInconsistent: 'variation-participant-inconsistent',
-  /**
-   * A UTS version boundary where only the abbreviation changes, without an event: abbreviations are
-   * not ISTAT acts (e.g. Forlì-Cesena `FO` → `FC` on 1999-01-01). `warning`, `inferred` variation.
-   */
+  /** Abbreviations are not ISTAT acts (Forlì-Cesena `FO` → `FC` on 1999-01-01, D34). */
   abbreviationChange: 'abbreviation-change-without-event',
-  /** An establishment whose associated territory is the subject itself (`info`, not a predecessor). */
   selfReference: 'self-reference-ignored',
-  /** Public rows without act whose links are already in a variation with an act (`info`, D43). */
   linkExplainedByAct: 'link-explained-by-act',
-  /** Public rows matched to internal events with an equivalent event code (`info`, D48). */
   eventCodeMismatch: 'event-code-mismatch',
-  /** A public row whose equivalent internal events are not unique, or claimed by another code (`blocking`, D48). */
   equivalenceAmbiguous: 'event-code-equivalence-ambiguous',
-  /** Events dated after today, ignored until they take effect (`info`, one aggregated anomaly). */
   futureEvent: 'future-event-ignored',
 } as const;
 
@@ -184,7 +115,6 @@ const INTERNAL_SOURCES: Readonly<Record<Level, string>> = {
   municipality: 'r6:municipality-events',
 };
 
-/** The internal events of a crawled level, with their details. */
 export function internalVariationEvents(
   crawl: {
     graph: {
@@ -214,7 +144,6 @@ export function internalVariationEvents(
 
 type AnyVersion = VersionByLevel[Level];
 
-/** An event of one entity on one date, from one or more rows. */
 interface Fact {
   level: Level;
   date: IsoDate;
@@ -223,19 +152,13 @@ interface Fact {
   entityId: EntityId;
   actId: number | null;
   description: string | null;
-  /** Related entities of the same level, by resolved row. */
   related: Set<EntityId>;
-  /**
-   * Codes of the associated territories of the internal event's details (r7/r8, r9 for the
-   * ambiguous municipality events): they tell the acts of an ambiguous public row apart.
-   */
+  /** They tell the acts of an ambiguous public row apart. */
   associatedCodes: Set<string>;
   abroad: boolean;
-  /** The rows of the fact, for the accounting (I14). */
   rows: EventAccount[];
 }
 
-/** Versions and intervals of the entities of one level. */
 class LevelEntities {
   readonly level: Level;
   readonly #versions = new Map<EntityId, AnyVersion[]>();
@@ -266,12 +189,10 @@ class LevelEntities {
     return this.#byRoot.get(root);
   }
 
-  /** The version of `entityId` ending on `date` (`validTo = date`). */
   ending(entityId: EntityId, date: IsoDate): AnyVersion | undefined {
     return this.#versions.get(entityId)?.find((v) => v.validTo === date);
   }
 
-  /** The version of `entityId` starting on `date`. */
   starting(entityId: EntityId, date: IsoDate): AnyVersion | undefined {
     return this.#versions.get(entityId)?.find((v) => v.validFrom === date);
   }
@@ -369,7 +290,6 @@ export function buildVariations(options: BuildVariationsOptions): VariationBuild
   return { variations: drafts, accounts };
 }
 
-/** Facts of one level: internal events, then public rows matched to them or kept on their own. */
 function levelFacts(
   level: Level,
   input: VariationLevelInput<Level>,
@@ -398,9 +318,8 @@ function levelFacts(
     return entry;
   };
   /**
-   * The entity a row code identifies. A territory of a territorial event is looked up on `D` and,
-   * when the code does not exist there, on `D − 1`: it ceases that day (e.g. Tenda gives part of
-   * its territory to Limone Piemonte and is ceded abroad on 1947-09-16, §6.6, D33).
+   * A territory of a territorial event falls back to `D − 1`: it may cease that day (Tenda, ceded
+   * abroad on 1947-09-16, D33).
    */
   const entityOf = (query: ResolveQuery, rule: EventRule, context: Record<string, unknown>): EntityId | null => {
     let resolution: Resolution | null;
@@ -429,9 +348,7 @@ function levelFacts(
   };
 
   const internalByKey = new Map<string, Fact[]>();
-  /** Event code of the internal events, kept when the fact takes the code of a public row. */
   const internalEvent = new Map<Fact, IstatEventCode>();
-  /** Event code of the public rows matched to an internal fact. */
   const publicEvent = new Map<Fact, IstatEventCode>();
   const facts: Fact[] = [];
   const source = INTERNAL_SOURCES[level];
@@ -497,11 +414,7 @@ function levelFacts(
     internalByKey.set(key, [...(internalByKey.get(key) ?? []), fact]);
   });
 
-  /**
-   * The internal facts of a public row by an equivalent event code (D48): only when the internal
-   * events of `(date, entity)` with an equivalent code are of one act and one code; `null` when
-   * they are not (`blocking`), `undefined` when there are none.
-   */
+  /** D48. `null`: not unique (`blocking`); `undefined`: none. */
   const equivalentFacts = (
     row: EventRowByLevel[Level],
     entityId: EntityId,
@@ -629,11 +542,7 @@ function levelFacts(
   return facts;
 }
 
-/**
- * In an establishment, an associated territory equal to the subject (same code: the same identity
- * component) is not a predecessor: it is not resolved and produces no link (golden-20, Caserta 1945).
- * Reported once per build, as one aggregated `info`.
- */
+/** An associated territory equal to the subject is not a predecessor (golden-20, Caserta 1945). */
 interface SelfReference {
   level: Level;
   event: IstatEventCode;
@@ -643,7 +552,6 @@ interface SelfReference {
   actId: number | null;
 }
 
-/** Public rows of one level, public code, internal code and act matched by equivalence (D48). */
 interface CodeMismatch {
   level: Level;
   publicEvent: IstatEventCode;
@@ -652,7 +560,6 @@ interface CodeMismatch {
   count: number;
 }
 
-/** The internal fact a public row belongs to: the only act among the candidates, if any. */
 function matchInternal(
   candidates: readonly Fact[] | undefined,
   level: Level,
@@ -678,11 +585,6 @@ function matchInternal(
   return undefined;
 }
 
-/**
- * The facts without the facts without act whose links all exist already in a fact with an act of
- * the same date and level (D43): their rows are accounted to that act's variation, and reported as
- * one aggregated `info`. Only facts with an effect and links count on the side of the acts.
- */
 function withoutLinksOfActs(
   facts: readonly Fact[],
   levels: ReadonlyMap<Level, { entities: LevelEntities }>,
@@ -724,7 +626,6 @@ function withoutLinksOfActs(
   return kept;
 }
 
-/** Facts by variation key: `act:<act>:<date>`, or the connected components of the others. */
 function groupFacts(facts: readonly Fact[]): Map<string, Fact[]> {
   const groups = new Map<string, Fact[]>();
   const add = (key: string, fact: Fact): void => {
@@ -768,7 +669,6 @@ function groupFacts(facts: readonly Fact[]): Map<string, Fact[]> {
   return groups;
 }
 
-/** The variation of one group, or `null` when none of its facts has an effect. */
 function buildDraft(
   key: string,
   group: readonly Fact[],
@@ -854,10 +754,6 @@ function buildDraft(
   };
 }
 
-/**
- * The versions a fact claims, or `null` when it has no effect (§4.3). A territorial fact claims
- * the boundary of its date only when no other event of the entity (`explained`) does.
- */
 function effectOf(
   fact: Fact,
   entities: LevelEntities,
@@ -905,7 +801,6 @@ function linkKind(from: EntityId, to: EntityId, date: IsoDate, entities: LevelEn
   return 'transferred_to';
 }
 
-/** The role of a participant with effective events (§4.3 role table). */
 function roleOf(participant: Participant, key: string, anomalies: AnomalyCollector): ParticipantRole | null {
   const { istatEvents: events, versionBefore: before, versionAfter: after } = participant;
   const has = (...codes: IstatEventCode[]): boolean => codes.some((c) => events.includes(c));
@@ -925,7 +820,7 @@ function roleOf(participant: Participant, key: string, anomalies: AnomalyCollect
   return null;
 }
 
-/** The most frequent description of the group's internal events (ties: the smallest text). */
+/** Ties: the smallest text. */
 function descriptionOf(group: readonly Fact[]): string | null {
   const counts = new Map<string, number>();
   for (const fact of group) {
@@ -938,10 +833,6 @@ function descriptionOf(group: readonly Fact[]): string | null {
   return best?.[0] ?? null;
 }
 
-/**
- * Version boundaries not claimed by any participant (I9): `indirect` participants for parent
- * changes, `inferred` variations for boundaries reported upstream, `blocking` otherwise.
- */
 function coverBoundaries(
   drafts: VariationDraft[],
   levels: ReadonlyMap<Level, { input: VariationLevelInput<Level>; entities: LevelEntities }>,
@@ -1034,23 +925,17 @@ function coverBoundaries(
   }
 }
 
-/** The abbreviation of a UTS version (`null` for other levels or when undetermined). */
 function abbreviationOf(version: AnyVersion): string | null {
   return 'abbreviation' in version ? version.abbreviation : null;
 }
 
-/** Two UTS versions that differ in the abbreviation and in no other published field. */
 function onlyAbbreviationChanges(before: AnyVersion, after: AnyVersion): boolean {
   const rest = (version: AnyVersion) =>
     canonicalJson({ ...version, validFrom: undefined, validTo: undefined, abbreviation: undefined });
   return abbreviationOf(before) !== abbreviationOf(after) && rest(before) === rest(after);
 }
 
-/**
- * The parents (old and new province and region) of a boundary where a parent changes, none
- * otherwise: e.g. a municipality whose province changes region is hosted by the variation of its
- * province.
- */
+/** A municipality whose province changes region is hosted by the province's variation. */
 function parentChange(before: AnyVersion, after: AnyVersion): [Level, EntityId][] {
   const fields = [
     ['province', 'provinceId'],
@@ -1064,7 +949,6 @@ function parentChange(before: AnyVersion, after: AnyVersion): [Level, EntityId][
   );
 }
 
-/** An ISTAT variation where one of `parents` participates and the entity does not yet. */
 function hosts(
   draft: VariationDraft,
   parents: readonly [Level, EntityId][],
@@ -1078,7 +962,6 @@ function hosts(
   );
 }
 
-/** Boundaries `<entity>|<date>` reported upstream: cadastral continuity, renames without event. */
 function warnedBoundaries(input: VariationLevelInput<Level>, entities: LevelEntities): Set<string> {
   const warned = new Set<string>();
   const { transitions } = input.identity;
@@ -1104,7 +987,6 @@ function unexplained(
   });
 }
 
-/** Registry ids of the variations (§5.3). */
 export function registerVariations(
   registry: Registry,
   drafts: readonly VariationDraft[],

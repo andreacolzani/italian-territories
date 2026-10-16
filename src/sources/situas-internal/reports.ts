@@ -1,12 +1,7 @@
 /**
- * Endpoints of the SITUAS internal reports 1–9 (§3.3), normalised (§6.2). Field names are
- * mapped explicitly per report (they differ in casing and wording, e.g. r4 calls the current
- * region code `codice uts corrente`; r7/r8 give the event only as `<code>-<label>` and r8 the UTS
- * type only as a label). Internal reports accept every event code of §2; whether a
- * `(level, code)` pair is meaningful is decided when building variations.
- *
- * Responses may be double-encoded JSON (non-empty) or plain JSON served as `text/plain`
- * (empty); `jsonRowsDecoder` handles both (§3.3).
+ * §3.3. Field names differ per report in casing and wording, so each is mapped explicitly (D29).
+ * Internal reports accept every event code: whether a `(level, code)` pair means something is decided
+ * by the variation builder. Non-empty responses are double-encoded JSON, empty ones `text/plain`.
  */
 import { z } from 'zod';
 import type { IsoDate } from '../../dates/index.ts';
@@ -31,7 +26,7 @@ import {
 } from '../normalise.ts';
 import { INTERNAL_REPORTS, type InternalReportNumber } from './requests.ts';
 
-/** r1: every region or compartment record ever. */
+/** r1. */
 export interface RegionListRecord {
   code: string;
   name: string;
@@ -39,7 +34,7 @@ export interface RegionListRecord {
   originId: number;
 }
 
-/** r2: every typed UTS record ever. */
+/** r2. */
 export interface UtsListRecord {
   code: string;
   name: string;
@@ -47,7 +42,7 @@ export interface UtsListRecord {
   originId: number;
 }
 
-/** r3: every `(code, name)` pair of a municipality ever. */
+/** r3. */
 export interface MunicipalityListRecord {
   code: string;
   name: string;
@@ -56,48 +51,47 @@ export interface MunicipalityListRecord {
 interface InternalEventBase {
   event: IstatEventCode;
   date: IsoDate;
-  /** Code and name at the time of the event (§3.3). */
+  /** At the time of the event (§3.3). */
   code: string;
   name: string;
-  /** Name of the record today (`denominazione corrente`). */
+  /** Today's name (`denominazione corrente`). */
   currentName: string;
   description: string | null;
   /** `identificativo provvedimento`. */
   actId: number;
 }
 
-/** r4: event of a region record. */
+/** r4. */
 export interface InternalRegionEvent extends InternalEventBase {
   currentCode: string;
   type: RegionType;
   originId: number;
 }
 
-/** r5: event of a typed UTS record (`id_uts`, §3.5 item 14). */
+/** r5, per typed record (`id_uts`, §3.5 item 14). */
 export interface InternalUtsEvent extends InternalEventBase {
   utsId: number;
   type: UtsType;
   originId: number;
 }
 
-/** r6: event of a municipality. */
+/** r6. */
 export interface InternalMunicipalityEvent extends InternalEventBase {
   currentCode: string;
   originId: number;
 }
 
-/** r7: an associated territory of a region event. */
+/** r7. */
 export interface RegionEventDetail {
   event: IstatEventCode;
   date: IsoDate;
   code: string;
   name: string;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null } | null;
 }
 
-/** r8: an associated territory of a UTS event. */
+/** r8. */
 export interface UtsEventDetail {
   event: IstatEventCode;
   date: IsoDate;
@@ -105,19 +99,17 @@ export interface UtsEventDetail {
   name: string;
   type: UtsType;
   regionCode: string;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; type: UtsType | null; regionCode: string | null } | null;
 }
 
-/** r9: an associated territory of a municipality event. */
+/** r9. */
 export interface MunicipalityEventDetail {
   event: IstatEventCode;
   date: IsoDate;
   code: string;
   name: string;
   utsCode: string;
-  /** The related territory is a foreign state (`AS`, `AN`, `CE`, `AQ`; §3.5 item 15). */
   abroad: boolean;
   related: { code: string | null; name: string | null; utsCode: string | null } | null;
 }
@@ -331,10 +323,7 @@ function endpoint<T>(n: InternalReportNumber, row: z.ZodType<T>, nonEmpty: boole
   };
 }
 
-/**
- * Endpoints r1–r9. Lists (r1–r3) are never empty; event and detail reports may be (an empty
- * event list for a listed record is a crawl anomaly, not a transport problem).
- */
+/** An empty event list of a listed record is a crawl anomaly, not a transport problem. */
 export const INTERNAL_ENDPOINTS = {
   regionList: endpoint(1, regionList, true),
   utsList: endpoint(2, utsList, true),

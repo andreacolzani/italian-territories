@@ -1,25 +1,7 @@
 /**
- * `reports/changes.json` (§9): the diff between the previous release and the current one: entities
- * by id and versions by `(entity id, valid_from)` (D40) for every level, variations by id.
- *
- * Retroactivity is decided by the **days** whose published state changes (§9): an item is
- * retroactive iff it changes a day before the previous release's `data_version`. `affected_from`
- * (updated and removed items) is the first such day:
- *
- * - version: a field other than `valid_until` changed → its `valid_from`; only `valid_until` →
- *   the day after the earlier of the two ends (null = open), so closing an open version at `U`
- *   affects `U + 1` onwards and is additive when `U + 1` is not before the reference (§10.2);
- *   removed → its `valid_from`; added → retroactive iff its `valid_from` is before the reference. A
- *   version whose start moves is removed and added;
- * - variation: the earlier of the two dates; removed or added → its date;
- * - entity (entity-level fields only; its versions are items of their own): links → the earliest
- *   date among the links added or removed; `status` → the day after the last version's end, old or
- *   new; `is_former_italian` and `current_successors` carry no date (they follow
- *   from dated items, flagged on their own), so with only those `affected_from` is null and the
- *   item is not retroactive; removed → its first `valid_from`; added → retroactive iff its first
- *   `valid_from` is before the reference.
- *
- * Without a previous release everything is added and nothing is retroactive.
+ * §9. Retroactivity is decided by the days whose published state changes: closing an open version at
+ * `U` affects `U + 1` onwards (§10.2). `is_former_italian` and `current_successors` carry no date:
+ * they follow from dated items, which are flagged on their own.
  */
 import { assertIsoDate, compareDates, type IsoDate, minDate, nextDay } from '../dates/index.ts';
 import { canonicalJson } from '../http/index.ts';
@@ -32,12 +14,10 @@ export interface Release {
   generated_at: string;
 }
 
-/** The data a release diff compares: the public files and the variation report. */
 export interface ReleaseData extends PublicData {
   variations: Variation[];
 }
 
-/** The previous release, as far as the diff needs it. */
 export interface PreviousRelease extends ReleaseData {
   meta: Pick<Meta, 'data_version' | 'generated_at'>;
 }
@@ -100,11 +80,9 @@ export function computeChanges(previous: PreviousRelease | null, current: Releas
   return changes;
 }
 
-// ---------------------------------------------------------------------------------------------
-
-/** Changed fields of an item and the first day they affect (null: no dated change). */
 interface ItemDiff {
   fields: string[];
+  /** `null`: no dated change. */
   affectedFrom: IsoDate | null;
 }
 
@@ -158,7 +136,6 @@ function diff<T, K extends Record<string, string | number>>(
   return set;
 }
 
-/** Keys of `a` and `b` (in `b`'s order, then `a`'s) whose values differ, except `skip`. */
 function changedFields(a: object, b: object, skip: readonly string[]): string[] {
   const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter((k) => !skip.includes(k));
   const valueOf = (o: object, k: string) => canonicalJson((o as Record<string, unknown>)[k]);

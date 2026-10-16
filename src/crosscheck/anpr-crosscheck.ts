@@ -1,52 +1,9 @@
 /**
- * ANPR cross-check (§6.11): ANPR rows (half-open dates, from the adapter) joined to the municipality
- * versions after the derived fields. It never writes data and never blocks (D2, D22): divergences
- * are `warning`s, one per divergence; known ANPR gaps are `info`s, one per code (§8.2).
- *
- * **Join.** A version and a row are joined by cadastral code when both have one; when either has none
- * (pre-1930 suppressions, §3.5 item 3; ANPR rows without `CODCATASTALE`) they fall back to the ISTAT
- * code. A stretch of ANPR rows that no version matches is retried by ISTAT code (any cadastral code):
- * what it finds is joined, and the cadastral codes are then compared like the other attributes. Only
- * rows overlapping the version count; every anomaly gives the method (`matchedBy`: `cadastral` |
- * `istat-code`). The same rule holds for both methods: consecutive rows of the join key are compared
- * day by day; rows of the join key valid on the same day are ambiguous, and on those days only the
- * version is not compared (`info`), no row is chosen.
- *
- * **Attributes**, on the overlap of each version and row:
- * - ISTAT code: equal; cadastral code, when both have one: equal (it can differ only on a retried
- *   stretch);
- * - name: `DENOMINAZIONE_IT` (uppercase) equals the official or the Italian name in uppercase; equal
- *   only without diacritics and with uniform apostrophes (`Sampèire`/`SAMPEIRE`) is `info`, different
- *   even then is `warning`;
- * - province: `IDPROVINCIAISTAT` equals the historical code (`COD_PROV_STORICO`) of the version's
- *   province on the same dates (skipped where the province is undetermined, §6.9);
- * - a different ISTAT code, cadastral code or province is placed in the municipality's own history
- *   (its versions and their provinces' historical codes): a value it had earlier is an ANPR lag (`info`, e.g. Sardinia
- *   2026); otherwise a value it has later is an anachronism (`info`, e.g. Trentino 1920–23 in `022`,
- *   §3.4); a value that never appears in its history is a `warning`;
- * - `EX` region: the row overlapping the entity's last version with the latest start has region
- *   `EX` iff the entity is former Italian; ANPR missing the `EX` of a former Italian entity is `info`,
- *   an `EX` on an entity that is not former Italian is a `warning`.
- *
- * **Dates**, comparing coverages (an entity's versions; an ANPR key's rows: cadastral code, or ISTAT
- * code for rows without one):
- * - an entity no row matches: `info` (missing entity);
- * - a maximal period of existence no row covers: `info` (missing period);
- * - a period ANPR alone covers, in a stretch matching no version: `warning` (unmatched period);
- * - SITUAS covering more: more than one day `info` (missing period), e.g. Siamanna-Siapiccia from
- *   1947-11-28 in SITUAS, from 1947-12-13 in ANPR (golden-3);
- * - ANPR covering more, in a stretch it shares with SITUAS, by known cause (`info`, checked in this
- *   order): a municipality using the key at another time exists then under another key
- *   (anachronistic key); the period follows the last version of a former Italian municipality
- *   (cession extended); at most 365 days next to an establishment, reconstitution or suppression
- *   (boundary offset); otherwise `warning` (unmatched period);
- * - one day either way: `info` (off by one).
- *
- * Consecutive contiguous ANPR rows of one key with identical attributes are `info` (split rows).
- *
- * **As of today.** The data stop at `today`, so ANPR is compared only up to it: rows starting after
- * `today` are ignored and rows ending after it are open (an event ANPR already records takes effect
- * on its date, like the SITUAS events). Anomalies still identify the rows as stored.
+ * §6.11. Never writes data and never blocks (D2, D22). The cadastral code is missing for pre-1930
+ * suppressions (§3.5 item 3) and on some ANPR rows, so the join falls back to the ISTAT code. On days
+ * where several rows of the join key are valid no row is chosen. ANPR lags behind SITUAS (Sardinia
+ * 2026) and anticipates it (Trentino 1920–23 already in `022`, §3.4), so a value found elsewhere in
+ * the municipality's history is only `info`. The data stop at `today`, so ANPR is compared up to it.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareEnds, cover } from '../build/timeline.ts';
@@ -72,10 +29,8 @@ import { ANPR_ANOMALIES } from './anomalies.ts';
 
 export type MatchMethod = 'cadastral' | 'istat-code';
 
-/** The longest ANPR-only period next to an establishment or suppression that is an `info` (§6.11). */
 const MAX_BOUNDARY_OFFSET_DAYS = 365;
 
-/** A municipality entity with the derived field the cross-check compares. */
 export type CrossCheckMunicipality = MunicipalityEntity & Pick<DerivedFields, 'isFormerItalian'>;
 
 type InfoCode =
@@ -98,7 +53,6 @@ type InfoCode =
   | typeof ANPR_ANOMALIES.anachronisticProvince
   | typeof ANPR_ANOMALIES.formerItalianMissing;
 
-/** Aggregated `info` anomalies, emitted in this order. */
 const INFO_MESSAGES: Record<InfoCode, string> = {
   [ANPR_ANOMALIES.missingEntity]: 'municipalities absent from ANPR',
   [ANPR_ANOMALIES.missingPeriod]: 'periods of existence absent from ANPR',
@@ -127,12 +81,9 @@ interface VersionRef {
 }
 
 export function crossCheckAnpr(options: {
-  /** The ANPR rows (as stored, §6.3: without the CSV line). */
   anpr: { rows: readonly AnprRecord[] };
-  /** After the derived fields (§7). */
   municipalities: readonly CrossCheckMunicipality[];
   provinces: readonly ProvinceEntity[];
-  /** Reference date of the run: ANPR is compared only up to it. */
   today: IsoDate;
   anomalies: AnomalyCollector;
 }): void {
@@ -171,7 +122,6 @@ export function crossCheckAnpr(options: {
     }
   }
 
-  // Join by cadastral code when both sides have one, else by ISTAT code.
   const joinedRows = ({ version }: VersionRef): AnprRecord[] =>
     version.cadastralCode === null
       ? (rowsByCode.get(version.istatCode) ?? [])
@@ -181,9 +131,7 @@ export function crossCheckAnpr(options: {
       ? (versionsByCode.get(row.istatCode) ?? [])
       : [...(versionsByCadastral.get(row.cadastralCode) ?? []), ...(uncodedVersionsByCode.get(row.istatCode) ?? [])];
 
-  // ANPR keys: the cadastral code, or the ISTAT code for rows without one.
   const byKey = groupBy(rows, (r) => r.cadastralCode ?? `istat:${r.istatCode}`);
-  // A stretch of rows that the join leaves without any version is retried by ISTAT code.
   const retriedVersions = new Map<AnprRecord, VersionRef[]>();
   const retriedRows = new Map<MunicipalityVersion, AnprRecord[]>();
   for (const keyRows of byKey.values()) {
@@ -207,21 +155,17 @@ export function crossCheckAnpr(options: {
     ...joinedVersions(row),
     ...(retriedVersions.get(row) ?? []),
   ];
-  /** How a version and one of its rows were joined. */
   const methodOf = (version: MunicipalityVersion, row: AnprRecord): MatchMethod =>
     version.cadastralCode !== null && version.cadastralCode === row.cadastralCode ? 'cadastral' : 'istat-code';
 
-  /** The names (official and Italian, uppercase as ANPR writes them) of the entity's versions over `range`. */
   const namesIn = (entity: CrossCheckMunicipality, range: HalfOpenInterval): Set<string> =>
     new Set(
       entity.versions.filter((v) => overlaps(v, range)).flatMap((v) => [upper(v.officialName), upper(v.italianName)]),
     );
 
-  /** The ISTAT codes of the entity's versions over `range`. */
   const istatCodesIn = (entity: CrossCheckMunicipality, range: HalfOpenInterval): Set<string> =>
     new Set(entity.versions.filter((v) => overlaps(v, range)).map((v) => v.istatCode));
 
-  /** The cadastral codes of the entity's versions over `range`. */
   const cadastralCodesIn = (entity: CrossCheckMunicipality, range: HalfOpenInterval): Set<string> =>
     new Set(
       entity.versions
@@ -229,7 +173,6 @@ export function crossCheckAnpr(options: {
         .flatMap((v) => (v.cadastralCode === null ? [] : [v.cadastralCode])),
     );
 
-  /** The historical codes of the entity's provinces over `range`. */
   const provinceCodesIn = (entity: CrossCheckMunicipality, range: HalfOpenInterval): Set<string> => {
     const codes = new Set<string>();
     for (const version of entity.versions) {
@@ -244,11 +187,6 @@ export function crossCheckAnpr(options: {
     return codes;
   };
 
-  /**
-   * Where an ANPR value different from ours on `period` lies in the entity's history: `lagging` if
-   * the entity had it before `period` (checked first), `anachronistic` if it has it after, `null` if
-   * never.
-   */
   const placeInHistory = (
     entity: CrossCheckMunicipality,
     period: HalfOpenInterval,
@@ -265,7 +203,6 @@ export function crossCheckAnpr(options: {
     return null;
   };
 
-  /** Compares a version with one row on a period of their overlap where no other row is valid. */
   const compareRow = (ref: VersionRef, row: AnprRecord, period: HalfOpenInterval): void => {
     const { entity, version } = ref;
     const context = {
@@ -351,10 +288,6 @@ export function crossCheckAnpr(options: {
     }
   };
 
-  /**
-   * Compares the attributes of a version with its overlapping rows, day by day: on the days where
-   * several rows of the join key are valid the version is not compared.
-   */
   const compareAttributes = (ref: VersionRef, overlapping: readonly AnprRecord[]): void => {
     const { entity, version, matchedBy } = ref;
     const ambiguous = union(sharedDays(overlapping))
@@ -375,7 +308,6 @@ export function crossCheckAnpr(options: {
     }
   };
 
-  // SITUAS side: attributes, then the periods of each entity that no row covers.
   for (const entity of municipalities) {
     let matched = false;
     const uncovered: { piece: HalfOpenInterval; ref: VersionRef; rows: AnprRecord[] }[] = [];
@@ -416,7 +348,6 @@ export function crossCheckAnpr(options: {
       } else if (days(piece) === 1) {
         addInfo(ANPR_ANOMALIES.dateOffByOne, { ...item, side: 'situas-only' });
       } else {
-        // ANPR covers less than SITUAS: a missing part of a period (golden-3, Siamanna 1947).
         const anprRows = uniqueRows(inside.flatMap((u) => u.rows)).filter((r) => overlaps(segment, r));
         addInfo(ANPR_ANOMALIES.missingPeriod, {
           ...item,
@@ -428,7 +359,6 @@ export function crossCheckAnpr(options: {
       }
     }
 
-    // `EX` region against `is_former_italian`, on the entity's last version.
     const last = entity.versions.at(-1);
     if (last === undefined) continue;
     const lastRef: VersionRef = {
@@ -463,7 +393,6 @@ export function crossCheckAnpr(options: {
     );
   }
 
-  // ANPR side: split rows, then the periods of each key that no version covers.
   for (const [key, keyRows] of byKey) {
     const sorted = [...keyRows].sort((a, b) => compareDates(a.validFrom, b.validFrom) || compareAnprRecords(a, b));
     sorted.forEach((row, i) => {
@@ -516,7 +445,6 @@ export function crossCheckAnpr(options: {
           addInfo(known.code, { ...item, edge: edge(piece, stretch), ...known.context });
           continue;
         }
-        // ANPR covers more than SITUAS, for no known cause.
         warn(
           ANPR_ANOMALIES.unmatchedPeriod,
           `ANPR ${key}: ${describe(piece)} exists in ANPR, not in SITUAS ` +
@@ -547,11 +475,7 @@ export function crossCheckAnpr(options: {
   }
 }
 
-/** Uppercase as ANPR writes names (`Agliè` → `AGLIÈ`). */
-/**
- * The known cause of an ANPR-only `piece` next to the versions `near` (of the join key, in the
- * stretch), in the order of §6.11, or `null`.
- */
+/** In the order of §6.11. */
 function knownCause(
   piece: HalfOpenInterval,
   near: readonly VersionRef[],
@@ -589,11 +513,11 @@ function knownCause(
   return null;
 }
 
+/** ANPR writes names in uppercase (`Agliè` → `AGLIÈ`). */
 function upper(name: string): string {
   return name.toLocaleUpperCase('it');
 }
 
-/** The ANPR attributes whose equality makes two consecutive rows a split without change. */
 function attributeKey(row: AnprRecord): string {
   return JSON.stringify([
     row.istatCode,
@@ -606,7 +530,6 @@ function attributeKey(row: AnprRecord): string {
   ]);
 }
 
-/** Comparison key of names: uppercase, without diacritics, with uniform apostrophes and no spaces around them. */
 function looseName(name: string): string {
   return upper(name)
     .normalize('NFD')
@@ -616,7 +539,6 @@ function looseName(name: string): string {
     .normalize('NFC');
 }
 
-/** The days on which two of `rows` are valid (pairwise overlaps, not merged). */
 function sharedDays(rows: readonly AnprRecord[]): HalfOpenInterval[] {
   return rows.flatMap((a, i) =>
     rows
@@ -626,7 +548,6 @@ function sharedDays(rows: readonly AnprRecord[]): HalfOpenInterval[] {
   );
 }
 
-/** Overlapping or contiguous intervals merged, sorted. */
 function union(intervals: readonly HalfOpenInterval[]): HalfOpenInterval[] {
   const sorted = [...intervals].sort((a, b) => compareDates(a.validFrom, b.validFrom));
   const merged: HalfOpenInterval[] = [];
@@ -641,7 +562,6 @@ function union(intervals: readonly HalfOpenInterval[]): HalfOpenInterval[] {
   return merged;
 }
 
-/** The parts of `range` that no interval of `covering` covers. */
 function subtract(range: HalfOpenInterval, covering: readonly HalfOpenInterval[]): HalfOpenInterval[] {
   const covered = union(covering).map((i) => ({ ...i, value: true }));
   return cover(range, covered, false)
@@ -664,7 +584,6 @@ function days(interval: HalfOpenInterval): number {
   return interval.validTo === null ? Infinity : daysBetween(interval.validFrom, interval.validTo);
 }
 
-/** Where `piece` lies in `segment`. */
 function edge(piece: HalfOpenInterval, segment: HalfOpenInterval): 'start' | 'end' | 'inside' {
   if (piece.validFrom === segment.validFrom) return 'start';
   if (piece.validTo === segment.validTo) return 'end';
@@ -675,15 +594,9 @@ function describe({ validFrom, validTo }: HalfOpenInterval): string {
   return `[${validFrom}, ${validTo ?? '…'})`;
 }
 
-/** Identifies an ANPR row in anomaly contexts. */
-/**
- * Identifies an ANPR row in anomaly contexts: its store row hash (§6.3; unique, unlike the other
- * fields when ANPR repeats a row) and the fields a reader needs to find it.
- */
-/** The stored row of each row clipped by `asOf`: anomalies identify rows as stored. */
+/** Anomalies identify rows as stored, not as clipped by `asOf`. */
 const STORED = new WeakMap<AnprRecord, AnprRecord>();
 
-/** The rows as of `today`: those starting after it are dropped, those ending after it are open. */
 function asOf(rows: readonly AnprRecord[], today: IsoDate): AnprRecord[] {
   return rows
     .filter((row) => !isAfter(row.validFrom, today))
@@ -695,6 +608,7 @@ function asOf(rows: readonly AnprRecord[], today: IsoDate): AnprRecord[] {
     });
 }
 
+/** By store row hash: ANPR repeats rows with equal fields. */
 function rowRef(clipped: AnprRecord) {
   const row = STORED.get(clipped) ?? clipped;
   return {

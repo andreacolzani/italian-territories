@@ -59,7 +59,6 @@ const COURMAYEUR = municipalityPairs([
   ['001894', 'Courmayeur'],
 ]);
 
-/** Pairs of the real r3 list. */
 function municipalityPairs(pairs: [string, string][]): Record<string, unknown>[] {
   return pairs.map(([code, name]) => {
     const item = municipalityList.find((r) => r.pro_com_t === code && r.comune === name);

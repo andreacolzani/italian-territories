@@ -1,44 +1,18 @@
 /**
- * Derived fields (§7): `status`, `predecessors`, `successors`, `current_successors` and
- * `is_former_italian`, computed per level after the overrides from the versions and variations.
- *
- * - Links are taken by date, from every variation of that date (whatever act references the
- *   boundary), `transferred_to` excluded (it is never on the first or last version of an entity),
- *   joined without repetitions (same id, kind and date) and sorted by entity id, then kind:
- *   `predecessors` are the links of the level whose `to` is the entity, from the variations dated on
- *   the `validFrom` of its **first** version; `successors` the links whose `from` is the entity, from
- *   the variations dated on the `validTo` of its **last** version, only for suppressed entities
- *   (intermediate closures are ignored).
- * - `split_into` (D44): the `merged_into` links of one origin on one date, over every variation of
- *   that date, towards two or more distinct destinations; with one destination they stay
- *   `merged_into`. The kind is the same on both sides of the link.
- * - The role closing the last version is that of the entity's participants whose `versionBefore`
- *   is that version; participants without effect (`role: null`) are ignored.
- * - `current_successors` (municipalities only, D46; `null` for regions and provinces): closure
- *   over `successors` following `merged_into`, `split_into` and `detached_into` until active
- *   entities; visited entities are not followed again.
- * - `is_former_italian`: a suppressed entity whose last version was closed with role `ceded` is
- *   former Italian and a terminal point even when it has links (D33); any other suppressed entity is
- *   former Italian iff it has successors and all of them are. A path ending in an active entity or
- *   in a suppressed entity without successors is not former Italian.
- * - A cycle among the final closures (the successors of suppressed entities) is a `blocking` anomaly
- *   (`successor-cycle`), one per strongly connected component, with the entities involved; their
- *   derived fields are still computed (the build is blocked).
- *
- * The consistency of the result is invariant I11 (§8.1).
+ * §7. Links are taken by date from every variation of that date, whatever act references the
+ * boundary; `transferred_to` is never on a first or last version. Closing with `ceded` is terminal
+ * even when the entity has links (D33). On a successor cycle the fields are still computed: the
+ * build is blocked anyway.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import type { IsoDate } from '../dates/index.ts';
 import type { EntityId, Level, PublicLinkKind } from '../model/common.ts';
 import type { DerivedFields, Entity, EntityLink, Variation } from '../model/internal.ts';
 
-/** Stable anomaly codes of the derived fields (§8.2). */
 const DERIVED_ANOMALIES = {
-  /** The successors of suppressed entities form a cycle. */
   successorCycle: 'successor-cycle',
 } as const;
 
-/** Link kinds followed by `current_successors` and `is_former_italian` (§7). */
 const SUCCESSION_KINDS: readonly PublicLinkKind[] = ['merged_into', 'split_into', 'detached_into'];
 
 export type DerivedEntity<E> = E & DerivedFields;
@@ -153,10 +127,7 @@ function versionRef(entityId: EntityId, validFrom: IsoDate): string {
   return `${entityId}|${validFrom}`;
 }
 
-/**
- * `<date>|<origin>` of the origins whose `merged_into` links of that date, over every variation of
- * the date and level, reach two or more distinct destinations (D44).
- */
+/** D44: over every variation of the date, not only the act's. */
 function splitOrigins(variations: readonly Variation[], level: Level): Set<string> {
   const destinations = new Map<string, Set<EntityId>>();
   for (const variation of variations) {
@@ -171,11 +142,7 @@ function splitOrigins(variations: readonly Variation[], level: Level): Set<strin
   return new Set([...destinations].filter(([, set]) => set.size > 1).map(([key]) => key));
 }
 
-/**
- * The cycles of the graph `next` over `ids` (Tarjan): every strongly connected component with more
- * than one entity, or a single entity that is its own successor. Ids sorted, components sorted by
- * their first id.
- */
+/** Tarjan's strongly connected components. */
 function cycles(ids: readonly EntityId[], next: (id: EntityId) => EntityId[]): EntityId[][] {
   const index = new Map<EntityId, number>();
   const low = new Map<EntityId, number>();
@@ -212,11 +179,6 @@ function cycles(ids: readonly EntityId[], next: (id: EntityId) => EntityId[]): E
   return found.sort((a, b) => compareCodeUnits(a[0] ?? '', b[0] ?? ''));
 }
 
-/**
- * The published links of `level` in `variations` selected by `other` (the linked entity, or null
- * to skip): `transferred_to` left out, `merged_into` of a split origin as `split_into`, without
- * repetitions, sorted by entity id, then kind.
- */
 function entityLinks(
   variations: readonly Variation[],
   level: Level,

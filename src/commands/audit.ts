@@ -1,25 +1,9 @@
 /**
- * Audit (§10.1–§10.2): fresh SITUAS snapshots of random historical dates, to catch
- * retroactive ISTAT corrections over time.
- *
- * Samples are drawn in `[start, today)` by a PRNG seeded with `today`, so a run is reproducible.
- * For every sample `d` and level:
- * - `d` is a calendar date: the snapshot is refreshed and stored; the same content writes nothing,
- *   a different one replaces the stored content (with `history`, D32): a discrepancy (`changed`);
- * - otherwise the fresh snapshot is compared in memory with the stored snapshot of the previous
- *   calendar date `p`, which it must equal (§6.5); equal → nothing is stored. Different means ISTAT
- *   changed the history after it was stored (the bisection would have found the change), so `d` is
- *   not itself a breakpoint: `p` is fetched again (a changed content is a `changed` discrepancy on a
- *   calendar date); if the fresh `p` still differs from `d`, `(p, d]` is bisected with fresh
- *   snapshots and the first date differing from `p` becomes an `inferred` breakpoint, stored.
- *
- * Each correction makes the stored snapshots from `p` (or from the changed calendar date) to the
- * previous run's today obsolete: `refreshFrom` tells the caller where the refresh starts. Fetches
- * for corrections and refreshes share `update.maxRefreshSnapshots` (`refresh-too-large`).
- *
- * Within `update` the audit runs between the calendar and the snapshots, so its inferred dates and
- * changed snapshots enter the same build (which is then retroactive). Fetch failures are snapshot
- * failures (`snapshot-*`, §6.5).
+ * §10.2. Samples come from a PRNG seeded with `today`, so a run is reproducible. A sample that is not
+ * a calendar date must equal the stored snapshot of the previous calendar date `p` (§6.5): if it does
+ * not, ISTAT changed the history after it was stored (the bisection would have found the change), so
+ * `p` is fetched again first. Within `update` the audit runs before the snapshots, so its corrections
+ * enter the same build.
  */
 import {
   SNAPSHOT_ANOMALIES,
@@ -45,14 +29,11 @@ export interface AuditDiscrepancy {
 export interface AuditResult {
   samples: IsoDate[];
   discrepancies: AuditDiscrepancy[];
-  /** Dates of hidden changes found by bisection, to add to the calendar as `inferred`. */
   inferredDates: IsoDate[];
-  /** Earliest date from which the stored snapshots must be fetched again, `null` when none. */
   refreshFrom: IsoDate | null;
   failures: number;
 }
 
-/** `n` distinct dates of `[start, today)`, ascending, from a PRNG seeded with `today`. */
 export function sampleDates(start: IsoDate, today: IsoDate, n: number): IsoDate[] {
   const span = daysBetween(start, today);
   if (span <= 0 || n <= 0) return [];
@@ -64,7 +45,6 @@ export function sampleDates(start: IsoDate, today: IsoDate, n: number): IsoDate[
   return [...picked].sort((a, b) => a - b).map(fromDayNumber);
 }
 
-/** A small, well-distributed 32-bit PRNG (deterministic for a seed). */
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
@@ -95,7 +75,6 @@ export async function runAudit(
     if (refreshFrom === null || compareDates(date, refreshFrom) < 0) refreshFrom = date;
   };
 
-  /** Fresh snapshots of this audit, by level and date. */
   const fetched = new Map<string, Fresh>();
   const fresh = async (level: Level, date: IsoDate): Promise<Fresh> => {
     const key = `${level}|${date}`;
@@ -209,10 +188,7 @@ interface Fresh {
   hash: string;
 }
 
-/**
- * The snapshots a run may fetch again to correct the store (`update.maxRefreshSnapshots`), shared by
- * the audit corrections and the refresh of the stored snapshots. Once exhausted, the run blocks.
- */
+/** Shared by the audit corrections and the refresh of the stored snapshots; once exhausted, the run blocks. */
 export class RefreshBudget {
   #left: number;
   #exhausted = false;
@@ -227,7 +203,6 @@ export class RefreshBudget {
     return this.#left;
   }
 
-  /** Takes one fetch from the budget; `false` (and one blocking anomaly) when none is left. */
   consume(ctx: RunContext, count = 1): boolean {
     if (this.#left >= count) {
       this.#left -= count;
@@ -246,15 +221,12 @@ export class RefreshBudget {
   }
 }
 
-/** More stored snapshots to fetch again than `update.maxRefreshSnapshots`. */
 const REFRESH_TOO_LARGE = 'refresh-too-large';
 
 const AUDIT_ANOMALIES = {
-  /** A fresh sample disagrees with the store (`warning`; the run is retroactive). */
   discrepancy: 'audit-discrepancy',
 } as const;
 
-/** The last calendar date before `date`, which is not a calendar date: the start of its interval. */
 function previousCalendarDate(dates: readonly IsoDate[], date: IsoDate): IsoDate | undefined {
   let found: IsoDate | undefined;
   for (const d of dates) {

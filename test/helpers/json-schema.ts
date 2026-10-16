@@ -1,8 +1,4 @@
-/**
- * Validation of a published directory against the JSON Schemas it publishes (`schema/*.schema.json`,
- * §9), with Ajv (dev dependency, tests only). The formats the schemas use are defined with the
- * generator's own date rules (`date`: an existing calendar date; `date-time`: ISO 8601 UTC).
- */
+/** Ajv is a dev dependency, tests only. The formats follow the generator's own date rules. */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Ajv2020 } from 'ajv/dist/2020.js';
@@ -11,7 +7,6 @@ import { PUBLIC_FILE_MODELS, schemaFileName, type PublicFileName } from '../../s
 
 const DATE_TIME = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
-/** `<file>.json: <error>` for every published file that its published schema rejects. */
 export async function publishedSchemaViolations(dir: string): Promise<string[]> {
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   ajv.addFormat('date', isIsoDate);

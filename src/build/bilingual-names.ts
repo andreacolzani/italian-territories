@@ -1,13 +1,7 @@
 /**
- * Names of regions and UTS (§4.2, D7). A denomination without `/` is Italian only. A denomination
- * with `/` is bilingual and its Italian and foreign names come from a closed table, one entry per
- * denomination with its source; a normative source is required only where the decomposition is
- * not the trivial split of the two sides of the `/`.
- *
- * The decomposition rule (`-` separates territories, `/` the languages of one territory) is only a
- * check: every entry must coincide with it, otherwise the table is a defect of the repository and
- * this module refuses to load. A denomination with `/` missing from the table has no names
- * (`bilingual-name-unknown`, reported by the version builder with the suggested decomposition).
+ * §4.2, D7. Names with `/` come from a closed table, never from splitting: the decomposition rule
+ * (`-` separates territories, `/` the languages of one territory) is only a check, and a table that
+ * disagrees with it is a defect of the repository, so the module refuses to load.
  */
 
 export interface RegionalNames {
@@ -44,7 +38,6 @@ export const BILINGUAL_NAMES: readonly BilingualNameEntry[] = [
   },
 ];
 
-/** The table is inconsistent with the decomposition rule (a defect of the repository). */
 export class BilingualNameTableError extends Error {
   constructor(message: string) {
     super(message);
@@ -52,11 +45,6 @@ export class BilingualNameTableError extends Error {
   }
 }
 
-/**
- * The decomposition rule: every `-`-separated territory gives its Italian form (or its only form)
- * to the Italian name and its foreign form (or its only form) to the foreign name. `null` when the
- * denomination has no `/`, or a territory has more than two forms or an empty one.
- */
 export function decomposeBilingual(name: string): { italianName: string; foreignName: string } | null {
   if (!name.includes('/')) return null;
   const italian: string[] = [];
@@ -87,18 +75,13 @@ function loadTable(entries: readonly BilingualNameEntry[]): ReadonlyMap<string, 
   return table;
 }
 
-/** Checked when the module loads: an inconsistent table stops every build. */
 const TABLE = loadTable(BILINGUAL_NAMES);
 
-/** Checks a table against the rule (exported for tests). */
+/** Exported for tests. */
 export function checkBilingualTable(entries: readonly BilingualNameEntry[]): void {
   loadTable(entries);
 }
 
-/**
- * The names of a region or UTS denomination; a bilingual one missing from the table has null
- * Italian and foreign names (see {@link isUnknownBilingual}).
- */
 export function regionalNames(name: string): RegionalNames {
   if (!name.includes('/')) return { officialName: name, italianName: name, foreignName: null };
   const entry = TABLE.get(name);
@@ -106,7 +89,6 @@ export function regionalNames(name: string): RegionalNames {
   return { officialName: name, italianName: entry.italianName, foreignName: entry.foreignName };
 }
 
-/** A denomination with `/` that the table does not know. */
 export function isUnknownBilingual(name: string): boolean {
   return name.includes('/') && !TABLE.has(name);
 }

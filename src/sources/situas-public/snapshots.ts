@@ -1,7 +1,6 @@
 /**
- * Snapshot endpoints (§3.2): one per `pfun`, each reducing rows to the projection of its level
- * (§6.2). Field names differ by regime: `COD_COMP`/`COD_PROV`/`SIGLA_UTS` up to 1947,
- * `COD_REG`/`COD_UTS`/`SIGLA_AUTOMOBILISTICA` from 1948. Unknown fields are ignored (§3.5 item 2).
+ * Field names differ by regime: `COD_COMP`/`COD_PROV`/`SIGLA_UTS` up to 1947, `COD_REG`/`COD_UTS`/
+ * `SIGLA_AUTOMOBILISTICA` from 1948. Unknown fields are ignored (§3.5 item 2).
  */
 import { z } from 'zod';
 import { CONTENT_TYPES, jsonRowsDecoder, type Endpoint } from '../../http/index.ts';
@@ -10,15 +9,11 @@ import type { SnapshotRowByLevel } from '../../model/internal.ts';
 import { cadastralCode, optionalCode, optionalText, requiredCode, requiredText, utsType } from '../normalise.ts';
 import { describeSnapshotPfun, SNAPSHOT_PFUNS, type SnapshotPfun } from './pfun.ts';
 
-/** Normalised rows of one snapshot response. */
 export interface SnapshotRows<L extends Level = Level> {
   rows: SnapshotRowByLevel[L][];
-  /**
-   * Rows whose historical UTS code fell back to the UTS code because SITUAS omitted
-   * `COD_PROV_STORICO` (§3.5). Reported as `info`; not part of the projection.
-   */
+  /** SITUAS omitted `COD_PROV_STORICO`, so the UTS code stands in (§3.5 item 16); not in the projection. */
   historicalCodeFallbacks: number;
-  /** Distinct UTS codes (the row's own `COD_UTS`) of the fallback rows, sorted. */
+  /** The row's own `COD_UTS`. */
   historicalCodeFallbackUtsCodes: string[];
 }
 
@@ -125,7 +120,6 @@ const municipalityFrom1948 = z
     fallback: r.COD_PROV_STORICO === null ? r.COD_UTS : null,
   }));
 
-/** Row schema per snapshot `pfun`, indexed like {@link SNAPSHOT_PFUNS} (by regime). */
 const ROW_SCHEMAS: { [L in Level]: readonly z.ZodType<Projected<L>>[] } = {
   region: [regionBefore1948, regionBefore1948, regionFrom1948],
   province: [utsBefore1948, utsBefore1948, utsFrom1948],
@@ -142,7 +136,6 @@ function rowSchema(pfun: SnapshotPfun): { level: Level; schema: z.ZodType<Projec
 
 const endpoints = new Map<SnapshotPfun, Endpoint<SnapshotRows>>();
 
-/** Endpoint `snapshot:pfun-<id>`; municipality snapshots use the long `snapshot` timeout (§6.1). */
 export function snapshotEndpoint<L extends Level>(pfun: (typeof SNAPSHOT_PFUNS)[L][number]): Endpoint<SnapshotRows<L>>;
 export function snapshotEndpoint(pfun: SnapshotPfun): Endpoint<SnapshotRows>;
 export function snapshotEndpoint(pfun: SnapshotPfun): Endpoint<SnapshotRows> {

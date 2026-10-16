@@ -1,7 +1,5 @@
-/** Type-checks TypeScript files with the compiler API (tests only). */
 import ts from 'typescript';
 
-/** The diagnostics of a program of `files` with `options`, formatted one per line. */
 export function typeErrors(files: string[], options: ts.CompilerOptions): string[] {
   const program = ts.createProgram(files, { strict: true, noEmit: true, target: ts.ScriptTarget.ES2022, ...options });
   return ts.getPreEmitDiagnostics(program).map((d) => {

@@ -1,31 +1,21 @@
-/**
- * Piecewise-constant values over half-open intervals (§4.1), used to build versions (§6.9): which
- * entity a code identifies over time, which abbreviations the municipalities of a UTS report.
- */
 import { compareDates, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
 import type { EntityId, Level } from '../model/common.ts';
 import type { Dated } from '../model/internal.ts';
 import type { SnapshotInterval } from '../resolve/index.ts';
 
-/** An entity of the identity stage with its registry id. */
 export interface IdentifiedEntity<L extends Level = Level> {
   id: EntityId;
   istatOriginId: number | null;
-  /** Snapshot intervals of the entity, sorted, non-overlapping. */
   intervals: readonly SnapshotInterval<L>[];
 }
 
-/** Compares two interval ends; `null`, the open end, comes after every date. */
+/** `null`, the open end, comes after every date. */
 export function compareEnds(a: IsoDate | null, b: IsoDate | null): number {
   if (a === null) return b === null ? 0 : 1;
   if (b === null) return -1;
   return compareDates(a, b);
 }
 
-/**
- * The pieces of `dated` (sorted, non-overlapping) inside `range`, clipped to it, with `gap`
- * where none covers it: the result covers `range` exactly.
- */
 export function cover<T>(range: HalfOpenInterval, dated: readonly Dated<T>[], gap: T): Dated<T>[] {
   const pieces: Dated<T>[] = [];
   let cursor: IsoDate | null = range.validFrom;
@@ -46,14 +36,12 @@ export function cover<T>(range: HalfOpenInterval, dated: readonly Dated<T>[], ga
   return pieces;
 }
 
-/** The value of `pieces` (covering the date) on `date`. */
 export function valueAt<T>(pieces: readonly Dated<T>[], date: IsoDate): T {
   const piece = pieces.find((p) => compareDates(p.validFrom, date) <= 0 && compareEnds(date, p.validTo) < 0);
   if (piece === undefined) throw new Error(`no piece covers ${date}`);
   return piece.value;
 }
 
-/** The sub-ranges of `range` where every timeline (each covering `range`) is constant. */
 export function splitRange(
   range: HalfOpenInterval,
   timelines: readonly (readonly Dated<unknown>[])[],
@@ -64,7 +52,6 @@ export function splitRange(
   return sorted.map((validFrom, i) => ({ validFrom, validTo: sorted[i + 1] ?? range.validTo }));
 }
 
-/** Consecutive contiguous pieces with equal values (by `key`) merged into one. */
 export function mergeDated<T>(pieces: readonly Dated<T>[], key: (value: T) => string): Dated<T>[] {
   const merged: Dated<T>[] = [];
   for (const piece of pieces) {
@@ -78,7 +65,6 @@ export function mergeDated<T>(pieces: readonly Dated<T>[], key: (value: T) => st
   return merged;
 }
 
-/** Which entity of one level each ISTAT code identifies over time. */
 export class EntityTimeline {
   readonly level: Level;
   readonly #byCode: ReadonlyMap<string, readonly Dated<EntityId>[]>;
@@ -101,17 +87,13 @@ export class EntityTimeline {
     return new EntityTimeline(level, byCode);
   }
 
-  /** The entity of `code` over `range`, `null` where the code identifies none. */
+  /** `null` where the code identifies none. */
   over(code: string, range: HalfOpenInterval): Dated<EntityId | null>[] {
     return cover<EntityId | null>(range, this.#byCode.get(code) ?? [], null);
   }
 }
 
-/**
- * The distinct non-null abbreviations (`SIGLA_UTS`) that the municipalities of each UTS code
- * report over time, sorted; times without any are left out. Built with a sweep over the
- * municipality intervals, so each UTS costs `O(n log n)` in its municipality intervals.
- */
+/** A sweep over the municipality intervals: `O(n log n)` per UTS. */
 export function municipalityAbbreviations(
   municipalities: Iterable<SnapshotInterval<'municipality'>>,
 ): Map<string, Dated<string[]>[]> {

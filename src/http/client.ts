@@ -1,9 +1,3 @@
-/**
- * HTTP client of §6.1, shared by every adapter: AIMD worker pool and token bucket per host,
- * retries with full-jitter backoff and `Retry-After`, per-class timeouts, circuit breaker per
- * family (half-open probes, given up after a maximum open time), endpoints disabled by permanent validation errors, `User-Agent`, response cache with
- * per-call freshness, response validation and degradation.
- */
 import type { Config } from '../config.ts';
 import { currentDate, type IsoDate } from '../dates/index.ts';
 import { AdaptiveLimiter } from './adaptive-limiter.ts';
@@ -27,24 +21,15 @@ import { NetworkError, type HttpRequest, type HttpResponse, type Transport } fro
 
 export type HttpSettings = Config['http'];
 
-/** Notifications for logging and anomaly reporting (§8.2); the client never decides severity. */
+/** The client never decides severity (§8.2). */
 export type HttpClientEvent =
   | { type: 'retry'; endpoint: string; request: HttpRequest; attempt: number; reason: string; delayMs: number }
   | { type: 'concurrency'; host: string; limit: number }
-  /** The family's circuit opened (or a probe failed and it reopened); a probe follows in `retryInMs`. */
   | { type: 'circuit-open'; family: Family; reason: string; retryInMs: number; reopened: boolean }
   | { type: 'circuit-closed'; family: Family; openMs: number }
-  /**
-   * The request ran out of attempts while other requests of its family were failing too: it waits
-   * for the family's verdict instead of failing (once per request).
-   */
   | { type: 'request-held'; endpoint: string; request: HttpRequest; attempts: number; reason: string }
-  /** Open for `circuitBreakerMaxOpenMs` in total: the family is given up for the run. */
   | { type: 'circuit-lost'; family: Family; reason: string; openMs: number }
-  /**
-   * A permanent validation error; `disabled` when it is the one that disabled the endpoint for the
-   * rest of the run (once per endpoint; later errors of requests already in flight are `false`).
-   */
+  /** `disabled` only on the error that disabled the endpoint; later in-flight ones are `false`. */
   | {
       type: 'validation-error';
       endpoint: string;
@@ -64,7 +49,6 @@ export type HttpClientEvent =
 
 export interface HttpClientOptions {
   http: HttpSettings;
-  /** Directory of the response cache (`config.paths.httpCache`). */
   cacheDir: string;
   transport?: Transport;
   clock?: Clock;
@@ -74,19 +58,16 @@ export interface HttpClientOptions {
 }
 
 export interface RequestOptions {
-  /** Freshness policy (default `prefer`). */
   cache?: CachePolicy;
-  /** On unavailability (open circuit, exhausted retries) return any cached entry as stale. */
   staleFallback?: boolean;
 }
 
 export interface ClientResult<T> {
   data: T;
-  /** `stale-cache`: the network failed and an older entry was used (§6.1 degradation). */
+  /** `stale-cache`: the network failed and an older entry was used. */
   source: 'network' | 'cache' | 'stale-cache';
   fetchedAt: IsoDate;
   contentHash: string;
-  /** A refetch replaced cached content with different content. */
   changed: boolean;
 }
 
@@ -96,7 +77,6 @@ type AttemptOutcome<T> =
 
 const TIMEOUT = Symbol('timeout');
 
-/** Congestion state of one host (§6.1 host scope). */
 interface HostScope {
   limiter: AdaptiveLimiter;
   bucket: TokenBucket;
@@ -111,9 +91,7 @@ export class HttpClient {
   readonly #onEvent: (event: HttpClientEvent) => void;
   readonly #hosts = new Map<string, HostScope>();
   readonly #breaker: CircuitBreaker;
-  /** Endpoint id → reason, for endpoints disabled by a permanent validation error. */
   readonly #disabled = new Map<string, string>();
-  /** Endpoint id → requests refused because the endpoint was disabled. */
   readonly #refused = new Map<string, number>();
 
   constructor(options: HttpClientOptions) {
@@ -135,22 +113,18 @@ export class HttpClient {
     );
   }
 
-  /** Current AIMD concurrency limit of a host (e.g. `situas.istat.it`). */
   concurrency(host: string): number {
     return this.#hosts.get(host)?.limiter.limit ?? this.#http.concurrency;
   }
 
-  /** Open (requests held until a probe succeeds) or lost for the run. */
   isCircuitOpen(family: Family): boolean {
     return this.#breaker.isOpen(family);
   }
 
-  /** Given up for the rest of the run (open for `circuitBreakerMaxOpenMs` in total). */
   isCircuitLost(family: Family): boolean {
     return this.#breaker.isLost(family);
   }
 
-  /** Endpoints disabled in this run, with the cause and the requests refused since, by endpoint id. */
   disabledEndpoints(): { endpoint: string; cause: string; refused: number }[] {
     return [...this.#disabled]
       .map(([endpoint, cause]) => ({ endpoint, cause, refused: this.#refused.get(endpoint) ?? 0 }))
@@ -246,7 +220,7 @@ export class HttpClient {
     };
   }
 
-  /** Permanent validation error: disables the endpoint only, never the family or the host. */
+  /** Disables the endpoint only, never the family or the host (D26). */
   #disable(error: ResponseValidationError, endpoint: Endpoint<unknown>, request: HttpRequest): void {
     error.endpoint = endpoint.id;
     error.request = request;
@@ -283,7 +257,6 @@ export class HttpClient {
     let transientFailures = 0;
     /** Successes of the family when this request first failed: a later one means the family works. */
     let successesAtFailure: number | undefined;
-    /** Identifies this request in its family's failure streak. */
     const token = Symbol(endpoint.id);
     let held = false;
 
@@ -436,7 +409,6 @@ function failure(reason: string, transient = false, retryAfterMs: number | null 
   return { ok: false, reason, transient, retryAfterMs };
 }
 
-/** Client wired to the configuration paths and settings. */
 export function createHttpClient(
   config: Pick<Config, 'http' | 'paths'>,
   options: Omit<HttpClientOptions, 'http' | 'cacheDir'> = {},

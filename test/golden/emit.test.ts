@@ -31,7 +31,6 @@ function derived(built: BuiltVariations): EmitWorld {
   };
 }
 
-/** The non-blocking anomalies of the world's builders, in the order they were reported. */
 function anomaliesOf(built: BuiltVariations) {
   return [...built.anomalies.list(), ...built.variationAnomalies.list()].filter((a) => a.level !== 'blocking');
 }

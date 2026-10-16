@@ -1,23 +1,8 @@
 /**
- * Emit (§6.12, §9): writes a release, the public files into `dist/` and the internal
- * reports into `reports/` (D39).
- *
- * - Every file is built in its model and validated before anything is written (`EmitError`
- *   otherwise).
- * - Whether a release happens is decided by the **public** files only:
- *   - `unchanged`: the three data files (regions, provinces, municipalities) and the JSON Schemas are
- *     identical to the previous release: nothing is written, the reports included (they describe
- *     the build of the published release, even when, e.g., only the description of an act changed);
- *     the caller reports the current anomalies (run summary, §10.4).
- *   - `schemas`: same data files, different JSON Schemas (a generator change): `schema/*.schema.json`,
- *     an empty, non-retroactive `reports/changes.json` and `reports/meta.json` are written, so the
- *     published schemas never lag behind the generator. The data files and the other reports stay
- *     those of the previous release, and so does its meta (`data_version` identifies the data
- *     content) except `schema_version` and `generated_at`.
- *   - `data`: the data files, the schemas and every report are written.
- *
- * `reports/meta.json` is always written last (each file atomically), so a release with a new meta
- * is complete. `generatedAt` is passed in: the emitter never reads the clock (§12).
+ * §6.12, §9. Only the public files decide the release. An `unchanged` release writes no report either:
+ * the reports describe the build of the published data. A `schemas` release exists so the published
+ * schemas never lag behind the generator. `reports/meta.json` is written last, so a release with a
+ * new meta is complete.
  */
 import { join } from 'node:path';
 import type { IsoDate } from '../dates/index.ts';
@@ -34,14 +19,11 @@ import { toPublicData, toReportAnomalies, toReportVariations, type EmitWorld, ty
 const DATA_FILES = ['regions', 'provinces', 'municipalities'] as const satisfies (keyof PublicData)[];
 
 export interface EmitOptions {
-  /** Output directories (`paths.dist`, `paths.releaseReports`). */
   dirs: ReleaseDirs;
   world: EmitWorld;
-  /** Every anomaly of the run; a blocking one is an `EmitError`. */
   anomalies: readonly InternalAnomaly[];
-  /** The previous release, or null for the first one. */
   previous: PublishedDataset | null;
-  /** Wall-clock time of the build, ISO 8601 UTC (read by the caller). */
+  /** ISO 8601 UTC. */
   generatedAt: string;
   today: IsoDate;
   sources: SourceSummaries;
@@ -56,7 +38,7 @@ export type EmitResult =
       anomalies: Anomaly[];
       changes: Changes;
       meta: Meta;
-      /** Written files, relative to `dist/` or `reports/` (`reports/<name>`). */
+      /** Relative to `dist/`; reports as `reports/<name>`. */
       files: string[];
     };
 

@@ -1,18 +1,6 @@
 /**
- * Internal → release model (§4, §6.12): the public entity files and the internal reports.
- *
- * Public files (D39): inclusive `valid_until` (the only place the conversion happens, §4.1),
- * internal-only fields dropped (`istatOriginId`, `historicalCodes`, §5.5), versions without id
- * (D40), keys in the published order, entities in {@link comparePublicOrder}, versions by
- * `valid_from`.
- *
- * Variation report: participations without effect (`role: null`) dropped, participants by
- * `(level, territory_id)`, links by `(level, from, to)` (levels in the order of `LEVELS`),
- * `istat_events` alphabetically, versions referenced by `valid_from`.
- *
- * A field the public model does not admit as null but the builder left null (§6.9, §4.2 names)
- * stops the emitter with an `EmitError`, whatever the anomalies; so does a variation left without
- * participations and a blocking anomaly (a blocking run never publishes, §8.2).
+ * §6.12. The only place `valid_until` becomes inclusive (§4.1); `istatOriginId` and `historicalCodes`
+ * are internal (§5.5). A null the public model does not admit stops the emitter whatever the anomalies.
  */
 import { compareDates, toInclusive } from '../dates/index.ts';
 import { canonicalJson } from '../http/index.ts';
@@ -31,13 +19,11 @@ import type * as Public from '../model/public.ts';
 import type * as Reports from '../model/reports.ts';
 import { EmitError } from './errors.ts';
 
-/** The world to publish: the derived entities of every level (after overrides) and the variations. */
 export interface EmitWorld {
   entities: { [L in Level]: readonly (Entity<L> & DerivedFields)[] };
   variations: readonly Variation[];
 }
 
-/** The three published data files (§9). */
 export interface PublicData {
   regions: Public.Region[];
   provinces: Public.Province[];
@@ -52,18 +38,11 @@ export function toPublicData(world: Pick<EmitWorld, 'entities'>): PublicData {
   };
 }
 
-/** The variation report (`reports/variations.json`), by id. */
 export function toReportVariations(variations: readonly Variation[]): Reports.Variation[] {
   return [...variations].sort((a, b) => a.id - b.id).map(variation);
 }
 
-// ---------------------------------------------------------------------------------------------
-
-/**
- * The order of the entities in the public files (§6.12): by internal ISTAT id (the root of the
- * identity component, §5.1), numerically; entities without one (`nk:` keys) last, by the start of
- * their first version, then by id. Stable when ISTAT codes change; presentation only.
- */
+/** By ISTAT root, stable when codes change; presentation only (§6.12). */
 function comparePublicOrder(
   a: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
   b: { id: string; istatOriginId: number | null; versions: readonly { validFrom: string }[] },
@@ -78,10 +57,7 @@ function comparePublicOrder(
   return compareStrings(first(a), first(b)) || compareStrings(a.id, b.id);
 }
 
-/**
- * The entities of a level in the published order and key order; `current_successors` only for
- * municipalities (D46), between `successors` and `versions`.
- */
+/** `current_successors` only for municipalities (D46). */
 function entities<L extends Level, V>(
   list: readonly (Entity<L> & DerivedFields)[],
   version: (v: Entity<L>['versions'][number], entity: Entity<L>) => V,
@@ -147,8 +123,6 @@ function required<T>(value: T | null, field: string, level: Level, e: Entity, v:
   return value;
 }
 
-// ---------------------------------------------------------------------------------------------
-
 const levelRank = (level: Level) => LEVELS.indexOf(level);
 
 function variation(v: Variation): Reports.Variation {
@@ -186,13 +160,7 @@ function variation(v: Variation): Reports.Variation {
   };
 }
 
-// ---------------------------------------------------------------------------------------------
-
-/**
- * The anomalies of `reports/anomalies.json` (§8.2): warnings, then infos, by code, then by the
- * canonical JSON of message and context, so that the order never depends on the order stages ran
- * in. Contexts are reduced to plain JSON (`undefined` properties dropped).
- */
+/** Sorted so the order never depends on the order the stages ran in. */
 export function toReportAnomalies(anomalies: readonly Anomaly[]): Reports.Anomaly[] {
   const blocking = anomalies.filter((a) => a.level === 'blocking');
   if (blocking.length > 0) {

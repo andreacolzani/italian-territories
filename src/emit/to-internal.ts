@@ -1,12 +1,6 @@
 /**
- * Release → internal model (`validate`, §10.1): the inverse of `toPublicData` and
- * `toReportVariations`, so the invariants (§8.1) run on a release (the public files and the
- * variation report). Inclusive `valid_until` becomes the half-open `validTo` with the `src/dates/`
- * conversion; derived fields are read as published.
- *
- * What a release does not carry stays out: the ISTAT origin ids (null), the UTS historical codes
- * (`historicalCodes` is left empty, and the world built by `validate` has no `historicalCodes`, so
- * I7 and I12 are skipped) and the participations without effect (dropped by the emitter).
+ * A release does not carry the ISTAT origin ids, the UTS historical codes (so `validate` skips I7 and
+ * I12) or the participations without effect.
  */
 import { toHalfOpen } from '../dates/index.ts';
 import type { InvariantEntities, InvariantEntity } from '../invariants/index.ts';

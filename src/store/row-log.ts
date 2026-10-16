@@ -1,8 +1,3 @@
-/**
- * Append-only, content-addressed row log (§6.3): one `{ "hash", "row" }` per NDJSON line, each
- * row stored once. The row hash is the SHA-256 (hex) of the canonical JSON of the projected row
- * (keys sorted, no whitespace).
- */
 import { appendFile, mkdir, truncate } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { canonicalJson, sha256 } from '../http/index.ts';
@@ -20,17 +15,12 @@ export interface Hashed<R> {
 export class RowLog<R> {
   readonly path: string;
   #rows: Map<string, R> | undefined;
-  /** Loads and appends run one at a time, in call order. */
   #queue: Promise<unknown> = Promise.resolve();
 
   constructor(path: string) {
     this.path = path;
   }
 
-  /**
-   * Adds the rows not stored yet (one write per call) and returns every input row with its hash,
-   * in input order.
-   */
   append(rows: readonly R[]): Promise<Hashed<R>[]> {
     return this.#serial(async () => {
       const stored = await this.#load();
@@ -52,12 +42,10 @@ export class RowLog<R> {
     });
   }
 
-  /** Rows by hash, in the given order; an unknown hash means the store is corrupt. */
   async rows(hashes: readonly string[]): Promise<R[]> {
     return (await this.entries(hashes)).map((e) => e.row);
   }
 
-  /** Like {@link rows}, keeping each hash next to its row. */
   entries(hashes: readonly string[]): Promise<Hashed<R>[]> {
     return this.#serial(async () => {
       const stored = await this.#load();
@@ -76,8 +64,8 @@ export class RowLog<R> {
   }
 
   /**
-   * Reads the log once. A last line without its newline is the trace of an interrupted append:
-   * no manifest can reference it (rows are appended before manifests are written), so it is cut.
+   * A last line without its newline is an interrupted append: no manifest references it, since rows
+   * are appended before manifests are written, so it is cut.
    */
   async #load(): Promise<Map<string, R>> {
     if (this.#rows !== undefined) return this.#rows;

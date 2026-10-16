@@ -1,11 +1,7 @@
 /**
- * Version of every projection kept in the store (§6.3): snapshots per level, event lists per
- * endpoint, internal reports per report, counts and the ANPR archive.
- *
- * Bump an entry whenever its adapter changes what it projects (fields added, removed, renamed or
- * normalised differently). Manifests written under another version are ignored by the build and
- * are not compared with new content (no `history` entry, no change): the store must be refilled
- * with `rebuild --refetch`, which is never a retroactive change.
+ * Bump an entry whenever its adapter changes what it projects (D32). Manifests of another version
+ * are ignored, not compared, so the store must be refilled with `rebuild --refetch`, which is never
+ * a retroactive change.
  */
 import type { Level } from '../model/common.ts';
 import type { InternalReportNumber } from '../sources/situas-internal/index.ts';
@@ -15,9 +11,7 @@ export interface ProjectionVersions {
   snapshot: Record<Level, number>;
   events: Record<EventListPfun, number>;
   internal: Record<InternalReportNumber, number>;
-  /** Snapshot counts (`reportspooljsoncount`, I13). */
   counts: number;
-  /** The ANPR archive (cross-check, §6.11). */
   anpr: number;
 }
 

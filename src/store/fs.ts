@@ -1,9 +1,7 @@
-/** File helpers of the store (§6.3): atomic writes and tolerant reads. */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-/** The store on disk is unreadable or inconsistent (e.g. a manifest references unknown rows). */
 export class StoreCorruptionError extends Error {
   readonly path: string;
 
@@ -14,10 +12,7 @@ export class StoreCorruptionError extends Error {
   }
 }
 
-/**
- * A source an offline run (`rebuild` without `--refetch`, §10.1) needs is not in the store. Offline
- * runs never fetch (§6.3): the caller treats it as the source being unavailable.
- */
+/** Offline runs never fetch (§6.3), so the caller treats this as the source being unavailable. */
 export class NotInStoreError extends Error {
   constructor(what: string) {
     super(`${what} is not in the store (offline rebuild): run update or rebuild --refetch`);
@@ -42,7 +37,6 @@ export async function writeFileAtomic(path: string, text: string): Promise<void>
   }
 }
 
-/** The file's text, or `undefined` if it does not exist. */
 export async function readTextIfExists(path: string): Promise<string | undefined> {
   try {
     return await readFile(path, 'utf8');
@@ -52,7 +46,6 @@ export async function readTextIfExists(path: string): Promise<string | undefined
   }
 }
 
-/** Names of the files in `dir` (none if it does not exist). */
 export async function listFiles(dir: string): Promise<string[]> {
   try {
     return (await readdir(dir, { withFileTypes: true })).filter((e) => e.isFile()).map((e) => e.name);
@@ -62,7 +55,6 @@ export async function listFiles(dir: string): Promise<string[]> {
   }
 }
 
-/** Names of the subdirectories of `dir` (none if it does not exist). */
 export async function listDirs(dir: string): Promise<string[]> {
   try {
     return (await readdir(dir, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
@@ -72,7 +64,6 @@ export async function listDirs(dir: string): Promise<string[]> {
   }
 }
 
-/** Pretty JSON with a trailing newline, as every store document is written. */
 export function toJsonDocument(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }

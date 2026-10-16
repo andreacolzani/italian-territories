@@ -1,24 +1,8 @@
 /**
- * Explicit rules per `(level, event code)` (§4.3, §6.2, D27): which effect an event has on the
- * versions of its subject, which side identifies the subject and the related territory of an event
- * row (§3.5 item 6), and the direction of the territory flow that becomes a link.
- *
- * - `closing` (`ES`, `ESCT`, `AS`): the subject's version ends on the event date `D`; the subject is
- *   identified on `D − 1`, a related successor on `D`; territory flows subject → related.
- * - `opening` (`CS`, `CSCT`, `AN`): the subject's version starts on `D`; the subject is identified on
- *   `D`, a related predecessor on `D − 1`; territory flows related → subject.
- * - `attribute` (`CD`, `AP`, `CDAP`, `RN`, `RNAPUTS`, `CT`, `VACST`): the subject continues with a new
- *   version on `D`; the row's code is the one of `D − 1` (§6.6); the related territory, when any,
- *   is the subject itself, so there is no flow.
- * - `territorial` (`AQES`, `AQ`, `CE`, `CECS`): the subject survives (identified on `D`); `AQES` takes
- *   territory from an extinct predecessor (`D − 1`), `AQ` from a surviving territory, `CE` gives to
- *   a surviving territory, `CECS` to a new one (all on `D`).
- * - `first-validity` (`PV`): never a variation (§4.3).
- *
- * A pair without a rule is a `blocking` anomaly: the per-level code sets are not documented by
- * ISTAT, so they are closed here on purpose and checked against the codes the build observes.
- * The pairs below are those of the public lists (§3.2) plus those observed in the internal
- * histories of every region and UTS record (r4/r5, 2026-10).
+ * §4.3, D27. ISTAT does not document which codes each level uses, so the pairs are closed here on
+ * purpose and checked against those the build observes: the public lists (§3.2) plus those observed
+ * in the internal histories of every region and UTS record (r4/r5, 2026-10). An `attribute` row
+ * carries the code of `D − 1` (§6.6).
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import type { EventCodeSummary } from '../enrich/index.ts';
@@ -29,13 +13,11 @@ export type EventEffect = 'first-validity' | 'closing' | 'opening' | 'attribute'
 
 export interface TerritoryFlow {
   direction: 'subject-to-related' | 'related-to-subject';
-  /** Side identifying the related territory of a row. */
   relatedSide: ResolutionSide;
 }
 
 export interface EventRule {
   effect: EventEffect;
-  /** Side identifying the subject of a public row. */
   subjectSide: ResolutionSide;
   /** `null`: the related territory, if any, is the subject itself. */
   flow: TerritoryFlow | null;
@@ -82,7 +64,6 @@ export function eventRule(level: Level, event: IstatEventCode): EventRule | unde
   return EVENT_RULES[level][event];
 }
 
-/** Two event codes of a level that may describe the same event in the public lists and in r4–r6. */
 export interface EventCodeEquivalence {
   level: Level;
   codes: readonly [IstatEventCode, IstatEventCode];
@@ -90,9 +71,8 @@ export interface EventCodeEquivalence {
 }
 
 /**
- * The closed table of equivalent event codes for matching public rows to internal events (§6.9,
- * D48): never deduced from the codes themselves. A pair must have the same rule at its level, so
- * the match changes no effect; the variation keeps the code of the public list (§3).
+ * Closed, never deduced from the codes (D48). A pair has the same rule at its level, so a match
+ * changes no effect.
  */
 const EVENT_CODE_EQUIVALENCES: readonly EventCodeEquivalence[] = [
   {
@@ -111,7 +91,6 @@ for (const { level, codes } of EVENT_CODE_EQUIVALENCES) {
   }
 }
 
-/** The codes equivalent to `event` at `level` (§6.9, D48), without `event` itself. */
 export function equivalentEventCodes(level: Level, event: IstatEventCode): IstatEventCode[] {
   return EVENT_CODE_EQUIVALENCES.flatMap(({ level: l, codes: [a, b] }) =>
     l !== level ? [] : a === event ? [b] : b === event ? [a] : [],
@@ -119,14 +98,9 @@ export function equivalentEventCodes(level: Level, event: IstatEventCode): Istat
 }
 
 const EVENT_RULE_ANOMALIES = {
-  /** An observed `(level, event code)` pair without a rule (D27). */
   missing: 'event-rule-missing',
 } as const;
 
-/**
- * Checks the pairs observed by the build (the event code summary of the internal crawl)
- * against the rules: one `blocking` anomaly per pair without a rule.
- */
 export function checkEventRules(summary: EventCodeSummary, anomalies: AnomalyCollector): void {
   for (const level of LEVELS) {
     for (const event of ISTAT_EVENT_CODES) {

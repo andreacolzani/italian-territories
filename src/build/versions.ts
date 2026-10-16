@@ -1,27 +1,9 @@
 /**
- * Version builder (§4.2, §6.9): the versions of every entity of a level, internally
- * half-open, from the snapshot intervals the identity stage attached to it.
- *
- * - A version is a maximal period in which every published field is constant: contiguous pieces
- *   with equal fields are merged, so changes of unpublished fields (`COD_PROV_STORICO`, a parent's
- *   code or name) split snapshot intervals but not versions. A gap in the entity's intervals
- *   (a reconstitution) is a gap between versions.
- * - Parents are entity ids: the parent code of a row is resolved, on every date of the row, to the
- *   entity that code identifies at that level (municipality → UTS via `COD_PROV`/`COD_UTS`, UTS and
- *   municipality → region via `COD_COMP`/`COD_REG`). A municipality's `regionId` comes from its own
- *   region code; I5 checks it against the region of its UTS.
- * - UTS abbreviation: `SIGLA_AUTOMOBILISTICA` from 1948; before, the `SIGLA_UTS` reported by the
- *   municipalities of the UTS on each date, which must be unanimous. Non-conforming values (e.g.
- *   `Venezia Giulia`) are kept: overrides come later (§6.10) and I8 checks the result. A missing
- *   `SIGLA_AUTOMOBILISTICA` stays null without an anomaly here, for the same reason.
- * - Regions and UTS: a denomination with `/` takes its Italian and foreign names from the closed
- *   table of `bilingual-names.ts` (§4.2); one missing from the table has null names and is a
- *   `blocking` `bilingual-name-unknown`, one per level and denomination, with the decomposition
- *   the rule suggests. Municipalities take `COMUNE`, `COMUNE_IT` and `COMUNE_A` as they are.
- *
- * A field that cannot be determined (a parent code identifying no entity, pre-1948 abbreviations
- * missing or not unanimous) is null in the version and a `blocking` anomaly, one per version and
- * cause; the version is kept, so later stages still run (see the internal model).
+ * §4.2, §6.9. Changes of unpublished fields (`COD_PROV_STORICO`, a parent's code or name) split
+ * snapshot intervals but not versions. A municipality's `regionId` comes from its own region code;
+ * I5 checks it against its UTS. Non-conforming or missing abbreviations are kept as they are: the
+ * overrides come later (§6.10) and I8 checks the result. An undetermined field is null and
+ * `blocking`, but the version is kept so later stages still run.
  */
 import type { AnomalyCollector } from '../anomalies.ts';
 import { compareDates, type HalfOpenInterval, type IsoDate } from '../dates/index.ts';
@@ -49,17 +31,12 @@ import {
 } from './timeline.ts';
 import { decomposeBilingual, isUnknownBilingual, regionalNames } from './bilingual-names.ts';
 
-/** Stable anomaly codes of the version builder (§8.2). */
 const VERSION_ANOMALIES = {
-  /** A parent code identifies no entity of the parent level on some dates of a version. */
   parentUnresolved: 'version-parent-unresolved',
-  /** The municipalities of a pre-1948 UTS report no abbreviation, or more than one. */
   abbreviationUnderived: 'abbreviation-underived',
-  /** A region or UTS denomination with `/` missing from the bilingual name table (§4.2). */
   bilingualNameUnknown: 'bilingual-name-unknown',
 } as const;
 
-/** Why a field of a piece is null; becomes one anomaly per version. */
 interface Note {
   code: string;
   field: string;
@@ -93,9 +70,9 @@ export function buildRegionVersions(options: {
 export function buildProvinceVersions(options: {
   entities: readonly IdentifiedEntity<'province'>[];
   regions: EntityTimeline;
-  /** The municipality index: pre-1948 abbreviations (§6.9). */
+  /** For the pre-1948 abbreviations. */
   municipalities: IntervalIndex<'municipality'>;
-  /** Curated corrections, applied to the values of every day before the merge (§6.10). */
+  /** Applied to every day before the merge (D36). */
   overrides?: OverrideRun;
   anomalies: AnomalyCollector;
 }): EntityByLevel['province'][] {
@@ -198,10 +175,6 @@ export function buildMunicipalityVersions(options: {
   );
 }
 
-/**
- * One `blocking` `bilingual-name-unknown` per denomination with `/` missing from the table (§4.2),
- * with the codes and periods using it and the decomposition the rule suggests.
- */
 function reportUnknownBilingual(
   level: 'region' | 'province',
   entities: readonly EntityByLevel['region' | 'province'][],
@@ -239,10 +212,6 @@ function reportUnknownBilingual(
   }
 }
 
-/**
- * The versions of one entity: its pieces (after `transform`, e.g. the overrides), merged while
- * their fields are equal.
- */
 function draft<L extends Level>(
   level: L,
   entity: IdentifiedEntity<L>,
@@ -259,7 +228,6 @@ function draft<L extends Level>(
   return { level, id: entity.id, istatOriginId: entity.istatOriginId, versions };
 }
 
-/** Contiguous pieces with equal fields merged (their notes joined). */
 function merge<L extends Level>(pieces: readonly Piece<L>[]): Piece<L>[] {
   const merged: Piece<L>[] = [];
   for (const piece of pieces) {
@@ -274,7 +242,6 @@ function merge<L extends Level>(pieces: readonly Piece<L>[]): Piece<L>[] {
   return merged;
 }
 
-/** The dates where one version ends and the next, contiguous, begins. */
 function boundaries(versions: readonly HalfOpenInterval[]): IsoDate[] {
   return versions.flatMap((v, i) => {
     const next = versions[i + 1];
@@ -282,10 +249,7 @@ function boundaries(versions: readonly HalfOpenInterval[]): IsoDate[] {
   });
 }
 
-/**
- * A UTS piece with the abbreviation overrides of its code applied on the days they cover; the
- * abbreviation an override supplies is no longer undetermined.
- */
+/** An abbreviation an override supplies is no longer undetermined. */
 function overridePiece(run: OverrideRun, entityId: EntityId, piece: Piece<'province'>): Piece<'province'>[] {
   return run.abbreviationOverrides(piece.fields.istatCode, piece).map((sub) => {
     const range = { validFrom: sub.validFrom, validTo: sub.validTo };
